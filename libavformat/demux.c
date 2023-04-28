@@ -1152,6 +1152,12 @@ static void compute_pkt_fields(AVFormatContext *s, AVStream *st,
     if (!onein_oneout)
         // This should happen on the first packet
         update_initial_timestamps(s, pkt->stream_index, pkt->dts, pkt->pts, pkt);
+
+    if (pkt->dts == AV_NOPTS_VALUE && pkt->pts == AV_NOPTS_VALUE &&
+        !is_relative(sti->cur_dts) && sti->cur_dts != AV_NOPTS_VALUE &&
+        pkt->duration > 0)
+        pkt->dts = sti->cur_dts + pkt->duration;
+
     if (pkt->dts > sti->cur_dts)
         sti->cur_dts = pkt->dts;
 
