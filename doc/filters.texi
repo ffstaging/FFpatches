@@ -26856,6 +26856,143 @@ Only deinterlace frames marked as interlaced.
 The default value is @code{all}.
 @end table
 
+@anchor{transpose_cuda}
+@subsection transpose_cuda
+
+Transpose rows with columns in the input video and optionally flip it using CUDA.
+
+This is the CUDA variant of the @ref{transpose} filter. It provides hardware-accelerated 
+transposition operations on CUDA-capable devices with support for multiple pixel formats.
+
+The filter uses efficient CUDA kernels with texture memory for optimal performance across 
+all supported pixel formats and frame sizes.
+
+@subsection Supported Pixel Formats
+
+The filter supports the following pixel formats:
+@itemize
+@item YUV420P (8-bit planar YUV)
+@item NV12 (8-bit semi-planar YUV)
+@item YUV444P (8-bit planar YUV 4:4:4)
+@item P010LE (10-bit semi-planar YUV)
+@item P016LE (16-bit semi-planar YUV)
+@item YUV444P16LE (16-bit planar YUV 4:4:4)
+@item RGB0 (32-bit RGB with alpha padding)
+@item BGR0 (32-bit BGR with alpha padding)
+@item RGBA (32-bit RGBA)
+@item BGRA (32-bit BGRA)
+@end itemize
+
+@subsection Options
+
+It accepts the following parameters:
+
+@table @option
+
+@item dir
+Specify the transposition direction.
+
+Can assume the following values:
+@table @samp
+@item 0, cclock_flip
+Rotate by 90 degrees counterclockwise and vertically flip (default), that is:
+@example
+L.R     L.l
+. . ->  . .
+l.r     R.r
+@end example
+
+@item 1, clock
+Rotate by 90 degrees clockwise, that is:
+@example
+L.R     l.L
+. . ->  . .
+l.r     r.R
+@end example
+
+@item 2, cclock
+Rotate by 90 degrees counterclockwise, that is:
+@example
+L.R     R.r
+. . ->  . .
+l.r     L.l
+@end example
+
+@item 3, clock_flip
+Rotate by 90 degrees clockwise and vertically flip, that is:
+@example
+L.R     r.R
+. . ->  . .
+l.r     l.L
+@end example
+
+@item 4, reversal
+Rotate by 180 degrees, that is:
+@example
+L.R     r.l
+. . ->  . .
+l.r     R.L
+@end example
+
+@item 5, hflip
+Flip horizontally, that is:
+@example
+L.R     R.L
+. . ->  . .
+l.r     r.l
+@end example
+
+@item 6, vflip
+Flip vertically, that is:
+@example
+L.R     l.r
+. . ->  . .
+l.r     L.R
+@end example
+@end table
+
+@item passthrough
+Do not apply the transposition if the input geometry matches the one
+specified by the specified value. It accepts the following values:
+@table @samp
+@item none
+Always apply transposition. (default)
+@item portrait
+Preserve portrait geometry (when @var{height} >= @var{width}).
+@item landscape
+Preserve landscape geometry (when @var{width} >= @var{height}).
+@end table
+
+@end table
+
+@subsection Usage Examples
+
+@itemize
+@item
+Rotate a video 90 degrees clockwise:
+@example
+ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i input.mp4 -vf "transpose_cuda=dir=clock" output.mp4
+@end example
+
+@item
+Rotate a video 90 degrees counterclockwise:
+@example
+ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i input.mp4 -vf "transpose_cuda=dir=cclock" output.mp4
+@end example
+
+@item
+Flip a video horizontally:
+@example
+ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i input.mp4 -vf "transpose_cuda=dir=hflip" output.mp4
+@end example
+
+@item
+Rotate 180 degrees:
+@example
+ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i input.mp4 -vf "transpose_cuda=dir=reversal" output.mp4
+@end example
+@end itemize
+
 @anchor{CUDA NPP}
 @section CUDA NPP
 Below is a description of the currently available NVIDIA Performance Primitives (libnpp) video filters.
