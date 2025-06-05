@@ -1808,6 +1808,7 @@ static int vaapi_device_create(AVHWDeviceContext *ctx, const char *device,
                 } else if (vendor_id) {
                     drmDevicePtr device;
                     char drm_vendor[8];
+                    drmFreeVersion(info);
                     if (drmGetDevice(priv->drm_fd, &device)) {
                         av_log(ctx, AV_LOG_VERBOSE,
                                "Failed to get DRM device info for device %d.\n", n);
