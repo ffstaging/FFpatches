@@ -5860,6 +5860,9 @@ case $target_os in
             test ${clang_version%%.*} -eq 11 && add_cflags -fno-stack-check
         fi
 
+        # Apple Clang has by default enabled nullability warnings that 
+        # create a ton of output noise and significantly slows 
+        add_cflags -Wnullability-completeness 
         # Xcode Clang doesn't default to -fno-common while upstream llvm.org
         # Clang (and GCC) do. This avoids linker warnings on Xcode 16.3 about
         # "reducing alignment of section __DATA,__common from 0x8000 to 0x4000
