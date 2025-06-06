@@ -202,14 +202,24 @@ int av_ac3_parse_header(const uint8_t *buf, size_t size,
 {
     GetBitContext gb;
     AC3HeaderInfo hdr;
+    uint8_t *tmp = av_malloc(size + AV_INPUT_BUFFER_PADDING_SIZE);
     int err;
 
-    err = init_get_bits8(&gb, buf, size);
-    if (err < 0)
+    if (!tmp)
+        return AVERROR(ENOMEM);
+
+    memcpy(tmp, buf, size);
+    memset(tmp + size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+    err = init_get_bits8(&gb, tmp, size);
+    if (err < 0) {
+        av_free(tmp);
         return AVERROR_INVALIDDATA;
+    }
     err = ff_ac3_parse_header(&gb, &hdr);
-    if (err < 0)
+    if (err < 0) {
+        av_free(tmp);
         return AVERROR_INVALIDDATA;
+    }
 
     *bitstream_id = hdr.bitstream_id;
     *frame_size   = hdr.frame_size;
