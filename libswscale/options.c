@@ -31,8 +31,10 @@ static const char *sws_context_to_name(void *ptr)
 #define DEFAULT 0
 #define VE AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_ENCODING_PARAM
 
+#define DEFAULT_FLAGS SWS_BICUBIC | SWS_ACCURATE_RND | SWS_FULL_CHR_H_INT | SWS_FULL_CHR_H_INP
+
 static const AVOption swscale_options[] = {
-    { "sws_flags",           "swscale flags",     OFFSET(flags),  AV_OPT_TYPE_FLAGS, { .i64 = SWS_BICUBIC        }, .flags = VE, .unit = "sws_flags", .max = UINT_MAX },
+    { "sws_flags",           "swscale flags",     OFFSET(flags),  AV_OPT_TYPE_FLAGS, { .i64 = DEFAULT_FLAGS      }, .flags = VE, .unit = "sws_flags", .max = UINT_MAX },
         { "fast_bilinear",   "fast bilinear",                 0,  AV_OPT_TYPE_CONST, { .i64 = SWS_FAST_BILINEAR  }, .flags = VE, .unit = "sws_flags" },
         { "bilinear",        "bilinear",                      0,  AV_OPT_TYPE_CONST, { .i64 = SWS_BILINEAR       }, .flags = VE, .unit = "sws_flags" },
         { "bicubic",         "bicubic",                       0,  AV_OPT_TYPE_CONST, { .i64 = SWS_BICUBIC        }, .flags = VE, .unit = "sws_flags" },
