@@ -204,9 +204,14 @@ static int decode_bsfs_init(AVCodecContext *avctx)
     ret = av_bsf_init(avci->bsf);
     if (ret < 0)
         goto fail;
-    ret = avcodec_parameters_to_context(avctx, avci->bsf->par_out);
-    if (ret < 0)
-        goto fail;
+    /* Don't copy par_out to avcodec context if bsf changed codec ID,
+     * e.g., media100_to_mjpegb
+     */
+    if (avctx->codec_id == avci->bsf->par_out->codec_id) {
+        ret = avcodec_parameters_to_context(avctx, avci->bsf->par_out);
+        if (ret < 0)
+            goto fail;
+    }
 
     return 0;
 fail:
