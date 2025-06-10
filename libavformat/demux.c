@@ -2078,8 +2078,8 @@ static int has_codec_parameters(const AVStream *st, const char **errmsg_ptr)
 static int try_decode_frame(AVFormatContext *s, AVStream *st,
                             const AVPacket *pkt, AVDictionary **options)
 {
-    FFStream *const sti = ffstream(st);
-    AVCodecContext *const avctx = sti->avctx;
+    FFStream *sti = ffstream(st);
+    AVCodecContext *avctx = sti->avctx;
     const AVCodec *codec;
     int got_picture = 1, ret = 0;
     AVFrame *frame = av_frame_alloc();
@@ -2102,6 +2102,12 @@ static int try_decode_frame(AVFormatContext *s, AVStream *st,
             sti->info->found_decoder = -st->codecpar->codec_id;
             ret                     = -1;
             goto fail;
+        }
+
+        if (avctx && avctx->codec != codec) {
+          avcodec_free_context(&avctx);
+          avctx = avcodec_alloc_context3(codec);
+          sti->avctx = avctx;
         }
 
         /* Force thread count to 1 since the H.264 decoder will not extract
