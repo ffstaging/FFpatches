@@ -547,7 +547,7 @@ static void mermaid_print_section_footer(AVTextFormatContext *tfc)
 }
 
 static void mermaid_print_value(AVTextFormatContext *tfc, const char *key,
-                                const char *str, int64_t num, const int is_int)
+                                const char *str, int64_t num)
 {
     MermaidContext *mmc = tfc->priv;
     const AVTextFormatSection *section = tf_get_section(tfc, tfc->level);
@@ -587,7 +587,7 @@ static void mermaid_print_value(AVTextFormatContext *tfc, const char *key,
         switch (mmc->diagram_config->diagram_type) {
         case AV_DIAGRAMTYPE_GRAPH:
 
-            if (is_int) {
+            if (!str) {
                 writer_printf(tfc, "<span class=\"%s\">%s: %"PRId64"</span>", key, key, num);
             } else {
                 ////AVBPrint b;
@@ -617,7 +617,7 @@ static void mermaid_print_value(AVTextFormatContext *tfc, const char *key,
 
                 MM_INDENT();
 
-                if (is_int)
+                if (!str)
                     writer_printf(tfc, "    %s %"PRId64" %s\n", key, num, col_type);
                 else
                     writer_printf(tfc, "    %s %s %s\n", key, str, col_type);
@@ -630,7 +630,7 @@ static void mermaid_print_value(AVTextFormatContext *tfc, const char *key,
             av_bprintf(buf, "%s", "<br>");
 
         av_bprintf(buf, "");
-        if (is_int)
+        if (!str)
             av_bprintf(buf, "<span>%s: %"PRId64"</span>", key, num);
         else
             av_bprintf(buf, "<span>%s</span>", str);
@@ -641,12 +641,12 @@ static void mermaid_print_value(AVTextFormatContext *tfc, const char *key,
 
 static inline void mermaid_print_str(AVTextFormatContext *tfc, const char *key, const char *value)
 {
-    mermaid_print_value(tfc, key, value, 0, 0);
+    mermaid_print_value(tfc, key, value, 0);
 }
 
 static void mermaid_print_int(AVTextFormatContext *tfc, const char *key, int64_t value)
 {
-    mermaid_print_value(tfc, key, NULL, value, 1);
+    mermaid_print_value(tfc, key, NULL, value);
 }
 
 const AVTextFormatter avtextformatter_mermaid = {
