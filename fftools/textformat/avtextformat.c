@@ -229,8 +229,6 @@ int avtext_context_open(AVTextFormatContext **ptctx, const AVTextFormatter *form
 
     if (tctx->formatter->init)
         ret = tctx->formatter->init(tctx);
-    if (ret < 0)
-        goto fail;
 
     *ptctx = tctx;
 
