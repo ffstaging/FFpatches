@@ -604,22 +604,20 @@ static void mermaid_print_value(AVTextFormatContext *tfc, const char *key,
 
             break;
         case AV_DIAGRAMTYPE_ENTITYRELATIONSHIP:
-
-            if (!is_int && str)
             {
-                const char *col_type;
+                const char *col_type = "";
 
                 if (key[0] == '_')
                     return;
 
-                if (sec_data.section_id && !strcmp(str, sec_data.section_id))
-                    col_type = "PK";
-                else if (sec_data.dest_id && !strcmp(str, sec_data.dest_id))
-                    col_type = "FK";
-                else if (sec_data.src_id && !strcmp(str, sec_data.src_id))
-                    col_type = "FK";
-                else
-                    col_type = "";
+                if (str) {
+                    if (sec_data.section_id && !strcmp(str, sec_data.section_id))
+                        col_type = "PK";
+                    else if (sec_data.dest_id && !strcmp(str, sec_data.dest_id))
+                        col_type = "FK";
+                    else if (sec_data.src_id && !strcmp(str, sec_data.src_id))
+                        col_type = "FK";
+                }
 
                 MM_INDENT();
 
