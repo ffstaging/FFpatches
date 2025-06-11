@@ -37,9 +37,10 @@
 #include "audio.h"
 #include "video.h"
 
-#define COMMAND_FLAG_ENTER 1
-#define COMMAND_FLAG_LEAVE 2
-#define COMMAND_FLAG_EXPR  4
+#define COMMAND_FLAG_ENTER  1
+#define COMMAND_FLAG_LEAVE  2
+#define COMMAND_FLAG_EXPR   4
+#define COMMAND_FLAG_FORMAT 8
 
 static const char *const var_names[] = {
     "N",     /* frame number */
@@ -67,7 +68,8 @@ enum var_name {
 
 static inline char *make_command_flags_str(AVBPrint *pbuf, int flags)
 {
-    static const char * const flag_strings[] = { "enter", "leave", "expr" };
+    static const char * const flag_strings[] = { "enter", "leave",
+                                                 "expr", "format" };
     int i, is_first = 1;
 
     av_bprint_init(pbuf, 0, AV_BPRINT_SIZE_AUTOMATIC);
@@ -159,6 +161,7 @@ static int parse_command(Command *cmd, int cmd_count, int interval_count,
             if      (!strncmp(*buf, "enter", strlen("enter"))) cmd->flags |= COMMAND_FLAG_ENTER;
             else if (!strncmp(*buf, "leave", strlen("leave"))) cmd->flags |= COMMAND_FLAG_LEAVE;
             else if (!strncmp(*buf, "expr",  strlen("expr")))  cmd->flags |= COMMAND_FLAG_EXPR;
+            else if (!strncmp(*buf, "format", strlen("format"))) cmd->flags |= COMMAND_FLAG_FORMAT;
             else {
                 char flag_buf[64];
                 av_strlcpy(flag_buf, *buf, sizeof(flag_buf));
@@ -189,6 +192,13 @@ static int parse_command(Command *cmd, int cmd_count, int interval_count,
         (*buf)++; /* skip "]" */
     } else {
         cmd->flags = COMMAND_FLAG_ENTER;
+    }
+
+    if ((cmd->flags & COMMAND_FLAG_EXPR)
+        && (cmd->flags & COMMAND_FLAG_FORMAT)) {
+        av_log(log_ctx, AV_LOG_ERROR,
+               "Invalid flags: expr and format are mutually exclusive\n");
+        return AVERROR(EINVAL);
     }
 
     *buf += strspn(*buf, SPACES);
@@ -480,6 +490,65 @@ static av_cold void uninit(AVFilterContext *ctx)
     av_freep(&s->intervals);
 }
 
+static int format_expr(char **dest, char *format,
+                       int dargc, const double dargv[])
+{
+    char *p = format, *begin = format;
+    size_t size = 64, len;
+    int n = 0;
+    *dest = av_realloc_f(*dest, size, sizeof (char));
+    **dest = 0;
+    if (!*dest)
+        return AVERROR(ENOMEM);
+    while (*p) {
+        if (*p == '%') {
+            if (!p[1])
+                return AVERROR(EINVAL);
+            if (p[1] == '%') {
+                p += 2;
+                continue;
+            }
+            len = 1 + strspn(p + 1, "0123456789");
+            len += strspn(p + len, ".");
+            len += strspn(p + len, "0123456789");
+            if (!strspn(p + len, "fF"))
+                return AVERROR(EINVAL);
+            if (n) {
+                *p = 0;
+                len = strlen(*dest);
+                if (av_strlcatf(*dest, size, begin, dargv[n - 1]) > size - 1) {
+                    if (size > SIZE_MAX / 2)
+                        return AVERROR(ENOMEM);
+                    size *= 2;
+                    *dest = av_realloc_f(*dest, size, sizeof (char));
+                    if (!*dest)
+                        return AVERROR(ENOMEM);
+                    (*dest)[len] = 0;
+                    av_strlcatf(*dest, size, begin, dargv[n - 1]);
+                }
+                *p = '%';
+                begin = p;
+            }
+            ++n;
+        }
+        ++p;
+    }
+    if (begin < p) {
+        len = strlen(*dest);
+        if (av_strlcatf(*dest, size, begin, dargv[n - 1]) > size - 1) {
+            if (size > SIZE_MAX / 2)
+                return AVERROR(ENOMEM);
+            size *= 2;
+            *dest = av_realloc_f(*dest, size, sizeof (char));
+            if (!*dest)
+                return AVERROR(ENOMEM);
+            (*dest)[len] = 0;
+            av_strlcatf(*dest, size, begin, dargv[n - 1]);
+        }
+    }
+    return 0;
+}
+
 static int filter_frame(AVFilterLink *inlink, AVFrame *ref)
 {
     FilterLink *inl = ff_filter_link(inlink);
@@ -508,7 +577,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *ref)
             interval->enabled = 0;
         }
         if (interval->enabled)
-            flags += COMMAND_FLAG_EXPR;
+            flags += COMMAND_FLAG_EXPR | COMMAND_FLAG_FORMAT;
 
         if (flags) {
             AVBPrint pbuf;
@@ -524,7 +593,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *ref)
                 char buf[1024];
 
                 if (cmd->flags & flags) {
-                    if (cmd->flags & COMMAND_FLAG_EXPR) {
+                    if (cmd->flags & (COMMAND_FLAG_EXPR | COMMAND_FLAG_FORMAT)) {
                         double var_values[VAR_VARS_NB], res;
                         double start = TS2T(interval->start_ts, AV_TIME_BASE_Q);
                         double end = TS2T(interval->end_ts, AV_TIME_BASE_Q);
@@ -539,17 +608,73 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *ref)
                         var_values[VAR_W]   = ref->width;
                         var_values[VAR_H]   = ref->height;
 
-                        if ((ret = av_expr_parse_and_eval(&res, cmd->arg, var_names, var_values,
-                                                          NULL, NULL, NULL, NULL, NULL, 0, NULL)) < 0) {
-                            av_log(ctx, AV_LOG_ERROR, "Invalid expression '%s' for command argument.\n", cmd->arg);
-                            av_frame_free(&ref);
-                            return AVERROR(EINVAL);
-                        }
+                        if (cmd->flags & COMMAND_FLAG_FORMAT) {
+                            const char  *args   = cmd->arg;
+                            char        *format = av_get_token(&args, ",");
+                            double      *dargv  = NULL;
+                            int         dargc   = 0;
+                            ret = 0;
+                            do {
+                                args += strspn(args, SPACES);
+                                if (*args == ',')
+                                    ++args;
+                                char    *arg = av_get_token(&args, ",");
+                                if (!arg) {
+                                    ret = AVERROR(ENOMEM);
+                                    goto end_format;
+                                }
+                                if (arg[0] == 0) {
+                                    av_free(arg);
+                                    break;
+                                }
+                                if ((ret = av_expr_parse_and_eval(&res, arg, var_names, var_values,
+                                                                  NULL, NULL, NULL, NULL, NULL, 0, NULL)) < 0) {
+                                    av_log(ctx, AV_LOG_ERROR, "Invalid expression '%s' for command argument.\n", arg);
+                                    av_free(arg);
+                                    ret = AVERROR(EINVAL);
+                                    goto end_format;
+                                }
+                                av_free(arg);
+                                dargv = av_realloc(dargv, ++dargc * sizeof (double));
+                                if (!dargv) {
+                                    ret = AVERROR(ENOMEM);
+                                    goto end_format;
+                                }
+                                dargv[dargc - 1] = res;
+                            } while (1);
+                            if (dargc == 0) {
+                                ret = AVERROR(EINVAL);
+                                av_log(ctx, AV_LOG_ERROR, "Invalid expression '%s' with no arguments for command.\n", cmd->arg);
+                                goto end_format;
+                            }
+                            cmd_arg = NULL;
+                            if ((ret = format_expr(&cmd_arg, format, dargc, dargv))) {
+                                av_free(cmd_arg);
+                                if (AVUNERROR(ret) == EINVAL) {
+                                    av_log(ctx, AV_LOG_ERROR, "Invalid format expression '%s' for command argument.\n", cmd->arg);
+                                }
+                            }
+                        end_format:
+                            av_free(dargv);
+                            av_free(format);
 
-                        cmd_arg = av_asprintf("%g", res);
-                        if (!cmd_arg) {
-                            av_frame_free(&ref);
-                            return AVERROR(ENOMEM);
+                            if (ret) {
+                                av_frame_free(&ref);
+                                return ret;
+                            }
+                        } else {
+                            if ((ret = av_expr_parse_and_eval(&res, cmd->arg, var_names, var_values,
+                                                              NULL, NULL, NULL, NULL, NULL, 0, NULL)) < 0) {
+                                av_log(ctx, AV_LOG_ERROR, "Invalid expression '%s' for command argument.\n", cmd->arg);
+                                av_frame_free(&ref);
+                                return AVERROR(EINVAL);
+                            }
+
+                            cmd_arg = av_asprintf("%g", res);
+                            if (!cmd_arg) {
+                                av_frame_free(&ref);
+                                return AVERROR(ENOMEM);
+                            }
                         }
                     }
                     av_log(ctx, AV_LOG_VERBOSE,
@@ -562,7 +687,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *ref)
                     av_log(ctx, AV_LOG_VERBOSE,
                            "Command reply for command #%d: ret:%s res:%s\n",
                            cmd->index, av_err2str(ret), buf);
-                    if (cmd->flags & COMMAND_FLAG_EXPR)
+                    if (cmd->flags & (COMMAND_FLAG_EXPR | COMMAND_FLAG_FORMAT))
                         av_freep(&cmd_arg);
                 }
             }
