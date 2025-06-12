@@ -972,6 +972,9 @@ static int export_itut_t35(AVCodecContext *avctx, AVFrame *frame,
     provider_code = bytestream2_get_be16(&gb);
     switch (provider_code) {
     case ITU_T_T35_PROVIDER_CODE_ATSC: {
+        if (itut_t35->itu_t_t35_country_code != ITU_T_T35_COUNTRY_CODE_US)
+            break;
+
         uint32_t user_identifier = bytestream2_get_be32(&gb);
         switch (user_identifier) {
         case MKBETAG('G', 'A', '9', '4'): { // closed captions
@@ -999,7 +1002,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
         }
         break;
     }
-    case ITU_T_T35_PROVIDER_CODE_SMTPE: {
+    case ITU_T_T35_PROVIDER_CODE_SAMSUNG: {
         AVDynamicHDRPlus *hdrplus;
         int provider_oriented_code = bytestream2_get_be16(&gb);
         int application_identifier = bytestream2_get_byte(&gb);
