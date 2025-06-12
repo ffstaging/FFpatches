@@ -7781,6 +7781,11 @@ static int mov_init(AVFormatContext *s)
         !(mov->flags & FF_MOV_FLAG_NEGATIVE_CTS_OFFSETS))
         s->avoid_negative_ts = AVFMT_AVOID_NEG_TS_MAKE_ZERO;
 
+    if (mov->use_editlist && mov->flags & FF_MOV_FLAG_HYBRID_FRAGMENTED) {
+        av_log(s, AV_LOG_ERROR, "Setting both hybrid_fragmented and use_editlist is not supported.\n");
+        return AVERROR(EINVAL);
+    }
+
     /* Clear the omit_tfhd_offset flag if default_base_moof is set;
      * if the latter is set that's enough and omit_tfhd_offset doesn't
      * add anything extra on top of that. */
