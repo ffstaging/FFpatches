@@ -76,7 +76,7 @@ IDCT_ADD_REP_FUNC2(, 8_422, 8, mmx)
 IDCT_ADD_REP_FUNC2(, 8_422, 10, sse2)
 IDCT_ADD_REP_FUNC2(, 8_422, 10, avx)
 
-void ff_h264_luma_dc_dequant_idct_sse2(int16_t *output, int16_t *input, int qmul);
+void ff_h264_luma_dc_dequant_idct_sse2(int16_t *output, const int16_t *input, int qmul);
 
 /***********************************/
 /* deblocking */

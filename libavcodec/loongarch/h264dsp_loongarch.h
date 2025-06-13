@@ -30,7 +30,7 @@ void ff_h264_idct_add_8_lsx(uint8_t *dst, int16_t *src, int dst_stride);
 void ff_h264_idct8_add_8_lsx(uint8_t *dst, int16_t *src, int dst_stride);
 void ff_h264_idct_dc_add_8_lsx(uint8_t *dst, int16_t *src, int dst_stride);
 void ff_h264_idct8_dc_add_8_lsx(uint8_t *dst, int16_t *src, int dst_stride);
-void ff_h264_luma_dc_dequant_idct_8_lsx(int16_t *_output, int16_t *_input, int qmul);
+void ff_h264_luma_dc_dequant_idct_8_lsx(int16_t *_output, const int16_t *_input, int qmul);
 void ff_h264_idct_add16_8_lsx(uint8_t *dst, const int32_t *blk_offset,
                               int16_t *block, int32_t dst_stride,
                               const uint8_t nzc[15 * 8]);

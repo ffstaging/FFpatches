@@ -857,7 +857,7 @@ void ff_h264_idct_add8_422_8_mmi(uint8_t **dest, const int *block_offset,
     }
 }
 
-void ff_h264_luma_dc_dequant_idct_8_mmi(int16_t *output, int16_t *input,
+void ff_h264_luma_dc_dequant_idct_8_mmi(int16_t *output, const int16_t *input,
         int qmul)
 {
     double ftmp[10];

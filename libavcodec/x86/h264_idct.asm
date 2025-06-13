@@ -612,7 +612,7 @@ cglobal h264_idct_add8_8, 5, 7 + ARCH_X86_64, 8
     add8_sse2_cycle 3, 0x64
 RET
 
-;void ff_h264_luma_dc_dequant_idct_mmx(int16_t *output, int16_t *input, int qmul)
+;void ff_h264_luma_dc_dequant_idct_mmx(int16_t *output, const int16_t *input, int qmul)
 
 %macro WALSH4_1D 5
     SUMSUB_BADC w, %4, %3, %2, %1, %5
