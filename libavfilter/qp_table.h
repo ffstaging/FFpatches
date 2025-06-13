@@ -40,6 +40,7 @@ static inline int ff_norm_qscale(int qscale, enum AVVideoEncParamsType type)
 {
     switch (type) {
     case AV_VIDEO_ENC_PARAMS_MPEG2: return qscale >> 1;
+    case AV_VIDEO_ENC_PARAMS_H264:  return qscale;
     }
     return qscale;
 }
