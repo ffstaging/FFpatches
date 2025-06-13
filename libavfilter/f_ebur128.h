@@ -33,3 +33,6 @@ typedef struct EBUR128DSPContext {
     double *y; /* after pre-filter */
     double *z; /* after RLB-filter */
 } EBUR128DSPContext;
+
+void ff_ebur128_filter_channels_c(const EBUR128DSPContext *, const double *,
+                                  double *, double *, double *, double *, int);
