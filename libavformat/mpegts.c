@@ -156,6 +156,8 @@ struct MpegTSContext {
     /** to detect seek */
     int64_t last_pos;
 
+    int reprobe_stream_if_pmt_es_stream_type_changes;
+
     int skip_changes;
     int skip_clear;
     int skip_unknown_pmt;
@@ -199,6 +201,8 @@ static const AVOption options[] = {
     MPEGTS_OPTIONS,
     {"fix_teletext_pts", "try to fix pts values of dvb teletext streams", offsetof(MpegTSContext, fix_teletext_pts), AV_OPT_TYPE_BOOL,
      {.i64 = 1}, 0, 1, AV_OPT_FLAG_DECODING_PARAM },
+    {"reprobe_stream_if_pmt_es_stream_type_changes", "allow PMT updates to change codec_type and codec_id at runtime",
+     offsetof(MpegTSContext, reprobe_stream_if_pmt_es_stream_type_changes), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_DECODING_PARAM },
     {"scan_all_pmts", "scan and combine all PMTs", offsetof(MpegTSContext, scan_all_pmts), AV_OPT_TYPE_BOOL,
      {.i64 = -1}, -1, 1, AV_OPT_FLAG_DECODING_PARAM },
     {"skip_unknown_pmt", "skip PMTs for programs not advertised in the PAT", offsetof(MpegTSContext, skip_unknown_pmt), AV_OPT_TYPE_BOOL,
@@ -2510,7 +2514,9 @@ static void pmt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
         if (!st)
             goto out;
 
-        if (pes && pes->stream_type != stream_type)
+        if (pes && (!pes->stream_type ||
+                    (pes->stream_type != stream_type &&
+                     ts->reprobe_stream_if_pmt_es_stream_type_changes)))
             mpegts_set_stream_info(st, pes, stream_type, prog_reg_desc);
 
         add_pid_to_program(prg, pid);
