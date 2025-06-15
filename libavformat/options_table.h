@@ -106,6 +106,7 @@ static const AVOption avformat_options[] = {
 {"skip_estimate_duration_from_pts", "skip duration calculation in estimate_timings_from_pts", OFFSET(skip_estimate_duration_from_pts), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, D},
 {"max_probe_packets", "Maximum number of packets to probe a codec", OFFSET(max_probe_packets), AV_OPT_TYPE_INT, { .i64 = 2500 }, 0, INT_MAX, D },
 {"duration_probesize", "Maximum number of bytes to probe the durations of the streams in estimate_timings_from_pts", OFFSET(duration_probesize), AV_OPT_TYPE_INT64, {.i64 = 0 }, 0, INT64_MAX, D},
+{"allow_codec_changes", "Allow AVStream.codecpar codec_type and codec_id to change at runtime", OFFSET(allow_codec_changes), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, D},
 {NULL},
 };
 

@@ -228,6 +228,12 @@ would require too many resources due to a large number of streams.
 Skip estimation of input duration if it requires an additional probing for PTS at end of file.
 At present, applicable for MPEG-PS and MPEG-TS.
 
+@item allow_codec_changes @var{bool} (@emph{input})
+Allow AVStream.codecpar codec_type and codec_id to change at runtime
+(for example when MPEG-TS PMT ES stream_type changes at runtime).
+This is disabled by default, because most clients of avformat API
+do not support random mid-stream codec changes.
+
 @item duration_probesize @var{integer} (@emph{input})
 Set probing size, in bytes, for input duration estimation when it actually requires
 an additional probing for PTS at end of file (at present: MPEG-PS and MPEG-TS).
