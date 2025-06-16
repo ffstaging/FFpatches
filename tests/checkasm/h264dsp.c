@@ -328,7 +328,7 @@ static void check_idct_multiple(void)
 static void check_idct_dequant(void)
 {
     static const int depths[5] = { 8, 9, 10, 12, 14 };
-    LOCAL_ALIGNED_16(int16_t, src, [16]);
+    LOCAL_ALIGNED_16(int16_t, src, [16 * 2]);
     /* Ensure dst buffers are large enough to hold dctcoefs of all bit-depths. */
     LOCAL_ALIGNED_16(uint8_t, dst0, [16 * 16 * sizeof(int32_t)]);
     LOCAL_ALIGNED_16(uint8_t, dst1, [16 * 16 * sizeof(int32_t)]);
@@ -338,14 +338,20 @@ static void check_idct_dequant(void)
     int bit_depth, i, qmul;
     declare_func_emms(AV_CPU_FLAG_MMX | AV_CPU_FLAG_SSE2, void, int16_t *output, int16_t *input, int qmul);
 
-    for (int j = 0; j < 16; j++)
-        src[j] = (rnd() % 512) - 256;
-
     qmul = rnd() % 4096;
 
     for (i = 0; i < FF_ARRAY_ELEMS(depths); i++) {
         bit_depth = depths[i];
         ff_h264dsp_init(&h, bit_depth, 1);
+
+        if (bit_depth == 8) {
+            for (int j = 0; j < 16; j++)
+                src[j] = (rnd() % 512) - 256;
+        } else {
+            int32_t *p = (int32_t *)src;
+            for (int j = 0; j < 16; j++)
+                p[j] = (rnd() % (1 << (bit_depth + 1))) - (1 << bit_depth);
+        }
 
         memset(dst0, 0, 16 * 16 * SIZEOF_COEF);
         memset(dst1, 0, 16 * 16 * SIZEOF_COEF);
