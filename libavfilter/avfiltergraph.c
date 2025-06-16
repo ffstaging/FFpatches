@@ -1423,12 +1423,26 @@ void ff_avfilter_graph_update_heap(AVFilterGraph *graph, FilterLinkInternal *li)
     heap_bubble_down(graphi, li, li->age_index);
 }
 
+static int process_legacy_sink_output(FilterLinkInternal *oldesti)
+{
+    AVFilterLink *oldest = &oldesti->l.pub;
+    int ret;
+
+    do {
+        if (oldesti->frame_wanted_out)
+            ret = ff_filter_graph_run_once(oldest->dst->graph);
+        else
+            ret = ff_request_frame(oldest);
+    } while (ret >= 0);
+
+    return ret;
+}
+
 int avfilter_graph_request_oldest(AVFilterGraph *graph)
 {
     FFFilterGraph *graphi = fffiltergraph(graph);
     FilterLinkInternal *oldesti = graphi->sink_links[0];
     AVFilterLink *oldest = &oldesti->l.pub;
-    int64_t frame_count;
     int r;
 
     while (graphi->sink_links_count) {
@@ -1437,13 +1451,11 @@ int avfilter_graph_request_oldest(AVFilterGraph *graph)
         if (fffilter(oldest->dst->filter)->activate) {
             r = av_buffersink_get_frame_flags(oldest->dst, NULL,
                                               AV_BUFFERSINK_FLAG_PEEK);
-            if (r != AVERROR_EOF)
-                return r;
         } else {
-            r = ff_request_frame(oldest);
+            r = process_legacy_sink_output(oldesti);
         }
         if (r != AVERROR_EOF)
-            break;
+            return r;
         av_log(oldest->dst, AV_LOG_DEBUG, "EOF on sink link %s:%s.\n",
                oldest->dst->name,
                oldest->dstpad->name);
@@ -1453,21 +1465,7 @@ int avfilter_graph_request_oldest(AVFilterGraph *graph)
                              oldesti->age_index);
         oldesti->age_index = -1;
     }
-    if (!graphi->sink_links_count)
-        return AVERROR_EOF;
-    av_assert1(!fffilter(oldest->dst->filter)->activate);
-    av_assert1(oldesti->age_index >= 0);
-    frame_count = oldesti->l.frame_count_out;
-    while (frame_count == oldesti->l.frame_count_out) {
-        r = ff_filter_graph_run_once(graph);
-        if (r == AVERROR(EAGAIN) &&
-            !oldesti->frame_wanted_out && !oldesti->frame_blocked_in &&
-            !oldesti->status_in)
-            (void)ff_request_frame(oldest);
-        else if (r < 0)
-            return r;
-    }
-    return 0;
+    return AVERROR_EOF;
 }
 
 int ff_filter_graph_run_once(AVFilterGraph *graph)
