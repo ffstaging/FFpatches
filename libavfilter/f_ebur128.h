@@ -42,6 +42,8 @@ typedef struct EBUR128DSPContext {
                             double *cache_400, double *cache_3000,
                             double *sum_400, double *sum_3000,
                             int nb_channels);
+
+    double (*true_peak)(double *, double *, int, const double *, int);
 } EBUR128DSPContext;
 
 static_assert(offsetof(EBUR128DSPContext, pre) == 0,                   "struct layout mismatch");
@@ -52,3 +54,5 @@ void ff_ebur128_init_x86(EBUR128DSPContext *dsp);
 
 void ff_ebur128_filter_channels_c(const EBUR128DSPContext *, const double *,
                                   double *, double *, double *, double *, int);
+
+double ff_ebur128_true_peak_c(double *, double *, int, const double *, int);
