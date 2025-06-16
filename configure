@@ -7673,7 +7673,11 @@ if enabled icc; then
             disable aligned_stack
     fi
 elif enabled gcc; then
-    check_optflags -fno-tree-vectorize
+    gcc_version=$($cc -dumpversion)
+    major_version=${gcc_version%%.*}
+    if [ $major_version -lt 13 ]; then
+        check_optflags -fno-tree-vectorize
+    fi
     check_cflags -Werror=format-security
     check_cflags -Werror=implicit-function-declaration
     check_cflags -Werror=missing-prototypes
