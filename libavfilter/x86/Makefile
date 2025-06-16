@@ -7,6 +7,9 @@ OBJS-$(CONFIG_BLEND_FILTER)                  += x86/vf_blend_init.o
 OBJS-$(CONFIG_BWDIF_FILTER)                  += x86/vf_bwdif_init.o
 OBJS-$(CONFIG_COLORSPACE_FILTER)             += x86/colorspacedsp_init.o
 OBJS-$(CONFIG_CONVOLUTION_FILTER)            += x86/vf_convolution_init.o
+ifdef ARCH_X86_64
+OBJS-$(CONFIG_EBUR128_FILTER)                += x86/f_ebur128_init.o
+endif
 OBJS-$(CONFIG_EQ_FILTER)                     += x86/vf_eq_init.o
 OBJS-$(CONFIG_FSPP_FILTER)                   += x86/vf_fspp_init.o
 OBJS-$(CONFIG_GBLUR_FILTER)                  += x86/vf_gblur_init.o
@@ -52,6 +55,7 @@ X86ASM-OBJS-$(CONFIG_BLEND_FILTER)           += x86/vf_blend.o
 X86ASM-OBJS-$(CONFIG_BWDIF_FILTER)           += x86/vf_bwdif.o
 X86ASM-OBJS-$(CONFIG_COLORSPACE_FILTER)      += x86/colorspacedsp.o
 X86ASM-OBJS-$(CONFIG_CONVOLUTION_FILTER)     += x86/vf_convolution.o
+X86ASM-OBJS-$(CONFIG_EBUR128_FILTER)         += x86/f_ebur128.o
 X86ASM-OBJS-$(CONFIG_EQ_FILTER)              += x86/vf_eq.o
 X86ASM-OBJS-$(CONFIG_FRAMERATE_FILTER)       += x86/vf_framerate.o
 X86ASM-OBJS-$(CONFIG_FSPP_FILTER)            += x86/vf_fspp.o
