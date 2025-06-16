@@ -26872,6 +26872,86 @@ To enable CUDA NPP filters:
 @item Configure FFmpeg with @code{--enable-nonfree --enable-libnpp}.
 @end itemize
 
+@anchor{pad_npp}
+@subsection pad_npp
+Add paddings to an input video stream using the NVIDIA Performance Primitives (NPP) library.
+
+This filter is the CUDA-accelerated version of the @ref{pad} filter. It accepts CUDA frames as input and the following options:
+
+@table @option
+@item width, w
+@item height, h
+Specify an expression for the size of the output image with the paddings. If the value for @var{width} or @var{height} is 0, the corresponding input size is used for the output.
+
+The default value for both @var{width} and @var{height} is 0.
+
+@item x
+@item y
+Specify the offsets to place the input image at within the padded area, with respect to the top/left border of the output image.
+
+If @var{x} or @var{y} evaluates to a negative number, the input image will be centered on the padded area.
+
+The default value for both @var{x} and @var{y} is 0.
+
+@item color
+Specify the color of the padded area. For the syntax of this option, check the @ref{color syntax,,"Color" section in the ffmpeg-utils manual,ffmpeg-utils}.
+
+The default value of @var{color} is "black".
+
+@item eval
+Specify when to evaluate the @var{width}, @var{height}, @var{x}, and @var{y} expressions.
+
+It accepts the following values:
+@table @samp
+@item init
+Only evaluate expressions once during the filter initialization. (default)
+@item frame
+Evaluate expressions for each incoming frame.
+@end table
+
+@item aspect
+Pad to a specified aspect ratio instead of a fixed resolution.
+@end table
+
+The value for the @var{width}, @var{height}, @var{x}, and @var{y} options are expressions containing the following constants:
+@table @var
+@item in_w, iw
+The input video width.
+@item in_h, ih
+The input video height.
+@item out_w, ow
+The output width (the size of the padded area), as specified by the @var{width} expressions.
+@item out_h, oh
+The output height (the size of the padded area), as specified by the @var{height} expressions.
+@item x
+@item y
+The x and y offsets as specified by the @var{x} and @var{y} expressions.
+@item a
+Same as @code{iw / ih}.
+@item sar
+The input sample aspect ratio.
+@item dar
+The input display aspect ratio, equivalent to @code{(iw / ih) * sar}.
+@item hsub
+@item vsub
+The horizontal and vertical chroma subsample values.
+@end table
+
+@subsubsection Examples
+
+@itemize
+@item
+Add a 200-pixel black border to all sides of a video frame:
+@example
+ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i input.mp4 -vf "pad_npp=w=iw+400:h=ih+400:x=200:y=200" -c:v h264_nvenc out.mp4
+@end example
+
+@item
+Pad the input video to a 16:9 aspect ratio, filling with the color "blue":
+@example
+ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i input.mp4 -vf "pad_npp=w=ih*16/9/sar:h=ih:x=(ow-iw)/2:y=(oh-ih)/2:color=blue" -c:v h264_nvenc out.mp4
+@end example
+@end itemize
 
 @anchor{scale_npp}
 @subsection scale_npp
