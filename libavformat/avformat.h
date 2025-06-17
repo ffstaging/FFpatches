@@ -1884,6 +1884,16 @@ typedef struct AVFormatContext {
      * @see skip_estimate_duration_from_pts
      */
     int64_t duration_probesize;
+
+    /**
+     * Allow AVStream.codecpar codec_type and codec_id to change at runtime
+     * (for example when MPEG-TS PMT ES stream_type changes at runtime).
+     * This is disabled by default, because most clients of avformat API
+     * do not support random mid-stream codec changes.
+     * - muxing: unused
+     * - demuxing: set by user
+     */
+    int allow_codec_changes;
 } AVFormatContext;
 
 /**

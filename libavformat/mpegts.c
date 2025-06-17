@@ -2510,7 +2510,9 @@ static void pmt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
         if (!st)
             goto out;
 
-        if (pes && pes->stream_type != stream_type)
+        if (pes && (!pes->stream_type ||
+                    (pes->stream_type != stream_type &&
+                     ts->stream->allow_codec_changes)))
             mpegts_set_stream_info(st, pes, stream_type, prog_reg_desc);
 
         add_pid_to_program(prg, pid);
