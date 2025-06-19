@@ -1649,7 +1649,7 @@ static int process_frame_obj(SANMVideoContext *ctx, GetByteContext *gb)
     bytestream2_skip(gb, 2);
     parm2 = bytestream2_get_le16u(gb);
 
-    if (w < 1 || h < 1 || w > 800 || h > 600 || left > 800 || top > 600) {
+    if (w < 1 || h < 1 || w > 800 || h > 600 || left >= w || top >= h || left < 0 || top < 0) {
         av_log(ctx->avctx, AV_LOG_WARNING,
                "ignoring invalid fobj dimensions: c%d %d %d @ %d %d\n",
                codec, w, h, left, top);
