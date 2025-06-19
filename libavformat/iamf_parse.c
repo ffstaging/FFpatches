@@ -305,6 +305,8 @@ static int update_extradata(AVCodecParameters *codecpar)
         skip_bits(&gb, 4);
         put_bits(&pb, 4, codecpar->ch_layout.nb_channels); // set channel config
         ret = put_bits_left(&pb);
+        if (ret < 0)
+            return AVERROR_INVALIDDATA;
         while (ret >= 32) {
            put_bits32(&pb, get_bits_long(&gb, 32));
            ret -= 32;
