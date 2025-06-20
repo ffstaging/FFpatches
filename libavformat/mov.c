@@ -10332,6 +10332,9 @@ static int mov_parse_heif_items(AVFormatContext *s)
 
         st = item->st;
         sc = st->priv_data;
+        if (!sc->sample_sizes)
+            return AVERROR_INVALIDDATA;
+
         st->codecpar->width  = item->width;
         st->codecpar->height = item->height;
 
