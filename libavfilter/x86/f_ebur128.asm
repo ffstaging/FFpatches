@@ -39,6 +39,10 @@ struc DSP
     .z resq 1
 endstruc
 
+SECTION_RODATA
+
+abs_mask: dq 0x7FFFFFFFFFFFFFFF
+
 SECTION .text
 
 %macro MOVNQ 3 ; num, dst, src
@@ -138,4 +142,20 @@ cglobal ebur128_filter_channels, 7, 9, 14, dsp, samples, cache400, cache3000, su
     dec channelsd
     test channelsd, channelsd
     jnz .loop
+    RET
+
+cglobal ebur128_find_peak_2ch, 4, 5, 3, ch_peaks, channels, samples, nb_samples
+    vpbroadcastq m2, [abs_mask]
+    movupd m0, [ch_peaksq]
+.loop:
+    movupd m1, [samplesq]
+    add samplesq, 16
+    pand m1, m2
+    maxpd m0, m1
+    dec nb_samplesd
+    jg .loop
+    movupd [ch_peaksq], m0
+    shufpd m1, m0, m0, 1
+    maxpd m0, m1
+    movq rax, m0
     RET
