@@ -937,6 +937,8 @@ static int kth_order_egk_decode(CABACContext *c, int k)
 
     while (bit) {
         bit = get_cabac_bypass(c);
+        if (k >= 31)
+            return AVERROR_PATCHWELCOME;
         value += bit << k++;
     }
 
