@@ -179,6 +179,9 @@ static void ath_init1(uint8_t *ath, int sample_rate)
 
 static int ath_init(uint8_t *ath, int type, int sample_rate)
 {
+    if (sample_rate <= 0)
+        return AVERROR_INVALIDDATA;
+
     switch (type) {
     case 0:
         /* nothing to do */
