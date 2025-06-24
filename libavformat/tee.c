@@ -80,8 +80,9 @@ static const AVClass tee_muxer_class = {
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
-static inline int parse_slave_failure_policy_option(const char *opt, TeeSlave *tee_slave)
+static inline int parse_slave_failure_policy_option(const char *opt, void *ctx)
 {
+    TeeSlave *tee_slave = ctx;
     if (!opt) {
         tee_slave->on_fail = DEFAULT_SLAVE_FAILURE_POLICY;
         return 0;
@@ -97,8 +98,9 @@ static inline int parse_slave_failure_policy_option(const char *opt, TeeSlave *t
     return AVERROR(EINVAL);
 }
 
-static int parse_slave_fifo_policy(const char *use_fifo, TeeSlave *tee_slave)
+static int parse_slave_fifo_policy(const char *use_fifo, void *ctx)
 {
+    TeeSlave *tee_slave = ctx;
     /*TODO - change this to use proper function for parsing boolean
      *       options when there is one */
     if (av_match_name(use_fifo, "true,y,yes,enable,enabled,on,1")) {
@@ -111,8 +113,9 @@ static int parse_slave_fifo_policy(const char *use_fifo, TeeSlave *tee_slave)
     return 0;
 }
 
-static int parse_slave_fifo_options(const char *fifo_options, TeeSlave *tee_slave)
+static int parse_slave_fifo_options(const char *fifo_options, void *ctx)
 {
+    TeeSlave *tee_slave = ctx;
     return av_dict_parse_string(&tee_slave->fifo_options, fifo_options, "=", ":", 0);
 }
 
@@ -152,6 +155,46 @@ static void close_slaves(AVFormatContext *avf)
     av_freep(&tee->slaves);
 }
 
+typedef int (*OptionParserFunc)(const char *value, void *context);
+
+/**
+ * Retrieve and optionally copy or process the given dict key's value
+ *
+ * The dictionary value for \p key is retrieved, if it exists the
+ * value is passed to the \p handler function together with the
+ * \c context, if any. If the handler returns an error, it is returned
+ * to the caller.
+ *
+ * If \c out_value is not NULL, the value is also copied and assigned
+ * to that.
+ *
+ * After processing, the key is removed from the dictionary.
+ */
+static int dict_consume_value(AVDictionary **dict, const char *key, char **out_value,
+    OptionParserFunc handler, void *context)
+{
+    const AVDictionaryEntry *entry = av_dict_get(*dict, key, NULL, 0);
+    if (!entry)
+        return 0;
+
+    if (handler) {
+        int ret = handler(entry->value, context);
+        if (ret < 0)
+            return ret;
+    }
+
+    if (out_value) {
+        char *value_copy = av_strdup(entry->value);
+        if (!value_copy)
+            return AVERROR(ENOMEM);
+
+        *out_value = value_copy;
+    }
+
+    av_dict_set(dict, key, NULL, 0);
+    return 0;
+}
+
 static int open_slave(AVFormatContext *avf, char *slave, TeeSlave *tee_slave)
 {
     int ret;
@@ -167,35 +210,26 @@ static int open_slave(AVFormatContext *avf, char *slave, TeeSlave *tee_slave)
     if ((ret = ff_tee_parse_slave_options(avf, slave, &options, &filename)) < 0)
         return ret;
 
-#define CONSUME_OPTION(option, field, action) do {                      \
-        AVDictionaryEntry *en = av_dict_get(options, option, NULL, 0);  \
-        if (en) {                                                       \
-            field = en->value;                                          \
-            { action }                                                  \
-            av_dict_set(&options, option, NULL, 0);                     \
-        }                                                               \
-    } while (0)
-#define STEAL_OPTION(option, field)                                     \
-    CONSUME_OPTION(option, field,                                       \
-                   en->value = NULL; /* prevent it from being freed */)
-#define PROCESS_OPTION(option, function, on_error) do {                 \
-        const char *value;                                              \
-        CONSUME_OPTION(option, value, if ((ret = function) < 0)         \
-                                          { { on_error } goto end; });  \
-    } while (0)
+    if ((ret = dict_consume_value(&options, "f", &format, NULL, NULL)) < 0)
+        goto end;
+    if ((ret = dict_consume_value(&options, "select", &select, NULL, NULL)) < 0)
+        goto end;
+    if ((ret = dict_consume_value(&options, "onfail", NULL,
+            parse_slave_failure_policy_option, tee_slave)) < 0) {
+        av_log(avf, AV_LOG_ERROR, "Invalid onfail option value, "
+            "valid options are 'abort' and 'ignore'\n");
+        goto end;
+    }
+    if ((ret = dict_consume_value(&options, "use_fifo", NULL,
+            parse_slave_fifo_policy, tee_slave)) < 0) {
+        av_log(avf, AV_LOG_ERROR, "Error parsing fifo options: %s\n",
+            av_err2str(ret));
+        goto end;
+    }
+    if ((ret = dict_consume_value(&options, "fifo_options", NULL,
+            parse_slave_fifo_options, tee_slave)) < 0)
+        goto end;
 
-    STEAL_OPTION("f", format);
-    STEAL_OPTION("select", select);
-    PROCESS_OPTION("onfail",
-                   parse_slave_failure_policy_option(value, tee_slave),
-                   av_log(avf, AV_LOG_ERROR, "Invalid onfail option value, "
-                          "valid options are 'abort' and 'ignore'\n"););
-    PROCESS_OPTION("use_fifo",
-                   parse_slave_fifo_policy(value, tee_slave),
-                   av_log(avf, AV_LOG_ERROR, "Error parsing fifo options: %s\n",
-                          av_err2str(ret)););
-    PROCESS_OPTION("fifo_options",
-                   parse_slave_fifo_options(value, tee_slave), ;);
     entry = NULL;
     while ((entry = av_dict_get(options, "bsfs", entry, AV_DICT_IGNORE_SUFFIX))) {
         /* trim out strlen("bsfs") characters from key */
