@@ -2560,8 +2560,10 @@ static int fg_output_frame(OutputFilterPriv *ofp, FilterGraphThread *fgt,
         av_frame_move_ref(frame_prev, frame);
     }
 
-    if (!frame)
+    if (!frame) {
+        av_frame_unref(frame_prev);
         return close_output(ofp, fgt);
+    }
 
     return 0;
 }
