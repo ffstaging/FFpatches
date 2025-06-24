@@ -231,7 +231,7 @@ static int open_slave(AVFormatContext *avf, char *slave, TeeSlave *tee_slave)
         goto end;
 
     entry = NULL;
-    while ((entry = av_dict_get(options, "bsfs", entry, AV_DICT_IGNORE_SUFFIX))) {
+    while ((entry = av_dict_get(options, "bsfs", NULL, AV_DICT_IGNORE_SUFFIX))) {
         /* trim out strlen("bsfs") characters from key */
         av_dict_set(&bsf_options, entry->key + 4, entry->value, 0);
         av_dict_set(&options, entry->key, NULL, 0);
