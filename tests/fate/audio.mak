@@ -85,6 +85,17 @@ fate-ws_snd: CMD = md5 -i $(TARGET_SAMPLES)/vqa/ws_snd.vqa -f s16le -af aresampl
 FATE_SAMPLES_AUDIO_FFPROBE-$(call DEMDEC, WAV, WMAV2, FILE_PROTOCOL) += fate-flcl1905
 fate-flcl1905: CMD = run ffprobe$(PROGSSUF)$(EXESUF) -show_frames -show_packets -print_format compact $(TARGET_SAMPLES)/wav/FLCL_Ending_My-short.wav
 
+FATE_SAMPLES_AUDIO-$(call DEMDEC, WAV, ADPCM_SANYO, ARESAMPLE_FILTER) += fate-sanyo-3bit
+fate-sanyo-3bit: CMD = framecrc -i $(TARGET_SAMPLES)/sanyo/sanyo-mono-3bit-8000.wav -af aresample
+
+FATE_SAMPLES_AUDIO-$(call DEMDEC, WAV, ADPCM_SANYO, ARESAMPLE_FILTER) += fate-sanyo-4bit
+fate-sanyo-4bit: CMD = framecrc -i $(TARGET_SAMPLES)/sanyo/sanyo-mono-4bit-8000.wav -af aresample
+
+FATE_SAMPLES_AUDIO-$(call DEMDEC, WAV, ADPCM_SANYO, ARESAMPLE_FILTER) += fate-sanyo-5bit
+fate-sanyo-5bit: CMD = framecrc -i $(TARGET_SAMPLES)/sanyo/sanyo-mono-5bit-8000.wav -af aresample
+
+fate-sanyo: fate-sanyo-3bit fate-sanyo-4bit fate-sanyo-5bit
+
 FATE_SAMPLES_AUDIO += $(FATE_SAMPLES_AUDIO-yes)
 FATE_SAMPLES_AUDIO_FFPROBE += $(FATE_SAMPLES_AUDIO_FFPROBE-yes)
 
