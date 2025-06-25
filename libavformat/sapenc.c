@@ -113,7 +113,7 @@ static int sap_write_header(AVFormatContext *s)
         if (getaddrinfo(host, NULL, &hints, &ai)) {
             av_log(s, AV_LOG_ERROR, "Unable to resolve %s\n", host);
             ret = AVERROR(EIO);
-            goto fail;
+            goto cleanup;
         }
         if (ai->ai_family == AF_INET) {
             /* Also known as sap.mcast.net */
@@ -130,7 +130,7 @@ static int sap_write_header(AVFormatContext *s)
             av_log(s, AV_LOG_ERROR, "Host %s resolved to unsupported "
                                     "address family\n", host);
             ret = AVERROR(EIO);
-            goto fail;
+            goto cleanup;
         }
         freeaddrinfo(ai);
     }
@@ -138,7 +138,7 @@ static int sap_write_header(AVFormatContext *s)
     contexts = av_calloc(s->nb_streams, sizeof(*contexts));
     if (!contexts) {
         ret = AVERROR(ENOMEM);
-        goto fail;
+        goto cleanup;
     }
 
     if (s->start_time_realtime == 0  ||  s->start_time_realtime == AV_NOPTS_VALUE)
@@ -156,17 +156,17 @@ static int sap_write_header(AVFormatContext *s)
                                    s->protocol_whitelist, s->protocol_blacklist, NULL);
         if (ret) {
             ret = AVERROR(EIO);
-            goto fail;
+            goto cleanup;
         }
         ret = ff_rtp_chain_mux_open(&contexts[i], s, s->streams[i], fd, 0, i);
         if (ret < 0)
-            goto fail;
+            goto cleanup;
         s->streams[i]->priv_data = contexts[i];
         s->streams[i]->time_base = contexts[i]->streams[0]->time_base;
         new_url = av_strdup(url);
         if (!new_url) {
             ret = AVERROR(ENOMEM);
-            goto fail;
+            goto cleanup;
         }
         ff_format_set_url(contexts[i], new_url);
     }
@@ -181,13 +181,13 @@ static int sap_write_header(AVFormatContext *s)
                                s->protocol_whitelist, s->protocol_blacklist, NULL);
     if (ret) {
         ret = AVERROR(EIO);
-        goto fail;
+        goto cleanup;
     }
 
     udp_fd = ffurl_get_file_handle(sap->ann_fd);
     if (getsockname(udp_fd, (struct sockaddr*) &localaddr, &addrlen)) {
         ret = AVERROR(EIO);
-        goto fail;
+        goto cleanup;
     }
     if (localaddr.ss_family != AF_INET
 #if HAVE_STRUCT_SOCKADDR_IN6
@@ -196,13 +196,13 @@ static int sap_write_header(AVFormatContext *s)
         ) {
         av_log(s, AV_LOG_ERROR, "Unsupported protocol family\n");
         ret = AVERROR(EIO);
-        goto fail;
+        goto cleanup;
     }
     sap->ann_size = 8192;
     sap->ann = av_mallocz(sap->ann_size);
     if (!sap->ann) {
         ret = AVERROR(EIO);
-        goto fail;
+        goto cleanup;
     }
     sap->ann[pos] = (1 << 5);
 #if HAVE_STRUCT_SOCKADDR_IN6
@@ -231,9 +231,8 @@ static int sap_write_header(AVFormatContext *s)
     if (av_sdp_create(contexts, s->nb_streams, &sap->ann[pos],
                       sap->ann_size - pos)) {
         ret = AVERROR_INVALIDDATA;
-        goto fail;
+        goto cleanup;
     }
-    av_freep(&contexts);
     av_log(s, AV_LOG_VERBOSE, "SDP:\n%s\n", &sap->ann[pos]);
     pos += strlen(&sap->ann[pos]);
     sap->ann_size = pos;
@@ -241,14 +240,18 @@ static int sap_write_header(AVFormatContext *s)
     if (sap->ann_size > sap->ann_fd->max_packet_size) {
         av_log(s, AV_LOG_ERROR, "Announcement too large to send in one "
                                 "packet\n");
-        goto fail;
+        goto cleanup;
     }
 
-    return 0;
+    ret = 0;
 
-fail:
+cleanup:
+    for (i = 0; i < s->nb_streams; i++)
+        if (contexts[i])
+            av_free(contexts[i]->url);
     av_free(contexts);
-    sap_write_close(s);
+    if (ret < 0)
+        sap_write_close(s);
     return ret;
 }
 
