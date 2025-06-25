@@ -260,6 +260,9 @@ static av_cold int adpcm_decode_init(AVCodecContext * avctx)
     case AV_CODEC_ID_ADPCM_IMA_AMV:
         max_channels = 1;
         break;
+    case AV_CODEC_ID_ADPCM_SANYO:
+        max_channels = 2;
+        break;
     case AV_CODEC_ID_ADPCM_AFC:
     case AV_CODEC_ID_ADPCM_EA_R1:
     case AV_CODEC_ID_ADPCM_EA_R2:
@@ -307,6 +310,10 @@ static av_cold int adpcm_decode_init(AVCodecContext * avctx)
             avctx->block_align != 17 * avctx->ch_layout.nb_channels)
             return AVERROR_INVALIDDATA;
         break;
+    case AV_CODEC_ID_ADPCM_SANYO:
+        if (avctx->bits_per_coded_sample < 3 || avctx->bits_per_coded_sample > 5)
+            return AVERROR_INVALIDDATA;
+        break;
     case AV_CODEC_ID_ADPCM_IMA_XBOX:
         if (avctx->bits_per_coded_sample != 4)
             return AVERROR_INVALIDDATA;
@@ -338,6 +345,7 @@ static av_cold int adpcm_decode_init(AVCodecContext * avctx)
     case AV_CODEC_ID_ADPCM_AFC:
     case AV_CODEC_ID_ADPCM_DTK:
     case AV_CODEC_ID_ADPCM_PSX:
+    case AV_CODEC_ID_ADPCM_SANYO:
     case AV_CODEC_ID_ADPCM_MTAF:
     case AV_CODEC_ID_ADPCM_ARGO:
     case AV_CODEC_ID_ADPCM_IMA_MOFLEX:
@@ -1071,6 +1079,11 @@ static int get_nb_samples(AVCodecContext *avctx, GetByteContext *gb,
         break;
     case AV_CODEC_ID_ADPCM_ZORK:
         nb_samples = buf_size / ch;
+        break;
+    case AV_CODEC_ID_ADPCM_SANYO:
+        if (!avctx->extradata || avctx->extradata_size != 2)
+            return AVERROR_INVALIDDATA;
+        nb_samples = AV_RL16(avctx->extradata);
         break;
     }
 
@@ -2265,6 +2278,13 @@ static int adpcm_decode_frame(AVCodecContext *avctx, AVFrame *frame,
             }
         }
         ) /* End of CASE */
+    CASE(ADPCM_SANYO,
+        for (int ch = 0; ch < channels; ch++) {
+            c->status[ch].predictor = (int16_t)bytestream2_get_le16(&gb);
+            c->status[ch].step = (int16_t)bytestream2_get_le16(&gb);
+        }
+        bytestream2_skip(&gb, ff_adpcm_sanyo_decode(c->status, gb.buffer, bytestream2_get_bytes_left(&gb), avctx->bits_per_coded_sample, nb_samples, channels, samples_p));
+        ) /* End of CASE */
     CASE(ADPCM_ARGO,
         /*
          * The format of each block:
@@ -2448,6 +2468,7 @@ ADPCM_DECODER(ADPCM_IMA_XBOX,    sample_fmts_s16p, adpcm_ima_xbox,    "ADPCM IMA
 ADPCM_DECODER(ADPCM_MS,          sample_fmts_both, adpcm_ms,          "ADPCM Microsoft")
 ADPCM_DECODER(ADPCM_MTAF,        sample_fmts_s16p, adpcm_mtaf,        "ADPCM MTAF")
 ADPCM_DECODER(ADPCM_PSX,         sample_fmts_s16p, adpcm_psx,         "ADPCM Playstation")
+ADPCM_DECODER(ADPCM_SANYO,       sample_fmts_s16p, adpcm_sanyo,       "ADPCM Sanyo")
 ADPCM_DECODER(ADPCM_SBPRO_2,     sample_fmts_s16,  adpcm_sbpro_2,     "ADPCM Sound Blaster Pro 2-bit")
 ADPCM_DECODER(ADPCM_SBPRO_3,     sample_fmts_s16,  adpcm_sbpro_3,     "ADPCM Sound Blaster Pro 2.6-bit")
 ADPCM_DECODER(ADPCM_SBPRO_4,     sample_fmts_s16,  adpcm_sbpro_4,     "ADPCM Sound Blaster Pro 4-bit")

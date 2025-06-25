@@ -45,4 +45,6 @@ typedef struct ADPCMChannelStatus {
 
 int16_t ff_adpcm_argo_expand_nibble(ADPCMChannelStatus *cs, int nibble, int shift, int flag);
 
+int ff_adpcm_sanyo_decode(ADPCMChannelStatus *cs, const uint8_t *data, int data_size, int bits_per_coded_sample, int nb_samples, int channels, int16_t **samples_p);
+
 #endif /* AVCODEC_ADPCM_H */
