@@ -370,8 +370,10 @@ static int config_output(AVFilterLink *outlink)
     s->n = 1 << (av_log2(n) + 1);
     s->rdft_len = 1 << av_log2(n);
     s->coeffs = av_calloc(s->n, sizeof(*s->coeffs));
-    if (!s->coeffs)
+    if (!s->coeffs) {
+        av_free(h[longer]);
         return AVERROR(ENOMEM);
+    }
 
     for (i = 0; i < n; i++)
         s->coeffs[i] = h[longer][i];
