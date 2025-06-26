@@ -310,8 +310,6 @@ int ff_vvc_output_frame(VVCContext *s, VVCFrameContext *fc, AVFrame *out, const 
                 ff_vvc_unref_frame(fc, frame, VVC_FRAME_FLAG_OUTPUT | VVC_FRAME_FLAG_BUMPING);
             else
                 ff_vvc_unref_frame(fc, frame, VVC_FRAME_FLAG_OUTPUT);
-            if (ret < 0)
-                return ret;
 
             av_log(s->avctx, AV_LOG_DEBUG,
                    "Output frame with POC %d.\n", frame->poc);
