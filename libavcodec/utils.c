@@ -72,8 +72,8 @@ void av_fast_padded_mallocz(void *ptr, unsigned int *size, size_t min_size)
         return;
     }
     av_fast_malloc(p, size, min_size + AV_INPUT_BUFFER_PADDING_SIZE);
-    if (*p)
-        memset(*p, 0, min_size + AV_INPUT_BUFFER_PADDING_SIZE);
+    if (*p) 
+        memset(*p, 0, FFMAX(*size, min_size + AV_INPUT_BUFFER_PADDING_SIZE));
 }
 
 int av_codec_is_encoder(const AVCodec *avcodec)
