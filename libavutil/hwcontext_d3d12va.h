@@ -75,6 +75,11 @@ typedef struct AVD3D12VADeviceContext {
     void (*lock)(void *lock_ctx);
     void (*unlock)(void *lock_ctx);
     void *lock_ctx;
+    /**
+     * Need to pass value to frames context from command line
+    */
+    D3D12_RESOURCE_FLAGS flags;
+    D3D12_HEAP_FLAGS heap_flags;
 } AVD3D12VADeviceContext;
 
 /**
@@ -137,6 +142,7 @@ typedef struct AVD3D12VAFramesContext {
      * @see https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_resource_flags
      */
     D3D12_RESOURCE_FLAGS flags;
+    D3D12_HEAP_FLAGS heap_flags;
 } AVD3D12VAFramesContext;
 
 #endif /* AVUTIL_HWCONTEXT_D3D12VA_H */
