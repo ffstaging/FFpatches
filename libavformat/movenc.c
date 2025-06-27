@@ -8605,6 +8605,11 @@ static int mov_write_trailer(AVFormatContext *s)
             // Clear the empty_moov flag, as we do want the moov to include
             // all the samples at this point.
             mov->flags &= ~FF_MOV_FLAG_EMPTY_MOOV;
+
+            // Write the moov tag first, to make sure we have all the info
+            // written, before overwriting the size of the mdat tag.
+            if ((res = mov_write_moov_tag(pb, mov, s)) < 0)
+                return res;
         }
 
         moov_pos = avio_tell(pb);
@@ -8647,7 +8652,7 @@ static int mov_write_trailer(AVFormatContext *s)
             ffio_wfourcc(pb, "free");
             ffio_fill(pb, 0, size - 8);
             avio_seek(pb, moov_pos, SEEK_SET);
-        } else {
+        } else if (!(mov->flags & FF_MOV_FLAG_HYBRID_FRAGMENTED)) {
             if ((res = mov_write_moov_tag(pb, mov, s)) < 0)
                 return res;
         }
