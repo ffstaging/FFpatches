@@ -7858,8 +7858,10 @@ static int mov_init(AVFormatContext *s)
         mov->flags |= FF_MOV_FLAG_FRAGMENT;
 
     if (mov->flags & FF_MOV_FLAG_HYBRID_FRAGMENTED &&
-        mov->flags & FF_MOV_FLAG_FASTSTART) {
-        av_log(s, AV_LOG_ERROR, "Setting both hybrid_fragmented and faststart is not supported.\n");
+        (mov->flags & (FF_MOV_FLAG_FASTSTART | FF_MOV_FLAG_DELAY_MOOV) ||
+         mov->reserved_moov_size > 0)) {
+        av_log(s, AV_LOG_ERROR, "The hybrid_fragmented mode is incompatible "
+                                "with faststart, delay_moov and moov_size.\n");
         return AVERROR(EINVAL);
     }
 
