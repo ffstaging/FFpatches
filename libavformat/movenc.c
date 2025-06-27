@@ -337,14 +337,18 @@ static int mov_write_iacb_tag(AVFormatContext *s, AVIOContext *pb, MOVTrack *tra
 
     ret = ff_iamf_write_descriptors(track->iamf, dyn_bc, s);
     if (ret < 0)
-        return ret;
+        goto cleanup;
 
     dyn_size = avio_close_dyn_buf(dyn_bc, &dyn_buf);
     ffio_write_leb(pb, dyn_size);
     avio_write(pb, dyn_buf, dyn_size);
-    av_free(dyn_buf);
+    ret = update_size(pb, pos);
 
-    return update_size(pb, pos);
+cleanup:
+    if (!dyn_buf)
+        avio_close_dyn_buf(dyn_bc, &dyn_buf);
+    av_free(dyn_buf);
+    return ret;
 }
 #endif
 
@@ -3173,8 +3177,10 @@ static int mov_preroll_write_stbl_atoms(AVIOContext *pb, MOVTrack *track)
             if (roll_samples_remaining > 0)
                 distance = 0;
             /* Verify distance is a maximum of 32 (2.5ms) packets. */
-            if (distance > 32)
+            if (distance > 32) {
+                av_free(sgpd_entries);
                 return AVERROR_INVALIDDATA;
+            }
             if (i && distance == sgpd_entries[entries].roll_distance) {
                 sgpd_entries[entries].count++;
             } else {
@@ -4186,7 +4192,7 @@ static int mov_write_track_udta_tag(AVIOContext *pb, MOVMuxContext *mov,
 
     if (mov->mode & MODE_MP4) {
         if ((ret = mov_write_track_kinds(pb_buf, st)) < 0)
-            return ret;
+            goto cleanup;
     }
 
     if ((size = avio_get_dyn_buf(pb_buf, &buf)) > 0) {
@@ -4194,9 +4200,11 @@ static int mov_write_track_udta_tag(AVIOContext *pb, MOVMuxContext *mov,
         ffio_wfourcc(pb, "udta");
         avio_write(pb, buf, size);
     }
-    ffio_free_dyn_buf(&pb_buf);
+    ret = 0;
 
-    return 0;
+cleanup:
+    ffio_free_dyn_buf(&pb_buf);
+    return ret;
 }
 
 static int mov_write_trak_tag(AVFormatContext *s, AVIOContext *pb, MOVMuxContext *mov,
