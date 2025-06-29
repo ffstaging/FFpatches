@@ -523,8 +523,10 @@ static int adapt_colors(SwsGraph *graph, SwsFormat src, SwsFormat dst,
         SwsFormat tmp = src;
         tmp.format = fmt_in;
         ret = add_legacy_sws_pass(graph, src, tmp, input, &input);
-        if (ret < 0)
+        if (ret < 0) {
+            ff_sws_lut3d_free(&lut);
             return ret;
+        }
     }
 
     ret = ff_sws_lut3d_generate(lut, fmt_in, fmt_out, &map);
