@@ -179,7 +179,7 @@ static int decode_plane10(UtvideoContext *c, int plane_no,
                 dest += stride;
             }
         }
-        return 0;
+        goto cleanup;
     }
 
     send = 0;
@@ -216,6 +216,7 @@ static int decode_plane10(UtvideoContext *c, int plane_no,
                    "%d bits left after decoding slice\n", get_bits_left(&gb));
     }
 
+cleanup:
     ff_vlc_free(&vlc);
     ff_vlc_free_multi(&multi);
 
@@ -322,7 +323,7 @@ static int decode_plane(UtvideoContext *c, int plane_no,
                 dest += stride;
             }
         }
-        return 0;
+        goto cleanup;
     }
 
     src      += 256;
@@ -361,6 +362,7 @@ static int decode_plane(UtvideoContext *c, int plane_no,
                    "%d bits left after decoding slice\n", get_bits_left(&gb));
     }
 
+cleanup:
     ff_vlc_free(&vlc);
     ff_vlc_free_multi(&multi);
 
