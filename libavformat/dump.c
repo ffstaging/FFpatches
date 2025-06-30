@@ -847,7 +847,7 @@ static void dump_stream_group(const AVFormatContext *ic, uint8_t *printed,
     }
 }
 
-void av_dump_format(AVFormatContext *ic, int index,
+void av_dump_format(const AVFormatContext *ic, int index,
                     const char *url, int is_output)
 {
     int i;

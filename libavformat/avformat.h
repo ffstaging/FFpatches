@@ -2813,7 +2813,7 @@ void av_url_split(char *proto,         int proto_size,
  * @param url       the URL to print, such as source or destination file
  * @param is_output Select whether the specified context is an input(0) or output(1)
  */
-void av_dump_format(AVFormatContext *ic,
+void av_dump_format(const AVFormatContext *ic,
                     int index,
                     const char *url,
                     int is_output);
