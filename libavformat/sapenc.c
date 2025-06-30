@@ -244,11 +244,15 @@ static int sap_write_header(AVFormatContext *s)
         goto fail;
     }
 
-    return 0;
+    ret = 0;
 
 fail:
+    for (i = 0; i < s->nb_streams; i++)
+        if (contexts[i])
+            av_free(contexts[i]->url);
     av_free(contexts);
-    sap_write_close(s);
+    if (ret < 0)
+        sap_write_close(s);
     return ret;
 }
 
