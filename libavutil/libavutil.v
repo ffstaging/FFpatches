@@ -1,6 +1,8 @@
 LIBAVUTIL_MAJOR {
     global:
-        av*;
+        av_*;
+        avutil_*;
+        avpriv_*;
     local:
         *;
 };
