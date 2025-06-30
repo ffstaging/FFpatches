@@ -1436,6 +1436,8 @@ typedef struct AVFormatContext {
 #define AVFMT_FLAG_FAST_SEEK   0x80000 ///< Enable fast, but inaccurate seeks for some formats
 #define AVFMT_FLAG_AUTO_BSF   0x200000 ///< Add bitstream filters as requested by the muxer
 
+#define AVFMT_FLAG_ALLOW_CODEC_CHANGES 0x400000 ///< Allow AVStream.codecpar to be updated midstream if input changes (e.g. MPEG-TS ES stream_type changes)
+
     /**
      * Maximum number of bytes read from input in order to determine stream
      * properties. Used when reading the global header and in
