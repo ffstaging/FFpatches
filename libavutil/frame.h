@@ -254,6 +254,11 @@ enum AVFrameSideDataType {
      * libavutil/tdrdi.h.
      */
     AV_FRAME_DATA_3D_REFERENCE_DISPLAYS,
+
+    /**
+     * H.264 Macroblock Info, the data is an array of H264MBInfo structures.
+     */
+    AV_FRAME_DATA_H264_MB_INFO,
 };
 
 enum AVActiveFormatDescription {

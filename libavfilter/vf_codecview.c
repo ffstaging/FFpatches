@@ -39,6 +39,11 @@
 #include "qp_table.h"
 #include "video.h"
 
+#include "libavcodec/h264.h"
+#include "libavcodec/h264pred.h"
+#include "libavcodec/h264_mb_info.h"
+#include "libavcodec/mpegutils.h"
+
 #define MV_P_FOR  (1<<0)
 #define MV_B_FOR  (1<<1)
 #define MV_B_BACK (1<<2)
@@ -56,6 +61,8 @@ typedef struct CodecViewContext {
     int hsub, vsub;
     int qp;
     int block;
+    int show_modes;
+    int frame_count;
 } CodecViewContext;
 
 #define OFFSET(x) offsetof(CodecViewContext, x)
@@ -78,8 +85,54 @@ static const AVOption codecview_options[] = {
         CONST("pf", "P-frames", FRAME_TYPE_P, "frame_type"),
         CONST("bf", "B-frames", FRAME_TYPE_B, "frame_type"),
     { "block",      "set block partitioning structure to visualize", OFFSET(block), AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, FLAGS },
+    { "show_modes", "Visualize macroblock modes", OFFSET(show_modes), AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, FLAGS },
     { NULL }
 };
+
+static const char *get_intra_4x4_mode_name(int mode) {
+    switch (mode) {
+    case VERT_PRED:            return "V";
+    case HOR_PRED:             return "H";
+    case DC_PRED:              return "DC";
+    case DIAG_DOWN_LEFT_PRED:  return "DL";
+    case DIAG_DOWN_RIGHT_PRED: return "DR";
+    case VERT_RIGHT_PRED:      return "VR";
+    case HOR_DOWN_PRED:        return "HD";
+    case VERT_LEFT_PRED:       return "VL";
+    case HOR_UP_PRED:          return "HU";
+    default:                   return "?";
+    }
+}
+
+static const char *get_intra_16x16_mode_name(int mode) {
+    switch (mode) {
+    case VERT_PRED8x8:   return "Vertical";
+    case HOR_PRED8x8:    return "Horizontal";
+    case DC_PRED8x8:     return "DC";
+    case PLANE_PRED8x8:  return "Plane";
+    default:             return "Unknown";
+    }
+}
+
+static const char *get_chroma_mode_name(int mode) {
+    switch (mode) {
+    case DC_PRED8x8:    return "DC";
+    case HOR_PRED8x8:   return "H";
+    case VERT_PRED8x8:  return "V";
+    case PLANE_PRED8x8: return "Plane";
+    default:            return "Unknown";
+    }
+}
+
+static const char *get_inter_sub_mb_type_name(uint8_t type) {
+    switch(type){
+        case 0: return "D";  // Direct
+        case 1: return "L0";
+        case 2: return "L1";
+        case 3: return "BI";
+        default: return "?";
+    }
+}
 
 AVFILTER_DEFINE_CLASS(codecview);
 
@@ -219,11 +272,130 @@ static void draw_block_rectangle(uint8_t *buf, int sx, int sy, int w, int h, ptr
     }
 }
 
+static void log_mb_info(AVFilterContext *ctx, AVFrame *frame, int64_t frame_num)
+{
+    AVFrameSideData *sd = av_frame_get_side_data(frame, AV_FRAME_DATA_H264_MB_INFO);
+    if (!sd)
+        return;
+
+    const H264MBInfo *mb_info = (const H264MBInfo *)sd->data;
+    int nb_mb = sd->size / sizeof(H264MBInfo);
+    int mb_w = (frame->width + 15) / 16;
+
+    // Allocate a large buffer to build the log string.
+    size_t buf_size = 32768;
+    char *log_buf = av_malloc(buf_size);
+    if (!log_buf)
+        return;
+
+    char *p = log_buf;
+    size_t remaining = buf_size;
+    int ret;
+
+    // Write the main header for the frame into the buffer
+    ret = snprintf(p, remaining, "H.264 Modes for frame_num %"PRId64" (pts: %"PRId64", type: %c):\n",
+                   frame_num, frame->pts, av_get_picture_type_char(frame->pict_type));
+    if (ret > 0 && ret < remaining) {
+        p += ret;
+        remaining -= ret;
+    }
+
+    for (int i = 0; i < nb_mb; i++) {
+        const H264MBInfo *info = &mb_info[i];
+        int mb_x = i % mb_w;
+        int mb_y = i / mb_w;
+
+        if (remaining < 256) // Safety check, break if buffer is almost full
+            break;
+
+        if (IS_INTRA(info->mb_type)) {
+            if (IS_INTRA4x4(info->mb_type)) {
+                ret = snprintf(p, remaining, "MB(%2d,%2d): I_4x4  C:%-5s P:[%s,%s,%s,%s|%s,%s,%s,%s|%s,%s,%s,%s|%s,%s,%s,%s]\n",
+                       mb_x, mb_y, get_chroma_mode_name(info->intra.chroma_pred_mode),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[0]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[1]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[2]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[3]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[4]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[5]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[6]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[7]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[8]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[9]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[10]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[11]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[12]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[13]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[14]),
+                       get_intra_4x4_mode_name(info->intra.intra4x4_pred_mode[15]));
+            } else if (IS_INTRA16x16(info->mb_type)) {
+                ret = snprintf(p, remaining, "MB(%2d,%2d): I_16x16 Mode:%-10s ChromaMode:%s\n",
+                       mb_x, mb_y, get_intra_16x16_mode_name(info->intra.intra16x16_pred_mode),
+                       get_chroma_mode_name(info->intra.chroma_pred_mode));
+            } else if (IS_INTRA_PCM(info->mb_type)) {
+                ret = snprintf(p, remaining, "MB(%2d,%2d): I_PCM\n", mb_x, mb_y);
+            }
+        } else { // Inter
+            if (IS_SKIP(info->mb_type)) {
+                ret = snprintf(p, remaining, "MB(%2d,%2d): Skip\n", mb_x, mb_y);
+            } else if (IS_16X16(info->mb_type)) {
+                ret = snprintf(p, remaining, "MB(%2d,%2d): P_16x16 L0:[%d %4d,%4d] L1:[%d %4d,%4d]\n", mb_x, mb_y,
+                       info->inter.ref_idx[0][0], info->inter.mv[0][0][0], info->inter.mv[0][0][1],
+                       info->inter.ref_idx[1][0], info->inter.mv[1][0][0], info->inter.mv[1][0][1]);
+            } else if (IS_16X8(info->mb_type)) {
+                ret = snprintf(p, remaining, "MB(%2d,%2d): P_16x8 T: L0:[%d %4d,%4d] L1:[%d %4d,%4d] B: L0:[%d %4d,%4d] L1:[%d %4d,%4d]\n", mb_x, mb_y,
+                       info->inter.ref_idx[0][0], info->inter.mv[0][0][0], info->inter.mv[0][0][1],
+                       info->inter.ref_idx[1][0], info->inter.mv[1][0][0], info->inter.mv[1][0][1],
+                       info->inter.ref_idx[0][8], info->inter.mv[0][8][0], info->inter.mv[0][8][1],
+                       info->inter.ref_idx[1][8], info->inter.mv[1][8][0], info->inter.mv[1][8][1]);
+            } else if (IS_8X16(info->mb_type)) {
+                ret = snprintf(p, remaining, "MB(%2d,%2d): P_8x16  L: L0:[%d %4d,%4d] L1:[%d %4d,%4d] R: L0:[%d %4d,%4d] L1:[%d %4d,%4d]\n", mb_x, mb_y,
+                       info->inter.ref_idx[0][0], info->inter.mv[0][0][0], info->inter.mv[0][0][1],
+                       info->inter.ref_idx[1][0], info->inter.mv[1][0][0], info->inter.mv[1][0][1],
+                       info->inter.ref_idx[0][4], info->inter.mv[0][4][0], info->inter.mv[0][4][1],
+                       info->inter.ref_idx[1][4], info->inter.mv[1][4][0], info->inter.mv[1][4][1]);
+            } else if (IS_8X8(info->mb_type)) {
+                ret = snprintf(p, remaining, "MB(%2d,%2d): P_8x8\n", mb_x, mb_y);
+                if (ret > 0 && ret < remaining) {
+                    p += ret;
+                    remaining -= ret;
+                }
+                for (int j = 0; j < 4; j++) {
+                    if (remaining < 128) break;
+                    ret = snprintf(p, remaining, "\tBlk %d: %-2s L0:[%d %4d,%4d] L1:[%d %4d,%4d]\n", j,
+                           get_inter_sub_mb_type_name(info->inter.sub_mb_type[j]),
+                           info->inter.ref_idx[0][j*4], info->inter.mv[0][j*4][0], info->inter.mv[0][j*4][1],
+                           info->inter.ref_idx[1][j*4], info->inter.mv[1][j*4][0], info->inter.mv[1][j*4][1]);
+                    if (ret > 0 && ret < remaining) {
+                        p += ret;
+                        remaining -= ret;
+                    }
+                }
+                ret = 0;
+            }
+        }
+
+        if (ret > 0 && ret < remaining) {
+            p += ret;
+            remaining -= ret;
+        }
+    }
+
+    // Print the entire buffer in one go.
+    av_log(ctx, AV_LOG_INFO, "%s", log_buf);
+    av_free(log_buf);
+}
 static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 {
     AVFilterContext *ctx = inlink->dst;
     CodecViewContext *s = ctx->priv;
     AVFilterLink *outlink = ctx->outputs[0];
+
+    if (s->show_modes) {
+        log_mb_info(ctx, frame, s->frame_count);
+    }
+
+    s->frame_count++;
 
     if (s->qp) {
         enum AVVideoEncParamsType qp_type;

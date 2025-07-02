@@ -887,6 +887,29 @@ static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
             goto fail;
     }
 
+    av_log(h->avctx, AV_LOG_ERROR, "Will try to attach the macroblock info inside as side data\n");
+
+    // Attach the macroblock info from the source picture (srcp).
+    if (srcp->mb_info_ref) {
+        AVFrameSideData *side_data;
+        size_t mb_info_size = srcp->mb_info_ref->size;
+
+        av_log(h->avctx, AV_LOG_DEBUG, "Attaching mb_info from pic %p to frame %"PRId64"\n", srcp, dst->pts);
+
+        // Create a new side data entry and copy the data into it.
+        side_data = av_frame_new_side_data(dst, AV_FRAME_DATA_H264_MB_INFO, mb_info_size);
+        if (!side_data) {
+            av_log(h->avctx, AV_LOG_ERROR, "Failed to allocate side data for MB info.\n");
+        } else {
+            av_log(h->avctx, AV_LOG_ERROR, "Copying side data for MB info.\n");
+            memcpy(side_data->data, srcp->mb_info_ref->data, mb_info_size);
+        }
+    } else {
+        av_log(h->avctx, AV_LOG_WARNING, "output_frame: srcp->mb_info_ref was NULL for pic %p. No side data to attach.\n", srcp);
+    }
+
+    av_log(h->avctx, AV_LOG_ERROR, "End of block attach the macroblock info inside as side data\n");
+
     if (!(h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_FILM_GRAIN))
         av_frame_remove_side_data(dst, AV_FRAME_DATA_FILM_GRAIN_PARAMS);
 

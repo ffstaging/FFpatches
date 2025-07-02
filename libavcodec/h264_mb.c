@@ -37,6 +37,68 @@
 #include "rectangle.h"
 #include "threadframe.h"
 
+/**
+ * Collects detailed mode, reference, and motion vector information for the
+ * current macroblock and stores it in the picture's mb_info buffer. This allows
+ * the information to be passed to filters via frame side data.
+ */
+static void ff_h264_collect_mb_info(const H264Context *h, H264SliceContext *sl)
+{
+    // Check for NULL pointers at the very beginning.
+    if (!h->cur_pic_ptr) {
+        /* av_log(h->avctx, AV_LOG_ERROR, "collect_mb_info: h->cur_pic_ptr is NULL! mb_xy=%d\n", sl->mb_xy); */
+        return;
+    }
+
+    if (!h->cur_pic_ptr->mb_info_ref) {
+        return;
+    }
+
+    // Check for out-of-bounds access.
+    if (sl->mb_xy >= h->mb_num) {
+        /* av_log(h->avctx, AV_LOG_ERROR, "collect_mb_info: mb_xy out of bounds! mb_xy=%d, mb_num=%d\n", sl->mb_xy, h->mb_num); */
+        return;
+    }
+
+    // Get the data pointer from the buffer
+    H264MBInfo *mb_info = (H264MBInfo*)h->cur_pic_ptr->mb_info_ref->data;
+    H264MBInfo *info = &mb_info[sl->mb_xy];
+    int mb_type = h->cur_pic.mb_type[sl->mb_xy];
+    int i, list;
+
+    // Clear previous info to avoid stale data
+    memset(info, 0, sizeof(H264MBInfo));
+
+    info->mb_type = mb_type;
+
+    if (IS_INTRA(mb_type)) {
+        if (IS_INTRA4x4(mb_type)) {
+            for (i = 0; i < 16; i++)
+                info->intra.intra4x4_pred_mode[i] = sl->intra4x4_pred_mode_cache[scan8[i]];
+        } else {
+            info->intra.intra16x16_pred_mode = sl->intra16x16_pred_mode;
+        }
+        info->intra.chroma_pred_mode = sl->chroma_pred_mode;
+    } else { // Inter modes
+        if (IS_8X8(mb_type)) {
+            for (i = 0; i < 4; i++)
+                info->inter.sub_mb_type[i] = sl->sub_mb_type[i];
+        }
+
+        for (list = 0; list < 2; list++) {
+            // Check if the list is used by the macroblock partition or any sub-partition
+            if (USES_LIST(mb_type, list) || (IS_8X8(mb_type) && USES_LIST(info->inter.sub_mb_type[0]|info->inter.sub_mb_type[1]|info->inter.sub_mb_type[2]|info->inter.sub_mb_type[3], list))) {
+                // Store ref_idx and MVs for all 16 4x4 blocks
+                for (i = 0; i < 16; i++) {
+                    info->inter.ref_idx[list][i] = sl->ref_cache[list][scan8[i]];
+                    info->inter.mv[list][i][0]   = sl->mv_cache[list][scan8[i]][0];
+                    info->inter.mv[list][i][1]   = sl->mv_cache[list][scan8[i]][1];
+                }
+            }
+        }
+    }
+}
+
 static inline int get_lowest_part_list_y(H264SliceContext *sl,
                                          int n, int height, int y_offset, int list)
 {

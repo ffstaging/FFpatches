@@ -266,6 +266,13 @@ static int alloc_picture(H264Context *h, H264Picture *pic)
     pic->mb_height = h->mb_height;
     pic->mb_stride = h->mb_stride;
 
+    // Allocate the mb_info buffer for this picture.
+    pic->mb_info_ref = av_buffer_allocz(h->mb_num * sizeof(H264MBInfo));
+    av_log(h->avctx, AV_LOG_DEBUG, "Allocated mb_info buffer for pic %p (size: %zu)\n", pic, (size_t)h->mb_num * sizeof(H264MBInfo));
+
+    if (!pic->mb_info_ref)
+        goto fail;
+
     return 0;
 fail:
     ff_h264_unref_picture(pic);

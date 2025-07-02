@@ -45,6 +45,7 @@
 #include "mpegutils.h"
 #include "threadframe.h"
 #include "videodsp.h"
+#include "h264_mb_info.h"
 
 #define H264_MAX_PICTURE_COUNT 36
 
@@ -164,6 +165,9 @@ typedef struct H264Picture {
     atomic_int *decode_error_flags;
 
     int gray;
+
+    // Buffer to store macroblock mode information for this picture.
+    AVBufferRef *mb_info_ref;
 } H264Picture;
 
 typedef struct H264Ref {
