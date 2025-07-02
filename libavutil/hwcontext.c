@@ -54,6 +54,9 @@ static const HWContextType * const hw_table[] = {
 #if CONFIG_VAAPI
     &ff_hwcontext_type_vaapi,
 #endif
+#if CONFIG_NI_QUADRA
+    &ff_hwcontext_type_ni_quadra,
+#endif
 #if CONFIG_VDPAU
     &ff_hwcontext_type_vdpau,
 #endif
@@ -80,6 +83,7 @@ static const char *const hw_type_names[] = {
     [AV_HWDEVICE_TYPE_D3D12VA] = "d3d12va",
     [AV_HWDEVICE_TYPE_OPENCL] = "opencl",
     [AV_HWDEVICE_TYPE_QSV]    = "qsv",
+    [AV_HWDEVICE_TYPE_NI_QUADRA] = "ni_quadra",
     [AV_HWDEVICE_TYPE_VAAPI]  = "vaapi",
     [AV_HWDEVICE_TYPE_VDPAU]  = "vdpau",
     [AV_HWDEVICE_TYPE_VIDEOTOOLBOX] = "videotoolbox",

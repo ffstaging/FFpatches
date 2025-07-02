@@ -50,6 +50,7 @@ HEADERS = adler32.h                                                     \
           hwcontext_amf.h                                               \
           hwcontext_qsv.h                                               \
           hwcontext_mediacodec.h                                        \
+          hwcontext_ni_quad.h                                           \
           hwcontext_opencl.h                                            \
           hwcontext_vaapi.h                                             \
           hwcontext_videotoolbox.h                                      \
@@ -210,6 +211,7 @@ OBJS-$(CONFIG_AMF)                      += hwcontext_amf.o
 OBJS-$(CONFIG_LIBDRM)                   += hwcontext_drm.o
 OBJS-$(CONFIG_MACOS_KPERF)              += macos_kperf.o
 OBJS-$(CONFIG_MEDIACODEC)               += hwcontext_mediacodec.o
+OBJS-$(CONFIG_NI_QUADRA)                += hwcontext_ni_quad.o
 OBJS-$(CONFIG_OPENCL)                   += hwcontext_opencl.o
 OBJS-$(CONFIG_QSV)                      += hwcontext_qsv.o
 OBJS-$(CONFIG_VAAPI)                    += hwcontext_vaapi.o
@@ -241,6 +243,7 @@ SKIPHEADERS-$(CONFIG_DXVA2)            += hwcontext_dxva2.h
 SKIPHEADERS-$(CONFIG_AMF)              += hwcontext_amf.h               \
                                           hwcontext_amf_internal.h
 SKIPHEADERS-$(CONFIG_QSV)              += hwcontext_qsv.h
+SKIPHEADERS-$(CONFIG_NI_QUADRA)        += hwcontext_ni_quad.h
 SKIPHEADERS-$(CONFIG_OPENCL)           += hwcontext_opencl.h
 SKIPHEADERS-$(CONFIG_VAAPI)            += hwcontext_vaapi.h
 SKIPHEADERS-$(CONFIG_VIDEOTOOLBOX)     += hwcontext_videotoolbox.h
