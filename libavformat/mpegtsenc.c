@@ -814,7 +814,28 @@ static int mpegts_write_pmt(AVFormatContext *s, MpegTSService *service)
             break;
         case AVMEDIA_TYPE_DATA:
             if (codec_id == AV_CODEC_ID_SMPTE_KLV) {
-                put_registration_descriptor(&q, MKTAG('K', 'L', 'V', 'A'));
+                if (st->codecpar->profile == AV_PROFILE_KLVA_SYNC) {
+                    const char *fmtIdent = "KLVA";
+                    *q++ = METADATA_DESCRIPTOR;
+                    *q++ = 9;                   /* descriptor length */
+                    put16(&q, 0x0100);          /* metadata_application_format */
+                    *q++ = 0xff;                /* metadata_format */
+                    putbuf(&q, fmtIdent, 4);    /* KLVA */
+                    *q++ = 0x00;                /* metadata_service_id */
+                    *q++ = 0x0f;                /* decoder_config_flags, DSM-CC_flat, reserved */
+                    *q++ = METADATA_STD_DESCRIPTOR;
+                    *q++ = 9;                   /* descriptor length */
+                    *q++ = 0xc0;
+                    put16(&q, 0x0000);          /* reserved, metadata_input_leak_rate 0x01c4 */
+                    *q++ = 0xc0;
+                    put16(&q, 0x0000);          /* reserved, metadata_buffer_size 0x0400 */
+                    *q++ = 0xc0;
+                    put16(&q, 0x0000);          /* reserved, metadata_output_leak_rate */
+                } else {
+                    put_registration_descriptor(&q, MKTAG('K', 'L', 'V', 'A'));
+                }
+            } else if (codec_id == AV_CODEC_ID_SMPTE_2038) {
+                put_registration_descriptor(&q, MKTAG('V', 'A', 'N', 'C'));
             } else if (codec_id == AV_CODEC_ID_SMPTE_2038) {
                 put_registration_descriptor(&q, MKTAG('V', 'A', 'N', 'C'));
             } else if (codec_id == AV_CODEC_ID_TIMED_ID3) {
