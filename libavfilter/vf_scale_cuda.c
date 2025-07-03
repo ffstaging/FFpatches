@@ -39,17 +39,29 @@
 #include "cuda/load_helper.h"
 #include "vf_scale_cuda.h"
 
-static const enum AVPixelFormat supported_formats[] = {
-    AV_PIX_FMT_YUV420P,
-    AV_PIX_FMT_NV12,
-    AV_PIX_FMT_YUV444P,
-    AV_PIX_FMT_P010,
-    AV_PIX_FMT_P016,
-    AV_PIX_FMT_YUV444P16,
-    AV_PIX_FMT_0RGB32,
-    AV_PIX_FMT_0BGR32,
-    AV_PIX_FMT_RGB32,
-    AV_PIX_FMT_BGR32,
+struct format_entry {
+    enum AVPixelFormat format;
+    const char *name;
+};
+
+static const struct format_entry supported_formats[] = {
+    {AV_PIX_FMT_YUV420P,  "planar8"},
+    {AV_PIX_FMT_YUV422P,  "planar8"},
+    {AV_PIX_FMT_YUV444P,  "planar8"},
+    {AV_PIX_FMT_YUV420P10,"planar10"},
+    {AV_PIX_FMT_YUV422P10,"planar10"},
+    {AV_PIX_FMT_YUV444P10,"planar10"},
+    {AV_PIX_FMT_YUV444P16,"planar16"},
+    {AV_PIX_FMT_NV12,     "semiplanar8"},
+    {AV_PIX_FMT_NV16,     "semiplanar8"},
+    {AV_PIX_FMT_P010,     "semiplanar10"},
+    {AV_PIX_FMT_P210,     "semiplanar10"},
+    {AV_PIX_FMT_P016,     "semiplanar16"},
+    {AV_PIX_FMT_P216,     "semiplanar16"},
+    {AV_PIX_FMT_0RGB32,   "bgr0"},
+    {AV_PIX_FMT_0BGR32,   "rgb0"},
+    {AV_PIX_FMT_RGB32,    "bgra"},
+    {AV_PIX_FMT_BGR32,    "rgba"},
 };
 
 #define DIV_UP(a, b) ( ((a) + (b) - 1) / (b) )
@@ -187,9 +199,19 @@ static int format_is_supported(enum AVPixelFormat fmt)
     int i;
 
     for (i = 0; i < FF_ARRAY_ELEMS(supported_formats); i++)
-        if (supported_formats[i] == fmt)
+        if (supported_formats[i].format == fmt)
             return 1;
     return 0;
+}
+
+static const char* get_format_name(enum AVPixelFormat fmt)
+{
+    int i;
+
+    for (i = 0; i < FF_ARRAY_ELEMS(supported_formats); i++)
+        if (supported_formats[i].format == fmt)
+            return supported_formats[i].name;
+    return NULL;
 }
 
 static av_cold void set_format_info(AVFilterContext *ctx, enum AVPixelFormat in_format, enum AVPixelFormat out_format)
@@ -284,8 +306,8 @@ static av_cold int cudascale_load_functions(AVFilterContext *ctx)
     char buf[128];
     int ret;
 
-    const char *in_fmt_name = av_get_pix_fmt_name(s->in_fmt);
-    const char *out_fmt_name = av_get_pix_fmt_name(s->out_fmt);
+    const char *in_fmt_name = get_format_name(s->in_fmt);
+    const char *out_fmt_name = get_format_name(s->out_fmt);
 
     const char *function_infix = "";
 
@@ -335,11 +357,13 @@ static av_cold int cudascale_load_functions(AVFilterContext *ctx)
         ret = AVERROR(ENOSYS);
         goto fail;
     }
+    av_log(ctx, AV_LOG_DEBUG, "Luma filter: %s (%s -> %s)\n", buf, av_get_pix_fmt_name(s->in_fmt), av_get_pix_fmt_name(s->out_fmt));
 
     snprintf(buf, sizeof(buf), "Subsample_%s_%s_%s_uv", function_infix, in_fmt_name, out_fmt_name);
     ret = CHECK_CU(cu->cuModuleGetFunction(&s->cu_func_uv, s->cu_module, buf));
     if (ret < 0)
         goto fail;
+    av_log(ctx, AV_LOG_DEBUG, "Chroma filter: %s (%s -> %s)\n", buf, av_get_pix_fmt_name(s->in_fmt), av_get_pix_fmt_name(s->out_fmt));
 
 fail:
     CHECK_CU(cu->cuCtxPopCurrent(&dummy));
