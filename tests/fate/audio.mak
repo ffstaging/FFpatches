@@ -79,6 +79,18 @@ fate-on2avc: CMD = framecrc -i $(TARGET_SAMPLES)/vp7/potter-40.vp7 -frames 30 -v
 FATE_SAMPLES_AUDIO-$(call FRAMECRC, PAF, PAF_AUDIO) += fate-paf-audio
 fate-paf-audio: CMD = framecrc -i $(TARGET_SAMPLES)/paf/hod1-partial.paf -vn
 
+FATE_SANYO_AUDIO-$(call FRAMECRC, WAV, ADPCM_SANYO, ARESAMPLE_FILTER) += fate-sanyo-3bit
+fate-sanyo-3bit: CMD = framecrc -i $(TARGET_SAMPLES)/sanyo/sanyo-mono-3bit-8000.wav -af aresample
+
+FATE_SANYO_AUDIO-$(call FRAMECRC, WAV, ADPCM_SANYO, ARESAMPLE_FILTER) += fate-sanyo-4bit
+fate-sanyo-4bit: CMD = framecrc -i $(TARGET_SAMPLES)/sanyo/sanyo-mono-4bit-8000.wav -af aresample
+
+FATE_SANYO_AUDIO-$(call FRAMECRC, WAV, ADPCM_SANYO, ARESAMPLE_FILTER) += fate-sanyo-5bit
+fate-sanyo-5bit: CMD = framecrc -i $(TARGET_SAMPLES)/sanyo/sanyo-mono-5bit-8000.wav -af aresample
+
+FATE_SAMPLES_AUDIO += $(FATE_SANYO_AUDIO-yes)
+fate-sanyo: $(FATE_SANYO_AUDIO-yes)
+
 FATE_SAMPLES_AUDIO-$(call FRAMECRC, VMD, VMDAUDIO, ARESAMPLE_FILTER) += fate-sierra-vmd-audio
 fate-sierra-vmd-audio: CMD = framecrc -i $(TARGET_SAMPLES)/vmd/12.vmd -vn -af aresample
 
