@@ -88,7 +88,6 @@ static int parse_weights(AVFilterContext *ctx)
     char *p, *arg, *saveptr = NULL;
     int i, last = 0;
 
-    s->fast = 1;
     s->wfactor = 0.f;
     p = s->weights_str;
     for (i = 0; i < s->nb_inputs; i++) {
@@ -149,6 +148,8 @@ static av_cold int init(AVFilterContext *ctx)
                 return ret;
         }
     }
+
+    s->fast = 1;
 
     return parse_weights(ctx);
 }
@@ -295,6 +296,7 @@ static int process_frame(FFFrameSync *fs)
     }
 
     if (ctx->is_disabled) {
+        s->fast = 0;
         out = av_frame_clone(s->frames[0]);
         if (!out)
             return AVERROR(ENOMEM);
@@ -506,6 +508,7 @@ static int tmix_filter_frame(AVFilterLink *inlink, AVFrame *in)
     }
 
     if (ctx->is_disabled) {
+        s->fast = 0;
         out = av_frame_clone(s->frames[0]);
         if (!out)
             return AVERROR(ENOMEM);
