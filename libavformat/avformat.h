@@ -1884,6 +1884,15 @@ typedef struct AVFormatContext {
      * @see skip_estimate_duration_from_pts
      */
     int64_t duration_probesize;
+
+    /**
+     * Depth recursion limit,
+     *
+     * The maximum recursion depth that a Demuxer can open a Demuxer within itself.
+     *
+     * - demuxing: Set by user
+     */
+    int recursion_limit;
 } AVFormatContext;
 
 /**

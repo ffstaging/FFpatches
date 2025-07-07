@@ -844,6 +844,11 @@ int ff_copy_whiteblacklists(AVFormatContext *dst, const AVFormatContext *src)
             *(char **)((char*)dst + offsets[i]) = dst_str;
         }
     }
+    if (src->recursion_limit <= 0) {
+        av_log(dst, AV_LOG_ERROR, "Too deep recursion\n");
+        return AVERROR(ELOOP);
+    }
+    dst->recursion_limit = src->recursion_limit - 1;
     return 0;
 }
 
