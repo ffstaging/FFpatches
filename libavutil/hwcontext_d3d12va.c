@@ -49,6 +49,7 @@ typedef struct D3D12VAFramesContext {
     ID3D12GraphicsCommandList *command_list;
     AVD3D12VASyncContext       sync_ctx;
     UINT                       luma_component_size;
+    int                        nb_surfaces_used;
 } D3D12VAFramesContext;
 
 typedef struct D3D12VADevicePriv {
@@ -174,7 +175,8 @@ fail:
 
 static void d3d12va_frames_uninit(AVHWFramesContext *ctx)
 {
-    D3D12VAFramesContext *s = ctx->hwctx;
+    D3D12VAFramesContext   *s     = ctx->hwctx;
+    AVD3D12VAFramesContext *hwctx = ctx->hwctx;
 
     D3D12_OBJECT_RELEASE(s->sync_ctx.fence);
     if (s->sync_ctx.event)
@@ -185,6 +187,11 @@ static void d3d12va_frames_uninit(AVHWFramesContext *ctx)
     D3D12_OBJECT_RELEASE(s->command_allocator);
     D3D12_OBJECT_RELEASE(s->command_list);
     D3D12_OBJECT_RELEASE(s->command_queue);
+
+    if (hwctx->texture_array) {
+        D3D12_OBJECT_RELEASE(hwctx->texture_array);
+        hwctx->texture_array = NULL;
+    }
 }
 
 static int d3d12va_frames_get_constraints(AVHWDeviceContext *ctx, const void *hwconfig, AVHWFramesConstraints *constraints)
@@ -228,6 +235,28 @@ static void free_texture(void *opaque, uint8_t *data)
     av_freep(&data);
 }
 
+static AVBufferRef *d3d12va_pool_alloc_texture_array(AVHWFramesContext *ctx)
+{
+    AVD3D12VAFrame         *desc  = av_mallocz(sizeof(*desc));
+    D3D12VAFramesContext   *s     = ctx->hwctx;
+    AVD3D12VAFramesContext *hwctx = ctx->hwctx;
+    AVBufferRef *buf;
+
+    // In Texture array mode, the D3D12 uses the same texture address for all the pictures,
+    //just different subresources.
+    desc->subresource_index = s->nb_surfaces_used;
+    desc->texture = hwctx->texture_array;
+
+    buf = av_buffer_create((uint8_t *)desc, sizeof(*desc), NULL, NULL, 0);
+
+    if (!buf) {
+        av_free(desc);
+        return NULL;
+    }
+    s->nb_surfaces_used++;
+    return buf;
+}
+
 static AVBufferRef *d3d12va_pool_alloc(void *opaque, size_t size)
 {
     AVHWFramesContext      *ctx          = (AVHWFramesContext *)opaque;
@@ -236,6 +265,11 @@ static AVBufferRef *d3d12va_pool_alloc(void *opaque, size_t size)
 
     AVBufferRef *buf;
     AVD3D12VAFrame *frame;
+
+    //For texture array mode, no need to create texture.
+    if (hwctx->texture_array_size > 0)
+        return d3d12va_pool_alloc_texture_array(ctx);
+
     D3D12_HEAP_PROPERTIES props = { .Type = D3D12_HEAP_TYPE_DEFAULT };
     D3D12_RESOURCE_DESC desc = {
         .Dimension        = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -280,7 +314,10 @@ fail:
 
 static int d3d12va_frames_init(AVHWFramesContext *ctx)
 {
-    AVD3D12VAFramesContext *hwctx = ctx->hwctx;
+    AVD3D12VAFramesContext *hwctx        = ctx->hwctx;
+    D3D12VAFramesContext   *s            = ctx->hwctx;
+    AVD3D12VADeviceContext *device_hwctx = ctx->device_ctx->hwctx;
+
     int i;
 
     for (i = 0; i < FF_ARRAY_ELEMS(supported_formats); i++) {
@@ -296,6 +333,31 @@ static int d3d12va_frames_init(AVHWFramesContext *ctx)
         av_log(ctx, AV_LOG_ERROR, "Unsupported pixel format: %s\n",
                av_get_pix_fmt_name(ctx->sw_format));
         return AVERROR(EINVAL);
+    }
+
+    //For texture array mode, create texture array resource in the init stage.
+    //This texture array will be used for all the pictures,but with different subresources.
+    if (hwctx->texture_array_size > 0){
+        D3D12_HEAP_PROPERTIES props = { .Type = D3D12_HEAP_TYPE_DEFAULT };
+
+        D3D12_RESOURCE_DESC desc = {
+            .Dimension        = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            .Alignment        = 0,
+            .Width            = ctx->width,
+            .Height           = ctx->height,
+            .DepthOrArraySize = hwctx->texture_array_size,
+            .MipLevels        = 1,
+            .Format           = hwctx->format,
+            .SampleDesc       = {.Count = 1, .Quality = 0 },
+            .Layout           = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+            .Flags            = hwctx->flags,
+        };
+
+        if (FAILED(ID3D12Device_CreateCommittedResource(device_hwctx->device, &props, D3D12_HEAP_FLAG_NONE, &desc,
+            D3D12_RESOURCE_STATE_COMMON, NULL, &IID_ID3D12Resource, (void **)&hwctx->texture_array))) {
+            av_log(ctx, AV_LOG_ERROR, "Could not create the texture\n");
+            return AVERROR(EINVAL);
+        }
     }
 
     ffhwframesctx(ctx)->pool_internal = av_buffer_pool_init2(sizeof(AVD3D12VAFrame),

@@ -112,6 +112,11 @@ typedef struct AVD3D12VAFrame {
     ID3D12Resource *texture;
 
     /**
+     * In texture array mode, the index of subresource
+     */
+    int subresource_index;
+
+    /**
      * The sync context for the texture
      *
      * @see: https://learn.microsoft.com/en-us/windows/win32/medfound/direct3d-12-video-overview#directx-12-fences
@@ -137,6 +142,19 @@ typedef struct AVD3D12VAFramesContext {
      * @see https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_resource_flags
      */
     D3D12_RESOURCE_FLAGS flags;
+
+    /**
+     * In texture array mode, the D3D12 uses the same the same texture array (resource)for all
+     * pictures.
+     */
+    ID3D12Resource *texture_array;
+
+    /**
+     * In texture array mode, the D3D12 uses the same texture array (resource)for all
+     * pictures, but different subresources to represent each picture.
+     * This is the size of the texture array (in number of subresources).
+     */
+    int texture_array_size;
 } AVD3D12VAFramesContext;
 
 #endif /* AVUTIL_HWCONTEXT_D3D12VA_H */
