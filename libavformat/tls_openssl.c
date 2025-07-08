@@ -921,8 +921,15 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
     ret = init_bio_method(h);
     if (ret < 0)
         goto fail;
-    if (!c->listen && !c->numerichost)
+    if (!c->listen && !c->numerichost) {
+        if (!SSL_set1_host(p->ssl, c->host)) {
+            av_log(h, AV_LOG_ERROR, "Failed to set hostname for TLS/SSL verification: %s\n",
+                openssl_get_error(p));
+            ret = AVERROR(EIO);
+            goto fail;
+        }
         SSL_set_tlsext_host_name(p->ssl, c->host);
+    }
     ret = c->listen ? SSL_accept(p->ssl) : SSL_connect(p->ssl);
     if (ret == 0) {
         av_log(h, AV_LOG_ERROR, "Unable to negotiate TLS/SSL session\n");
