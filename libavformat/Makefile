@@ -672,7 +672,6 @@ OBJS-$(CONFIG_VAPOURSYNTH_DEMUXER)       += vapoursynth.o
 # protocols I/O
 OBJS-$(CONFIG_ANDROID_CONTENT_PROTOCOL)  += file.o
 OBJS-$(CONFIG_ASYNC_PROTOCOL)            += async.o
-OBJS-$(CONFIG_APPLEHTTP_PROTOCOL)        += hlsproto.o
 OBJS-$(CONFIG_BLURAY_PROTOCOL)           += bluray.o
 OBJS-$(CONFIG_CACHE_PROTOCOL)            += cache.o
 OBJS-$(CONFIG_CONCAT_PROTOCOL)           += concat.o
@@ -686,7 +685,6 @@ OBJS-$(CONFIG_FD_PROTOCOL)               += file.o
 OBJS-$(CONFIG_FTP_PROTOCOL)              += ftp.o urldecode.o
 OBJS-$(CONFIG_GOPHER_PROTOCOL)           += gopher.o
 OBJS-$(CONFIG_GOPHERS_PROTOCOL)          += gopher.o
-OBJS-$(CONFIG_HLS_PROTOCOL)              += hlsproto.o
 OBJS-$(CONFIG_HTTP_PROTOCOL)             += http.o httpauth.o urldecode.o
 OBJS-$(CONFIG_HTTPPROXY_PROTOCOL)        += http.o httpauth.o urldecode.o
 OBJS-$(CONFIG_HTTPS_PROTOCOL)            += http.o httpauth.o urldecode.o
