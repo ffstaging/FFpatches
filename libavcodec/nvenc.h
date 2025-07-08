@@ -319,7 +319,6 @@ typedef struct NvencContext
     int mdm, cll;
     int cbr_padding;
     int multiview, multiview_supported;
-    int display_sei_sent;
 } NvencContext;
 
 int ff_nvenc_encode_init(AVCodecContext *avctx);

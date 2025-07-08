@@ -3205,14 +3205,12 @@ static int nvenc_send_frame(AVCodecContext *avctx, const AVFrame *frame)
                 }
 
                 pic_params.codecPicParams.hevcPicParams.p3DReferenceDisplayInfo = &ref_disp_info;
-                ctx->display_sei_sent = 1;
-            } else if (!ctx->display_sei_sent) {
+            } else {
                 ref_disp_info.precRefDisplayWidth = 31;
                 ref_disp_info.leftViewId[0] = 0;
                 ref_disp_info.rightViewId[0] = 1;
 
                 pic_params.codecPicParams.hevcPicParams.p3DReferenceDisplayInfo = &ref_disp_info;
-                ctx->display_sei_sent = 1;
             }
 
             ctx->next_view_id = !ctx->next_view_id;
