@@ -20,6 +20,7 @@
  */
 
 #include <atomic>
+#include <unistd.h>
 using std::atomic;
 
 /* Include internal.h first to avoid conflict between winsock.h (used by
@@ -369,11 +370,26 @@ av_cold int ff_decklink_write_trailer(AVFormatContext *avctx)
 {
     struct decklink_cctx *cctx = (struct decklink_cctx *)avctx->priv_data;
     struct decklink_ctx *ctx = (struct decklink_ctx *)cctx->ctx;
+    uint32_t buffered;
 
     if (ctx->playback_started) {
         BMDTimeValue actual;
         ctx->dlo->StopScheduledPlayback(ctx->last_pts * ctx->bmd_tb_num,
                                         &actual, ctx->bmd_tb_den);
+        av_log(avctx, AV_LOG_DEBUG, "Stopped at %ld, requested %ld\n", actual, ctx->last_pts * ctx->bmd_tb_num);
+        while (1){
+            ctx->dlo->GetBufferedVideoFrameCount(&buffered);
+            if (buffered <= 0){
+                break;
+            }
+            av_log(avctx, AV_LOG_DEBUG, "Waiting for %d buffered frames to finish\n", buffered);
+            if (buffered < 5) {
+                usleep(1);
+            } else {
+                usleep(300);
+            }
+        }
+        av_log(avctx, AV_LOG_DEBUG, "All frames returned, finishing up\n");
         ctx->dlo->DisableVideoOutput();
         if (ctx->audio)
             ctx->dlo->DisableAudioOutput();
