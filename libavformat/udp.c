@@ -1092,6 +1092,8 @@ static int udp_write(URLContext *h, const uint8_t *buf, int size)
     }
 
     if (!s->is_connected) {
+        if (!s->dest_addr_len && !s->dest_addr.ss_family)
+            ff_udp_get_last_recv_addr(h, &s->dest_addr, &s->dest_addr_len);
         ret = sendto (s->udp_fd, buf, size, 0,
                       (struct sockaddr *) &s->dest_addr,
                       s->dest_addr_len);
