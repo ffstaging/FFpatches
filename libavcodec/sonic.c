@@ -950,6 +950,8 @@ static av_cold int sonic_decode_init(AVCodecContext *avctx)
         s->tap_quant[i] = ff_sqrt(i+1);
 
     s->predictor_k = av_calloc(s->num_taps, sizeof(*s->predictor_k));
+    if (!s->predictor_k)
+        return AVERROR(ENOMEM);
 
     tmp = av_calloc(s->num_taps, s->channels * sizeof(**s->predictor_state));
     if (!tmp)
