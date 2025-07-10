@@ -233,7 +233,6 @@ static int sap_write_header(AVFormatContext *s)
         ret = AVERROR_INVALIDDATA;
         goto fail;
     }
-    av_freep(&contexts);
     av_log(s, AV_LOG_VERBOSE, "SDP:\n%s\n", &sap->ann[pos]);
     pos += strlen(&sap->ann[pos]);
     sap->ann_size = pos;
@@ -244,11 +243,17 @@ static int sap_write_header(AVFormatContext *s)
         goto fail;
     }
 
-    return 0;
+    ret = 0;
 
 fail:
-    av_free(contexts);
-    sap_write_close(s);
+    if (contexts) {
+        for (i = 0; i < s->nb_streams; i++)
+            if (contexts[i])
+                av_free(contexts[i]->url);
+        av_free(contexts);
+    }
+    if (ret < 0)
+        sap_write_close(s);
     return ret;
 }
 
