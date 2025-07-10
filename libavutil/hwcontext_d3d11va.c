@@ -42,6 +42,8 @@
 #include "thread.h"
 #include "compat/w32dlfcn.h"
 
+#define MAX_ARRAY_SIZE 64 // Driver specification limits ArraySize to 64 for decoder-bound resources
+
 typedef HRESULT(WINAPI *PFN_CREATE_DXGI_FACTORY)(REFIID riid, void **ppFactory);
 
 static AVOnce functions_loaded = AV_ONCE_INIT;
@@ -288,6 +290,8 @@ static int d3d11va_frames_init(AVHWFramesContext *ctx)
         return AVERROR(EINVAL);
     }
 
+    ctx->initial_pool_size = FFMIN(ctx->initial_pool_size, MAX_ARRAY_SIZE);
+
     texDesc = (D3D11_TEXTURE2D_DESC){
         .Width      = ctx->width,
         .Height     = ctx->height,
@@ -340,19 +344,30 @@ static int d3d11va_get_buffer(AVHWFramesContext *ctx, AVFrame *frame)
 {
     AVD3D11FrameDescriptor *desc;
 
-    frame->buf[0] = av_buffer_pool_get(ctx->pool);
-    if (!frame->buf[0])
-        return AVERROR(ENOMEM);
+    /**
+     * Loop until a buffer becomes available from the pool.
+     * In a full hardware pipeline, all buffers may be temporarily in use by
+     * other modules (encoder/filter/decoder). Rather than immediately failing
+     * with ENOMEM, we wait for a buffer to be released back to the pool, which
+     * maintains pipeline flow and prevents unnecessary allocation failures
+     * during normal operation.
+     */
+    do {
+        frame->buf[0] = av_buffer_pool_get(ctx->pool);
+        if (frame->buf[0]) {
+            desc = (AVD3D11FrameDescriptor *)frame->buf[0]->data;
+            frame->data[0] = (uint8_t *)desc->texture;
+            frame->data[1] = (uint8_t *)desc->index;
+            frame->format  = AV_PIX_FMT_D3D11;
+            frame->width   = ctx->width;
+            frame->height  = ctx->height;
+            return 0;
+        }
 
-    desc = (AVD3D11FrameDescriptor *)frame->buf[0]->data;
+        av_usleep(500);
+    } while (1);
 
-    frame->data[0] = (uint8_t *)desc->texture;
-    frame->data[1] = (uint8_t *)desc->index;
-    frame->format  = AV_PIX_FMT_D3D11;
-    frame->width   = ctx->width;
-    frame->height  = ctx->height;
-
-    return 0;
+    return AVERROR(ENOMEM);
 }
 
 static int d3d11va_transfer_get_formats(AVHWFramesContext *ctx,
