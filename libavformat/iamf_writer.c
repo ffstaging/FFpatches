@@ -523,6 +523,7 @@ static int iamf_write_codec_config(const IAMFContext *iamf,
         avio_write(dyn_bc, codec_config->extradata, codec_config->extradata_size);
         break;
     case AV_CODEC_ID_AAC:
+        ffio_free_dyn_buf(&dyn_bc);
         return AVERROR_PATCHWELCOME;
     case AV_CODEC_ID_FLAC:
         avio_w8(dyn_bc, 0x80);
@@ -774,7 +775,8 @@ static int iamf_write_audio_element(const IAMFContext *iamf,
                 if (layout == 3 || layout == 4 || layout == 6 || layout == 7) {
                     av_log(log_ctx, AV_LOG_ERROR, "demixing_info needed but not set in Stream Group #%u\n",
                            audio_element->audio_element_id);
-                    return AVERROR(EINVAL);
+                    ret = AVERROR(EINVAL);
+                    goto cleanup;
                 }
             }
             param_definition_types &= ~AV_IAMF_PARAMETER_DEFINITION_DEMIXING;
@@ -794,7 +796,7 @@ static int iamf_write_audio_element(const IAMFContext *iamf,
         param_def = ff_iamf_get_param_definition(iamf, param->parameter_id);
         ret = param_definition(iamf, param_def, dyn_bc, log_ctx);
         if (ret < 0)
-            return ret;
+            goto cleanup;
 
         avio_w8(dyn_bc, demix->dmixp_mode << 5); // dmixp_mode
         avio_w8(dyn_bc, element->default_w << 4); // default_w
@@ -806,24 +808,25 @@ static int iamf_write_audio_element(const IAMFContext *iamf,
         if (!param) {
             av_log(log_ctx, AV_LOG_ERROR, "recon_gain_info needed but not set in Stream Group #%u\n",
                    audio_element->audio_element_id);
-            return AVERROR(EINVAL);
+            ret = AVERROR(EINVAL);
+            goto cleanup;
         }
         ffio_write_leb(dyn_bc, AV_IAMF_PARAMETER_DEFINITION_RECON_GAIN); // type
 
         param_def = ff_iamf_get_param_definition(iamf, param->parameter_id);
         ret = param_definition(iamf, param_def, dyn_bc, log_ctx);
         if (ret < 0)
-            return ret;
+            goto cleanup;
     }
 
     if (element->audio_element_type == AV_IAMF_AUDIO_ELEMENT_TYPE_CHANNEL) {
         ret = scalable_channel_layout_config(audio_element, dyn_bc);
         if (ret < 0)
-            return ret;
+            goto cleanup;
     } else {
         ret = ambisonics_config(audio_element, dyn_bc);
         if (ret < 0)
-            return ret;
+            goto cleanup;
     }
 
     init_put_bits(&pbc, header, sizeof(header));
@@ -835,9 +838,11 @@ static int iamf_write_audio_element(const IAMFContext *iamf,
     avio_write(pb, header, put_bytes_count(&pbc, 1));
     ffio_write_leb(pb, dyn_size);
     avio_write(pb, dyn_buf, dyn_size);
-    ffio_free_dyn_buf(&dyn_bc);
+    ret = 0;
 
-    return 0;
+cleanup:
+    ffio_free_dyn_buf(&dyn_bc);
+    return ret;
 }
 
 static int iamf_write_mixing_presentation(const IAMFContext *iamf,
@@ -886,7 +891,8 @@ static int iamf_write_mixing_presentation(const IAMFContext *iamf,
             if (av_dict_count(submix_element->annotations) != av_dict_count(mix->annotations)) {
                 av_log(log_ctx, AV_LOG_ERROR, "Inconsistent amount of labels in submix %d from Mix Presentation id #%u\n",
                        j, audio_element->audio_element_id);
-                return AVERROR(EINVAL);
+                ret = AVERROR(EINVAL);
+                goto cleanup;
             }
             while ((tag = av_dict_iterate(submix_element->annotations, tag)))
                 avio_put_str(dyn_bc, tag->value);
@@ -901,7 +907,7 @@ static int iamf_write_mixing_presentation(const IAMFContext *iamf,
             param_def = ff_iamf_get_param_definition(iamf, submix_element->element_mix_config->parameter_id);
             ret = param_definition(iamf, param_def, dyn_bc, log_ctx);
             if (ret < 0)
-                return ret;
+                goto cleanup;
 
             avio_wb16(dyn_bc, rescale_rational(submix_element->default_mix_gain, 1 << 8));
         }
@@ -909,7 +915,7 @@ static int iamf_write_mixing_presentation(const IAMFContext *iamf,
         param_def = ff_iamf_get_param_definition(iamf, sub_mix->output_mix_config->parameter_id);
         ret = param_definition(iamf, param_def, dyn_bc, log_ctx);
         if (ret < 0)
-            return ret;
+            goto cleanup;
         avio_wb16(dyn_bc, rescale_rational(sub_mix->default_mix_gain, 1 << 8));
 
         ffio_write_leb(dyn_bc, sub_mix->nb_layouts); // nb_layouts
@@ -928,11 +934,13 @@ static int iamf_write_mixing_presentation(const IAMFContext *iamf,
                 }
                 if (layout == FF_ARRAY_ELEMS(ff_iamf_sound_system_map)) {
                     av_log(log_ctx, AV_LOG_ERROR, "Invalid Sound System value in a submix\n");
-                    return AVERROR(EINVAL);
+                    ret = AVERROR(EINVAL);
+                    goto cleanup;
                 }
             } else if (submix_layout->layout_type != AV_IAMF_SUBMIX_LAYOUT_TYPE_BINAURAL) {
                 av_log(log_ctx, AV_LOG_ERROR, "Unsupported Layout Type value in a submix\n");
-                return AVERROR(EINVAL);
+                ret = AVERROR(EINVAL);
+                goto cleanup;
             }
             init_put_bits(&pbc, header, sizeof(header));
             put_bits(&pbc, 2, submix_layout->layout_type); // layout_type
@@ -974,9 +982,11 @@ static int iamf_write_mixing_presentation(const IAMFContext *iamf,
     avio_write(pb, header, put_bytes_count(&pbc, 1));
     ffio_write_leb(pb, dyn_size);
     avio_write(pb, dyn_buf, dyn_size);
-    ffio_free_dyn_buf(&dyn_bc);
+    ret = 0;
 
-    return 0;
+cleanup:
+    ffio_free_dyn_buf(&dyn_bc);
+    return ret;
 }
 
 int ff_iamf_write_descriptors(const IAMFContext *iamf, AVIOContext *pb, void *log_ctx)
@@ -1098,7 +1108,8 @@ static int write_parameter_block(const IAMFContext *iamf, AVIOContext *pb,
 
             if (!audio_element) {
                 av_log(log_ctx, AV_LOG_ERROR, "Invalid Parameter Definition with ID %u referenced by a packet\n", param->parameter_id);
-                return AVERROR(EINVAL);
+                ret = AVERROR(EINVAL);
+                goto cleanup;
             }
 
             for (int j = 0; j < audio_element->nb_layers; j++) {
@@ -1132,8 +1143,10 @@ static int write_parameter_block(const IAMFContext *iamf, AVIOContext *pb,
     dyn_size = avio_get_dyn_buf(dyn_bc, &dyn_buf);
     ffio_write_leb(pb, dyn_size);
     avio_write(pb, dyn_buf, dyn_size);
-    ffio_free_dyn_buf(&dyn_bc);
+    ret = 0;
 
+cleanup:
+    ffio_free_dyn_buf(&dyn_bc);
     return 0;
 }
 
