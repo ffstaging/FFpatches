@@ -30,6 +30,7 @@
 #include "libavutil/mem_internal.h"
 
 #include "progressframe.h"
+#include "cbs_vp9.h"
 #include "vp9.h"
 
 enum BlockPartition {
@@ -63,6 +64,9 @@ typedef struct VP9mvrefPair {
 } VP9mvrefPair;
 
 typedef struct VP9Frame {
+    VP9RawFrame *header_ref; ///< RefStruct reference backing frame_header
+    VP9RawFrameHeader *frame_header;
+
     ProgressFrame tf;
     void *extradata;               ///< RefStruct reference
     uint8_t *segmentation_map;
