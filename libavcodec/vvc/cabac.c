@@ -929,24 +929,29 @@ static int truncated_binary_decode(VVCLocalContext *lc, const int c_max)
 }
 
 // 9.3.3.5 k-th order Exp - Golomb binarization process
-static int kth_order_egk_decode(CABACContext *c, int k)
+static int kth_order_egk_decode(CABACContext *c, int *value, int k, const int max)
 {
     int bit    = 1;
-    int value  = 0;
     int symbol = 0;
+    *value     = 0;
 
     while (bit) {
         bit = get_cabac_bypass(c);
-        value += bit << k++;
+        if (max - *value < (bit << k))
+            return AVERROR_INVALIDDATA;
+        *value += bit << k++;
     }
 
     if (--k) {
         for (int i = 0; i < k; i++)
             symbol = (symbol << 1) | get_cabac_bypass(c);
-        value += symbol;
+        *value += symbol;
     }
 
-    return value;
+    if (*value > max)
+        return AVERROR_INVALIDDATA;
+
+    return 0;
 }
 
 // 9.3.3.6 Limited k-th order Exp-Golomb binarization process
@@ -1377,14 +1382,14 @@ int ff_vvc_intra_chroma_pred_mode(VVCLocalContext *lc)
     return (get_cabac_bypass(&lc->ep->cc) << 1) | get_cabac_bypass(&lc->ep->cc);
 }
 
-int ff_vvc_palette_predictor_run(VVCLocalContext *lc)
+int ff_vvc_palette_predictor_run(VVCLocalContext *lc, int *value, const int max)
 {
-    return kth_order_egk_decode(&lc->ep->cc, 0);
+    return kth_order_egk_decode(&lc->ep->cc, value, 0, max);
 }
 
-int ff_vvc_num_signalled_palette_entries(VVCLocalContext *lc)
+int ff_vvc_num_signalled_palette_entries(VVCLocalContext *lc, int *value, const int max)
 {
-    return kth_order_egk_decode(&lc->ep->cc, 0);
+    return kth_order_egk_decode(&lc->ep->cc, value, 0, max);
 }
 
 int ff_vvc_new_palette_entries(VVCLocalContext *lc, const int bit_depth)
@@ -1424,9 +1429,9 @@ int ff_vvc_palette_idx_idc(VVCLocalContext *lc, const int max_palette_index, con
     return truncated_binary_decode(lc, max_palette_index - adjust);
 }
 
-int ff_vvc_palette_escape_val(VVCLocalContext *lc)
+int ff_vvc_palette_escape_val(VVCLocalContext *lc, int *value, const int max)
 {
-    return kth_order_egk_decode(&lc->ep->cc, 5);
+    return kth_order_egk_decode(&lc->ep->cc, value, 5, max);
 }
 
 int ff_vvc_general_merge_flag(VVCLocalContext *lc)
