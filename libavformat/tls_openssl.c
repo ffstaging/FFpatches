@@ -731,10 +731,6 @@ static av_cold int openssl_init_ca_key_cert(URLContext *h)
             ret = AVERROR(EINVAL);
             return ret;
         }
-    } else if (c->is_dtls){
-        av_log(p, AV_LOG_ERROR, "Init cert failed, %s\n", openssl_get_error(p));
-        ret = AVERROR(EINVAL);
-        goto fail;
     }
 
     if (c->key_file) {
@@ -752,10 +748,6 @@ static av_cold int openssl_init_ca_key_cert(URLContext *h)
             ret = AVERROR(EINVAL);
             return ret;
         }
-    } else if (c->is_dtls) {
-        av_log(p, AV_LOG_ERROR, "Init pkey failed, %s\n", openssl_get_error(p));
-        ret = AVERROR(EINVAL);
-        goto fail;
     }
     ret = 0;
 fail:
