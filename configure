@@ -7271,6 +7271,9 @@ enabled schannel &&
     schannel_extralibs="-lsecur32 -lncrypt -lcrypt32" ||
         disable schannel
 
+enabled schannel && check_type "windows.h security.h schnlsp.h" SecPkgContext_KeyingMaterialInfo "-DSECURITY_WIN32 -D_WIN32_WINNT=0x0A00" ||
+    disable dtls_protocol
+
 makeinfo --version > /dev/null 2>&1 && enable makeinfo  || disable makeinfo
 enabled makeinfo \
     && [ 0$(makeinfo --version | grep "texinfo" | sed 's/.*texinfo[^0-9]*\([0-9]*\)\..*/\1/') -ge 5 ] \
