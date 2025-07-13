@@ -695,7 +695,7 @@ static int dtls_handshake(URLContext *h)
     }
 
     /* Check whether the DTLS is completed. */
-    if (SSL_is_init_finished(p->ssl) != 1)
+    if (SSL_is_init_finished(p->ssl) != TLS_ST_OK)
         goto end;
     ret = 0;
     p->tls_shared.state = DTLS_STATE_FINISHED;
