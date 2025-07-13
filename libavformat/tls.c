@@ -27,9 +27,65 @@
 #include "url.h"
 #include "tls.h"
 #include "libavutil/avstring.h"
+#include "libavutil/intreadwrite.h"
 #include "libavutil/getenv_utf8.h"
 #include "libavutil/mem.h"
 #include "libavutil/parseutils.h"
+
+enum {
+    CONTENT_TYPE_CHANGE_CIPHER_SPEC = 20,
+    CONTENT_TYPE_ALERT = 21,
+    CONTENT_TYPE_HANDSHAKE = 22,
+    CONTENT_TYPE_APPLICATION_DATA = 23,
+    CONTENT_TYPE_OTHERS = 255
+} ContentType;
+
+enum {
+    TLS1_MAJOR_VERSION = 0x03,
+    DTLS1_MAJOR_VERSION = 0xFE,
+} TLSVersion;
+
+/*
+ * Trace a single TLS/DTLS record.
+ * 
+ * See RFC 5246 Section 6.2.1, RFC 6347 Section 4.1
+ * 
+ * @param data     Raw record (network byte‑order).
+ * @param length   Size of @data in bytes.
+ * @param incoming Non‑zero when the packet was received, zero when sent.
+ */
+void openssl_state_trace(uint8_t *data, int length, int incoming)
+{
+    uint8_t  content_type   = 0;  /* TLS/DTLS ContentType       */
+    uint16_t record_length  = 0;  /* Length field from header   */
+    uint8_t  handshake_type = 0;  /* First byte of Handshake msg */
+    int is_dtls = 0;
+
+    /* ContentType is always the very first byte */
+    if (length >= 1)
+        content_type = AV_RB8(&data[0]);
+    if (length >= 3 && data[1] == DTLS1_MAJOR_VERSION)
+        is_dtls = 1;
+    /* TLS header is 5 bytes, DTLS header is 13 bytes */
+    if (length >= 13 && is_dtls)
+        record_length = AV_RB16(&data[11]);
+    else if (length >= 5 && !is_dtls)
+        record_length = AV_RB16(&data[3]);
+    /*
+     * HandshakeType values (TLS 1.0–1.2, DTLS 1.0/1.2)
+     * See RFC 5246 Section 7.4, RFC 6347 Section 4.2
+     *
+     * Only present when ContentType == handshake(22)
+     */
+    if (content_type == CONTENT_TYPE_HANDSHAKE) {
+        int hs_off = is_dtls ? 13 : 5;
+        if (length > hs_off)
+            handshake_type = AV_RB8(&data[hs_off]);
+    }
+
+    av_log(NULL, AV_LOG_TRACE ,"TLS: Trace %s, len=%u, cnt=%u, size=%u, hs=%u\n",
+        (incoming? "RECV":"SEND"), length, content_type, record_length, handshake_type);
+}
 
 static int set_options(TLSShared *c, const char *uri)
 {

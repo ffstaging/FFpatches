@@ -95,6 +95,8 @@ typedef struct TLSShared {
     {"key_pem",    "Private key PEM string",              offsetof(pstruct, options_field . key_buf),   AV_OPT_TYPE_STRING, .flags = TLS_OPTFL }, \
     FF_TLS_CLIENT_OPTIONS(pstruct, options_field)
 
+void openssl_state_trace(uint8_t *data, int length, int incoming);
+
 int ff_tls_open_underlying(TLSShared *c, URLContext *parent, const char *uri, AVDictionary **options);
 
 int ff_url_read_all(const char *url, AVBPrint *bp);
