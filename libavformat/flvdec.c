@@ -1710,6 +1710,9 @@ retry_duration:
 
                 av_log(s, AV_LOG_DEBUG, "Set channel data from MultiChannel info.\n");
 
+                if (avio_feof(s->pb))
+                    return AVERROR_EOF;
+
                 goto next_track;
             }
         } else if (stream_type == FLV_STREAM_TYPE_VIDEO) {
