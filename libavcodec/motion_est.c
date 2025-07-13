@@ -90,12 +90,14 @@ static inline void init_ref(MotionEstContext *c, uint8_t *const src[3],
         ((y*c->uvstride + x)>>1),
     };
     int i;
-    for(i=0; i<3; i++){
+    for (i = 0; i < 3 && src[i]; i++) {
         c->src[0][i]= src [i] + offset[i];
+    }
+    for (i = 0; i < 3 && ref[i]; i++) {
         c->ref[0][i]= ref [i] + offset[i];
     }
     if(ref_index){
-        for(i=0; i<3; i++){
+        for (i = 0; i < 3 && ref2[i]; i++) {
             c->ref[ref_index][i]= ref2[i] + offset[i];
         }
     }
