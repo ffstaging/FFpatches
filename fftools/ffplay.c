@@ -1156,7 +1156,7 @@ static void video_audio_display(VideoState *s)
             err = av_tx_init(&s->rdft, &s->rdft_fn, AV_TX_FLOAT_RDFT,
                              0, 1 << rdft_bits, &rdft_scale, 0);
         }
-        if (err < 0 || !s->rdft_data) {
+        if (err < 0 || !s->real_data || !s->rdft_data) {
             av_log(NULL, AV_LOG_ERROR, "Failed to allocate buffers for RDFT, switching to waves display\n");
             s->show_mode = SHOW_MODE_WAVES;
         } else {
