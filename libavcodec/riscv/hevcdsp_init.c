@@ -27,6 +27,8 @@
 #include "libavcodec/hevc/dsp.h"
 #include "libavcodec/riscv/h26x/h2656dsp.h"
 
+void ff_hevc_idct_32x32_8_rvv(int16_t *coeffs, int col_limit);
+
 #define RVV_FNASSIGN(member, v, h, fn, ext) \
         member[1][v][h] = ff_h2656_put_pixels_##8_##ext;  \
         member[3][v][h] = ff_h2656_put_pixels_##8_##ext;  \
@@ -40,27 +42,36 @@ void ff_hevc_dsp_init_riscv(HEVCDSPContext *c, const int bit_depth)
     const int flags = av_get_cpu_flags();
     int vlenb;
 
-    if (!(flags & AV_CPU_FLAG_RVV_I32) || !(flags & AV_CPU_FLAG_RVB))
-        return;
-
     vlenb = ff_get_rv_vlenb();
-    if (vlenb >= 32) {
+
+    if (flags & AV_CPU_FLAG_RVV_I64)
         switch (bit_depth) {
             case 8:
-                RVV_FNASSIGN(c->put_hevc_qpel, 0, 0, pel_pixels, rvv_256);
-                RVV_FNASSIGN(c->put_hevc_epel, 0, 0, pel_pixels, rvv_256);
+                c->idct[3]                     = ff_hevc_idct_32x32_8_rvv;
                 break;
             default:
                 break;
         }
-    } else if (vlenb >= 16) {
-        switch (bit_depth) {
-            case 8:
-                RVV_FNASSIGN(c->put_hevc_qpel, 0, 0, pel_pixels, rvv_128);
-                RVV_FNASSIGN(c->put_hevc_epel, 0, 0, pel_pixels, rvv_128);
-                break;
-            default:
-                break;
+
+    if ((flags & AV_CPU_FLAG_RVV_I32) && (flags & AV_CPU_FLAG_RVB)){
+        if (vlenb >= 32) {
+            switch (bit_depth) {
+                case 8:
+                    RVV_FNASSIGN(c->put_hevc_qpel, 0, 0, pel_pixels, rvv_256);
+                    RVV_FNASSIGN(c->put_hevc_epel, 0, 0, pel_pixels, rvv_256);
+                    break;
+                default:
+                    break;
+            }
+        } else if (vlenb >= 16) {
+            switch (bit_depth) {
+                case 8:
+                    RVV_FNASSIGN(c->put_hevc_qpel, 0, 0, pel_pixels, rvv_128);
+                    RVV_FNASSIGN(c->put_hevc_epel, 0, 0, pel_pixels, rvv_128);
+                    break;
+                default:
+                    break;
+            }
         }
     }
 #endif
