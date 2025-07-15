@@ -244,6 +244,17 @@ static av_cold int encode_init(AVCodecContext* avc_context)
         return AVERROR_EXTERNAL;
     }
 
+    // Set encoding speed
+    if (avc_context->compression_level != FF_COMPRESSION_DEFAULT) {
+        int max_speed_level;
+        int speed_level = avc_context->compression_level;
+        th_encode_ctl(h->t_state, TH_ENCCTL_GET_SPLEVEL_MAX, &max_speed_level, sizeof(max_speed_level));
+        if (speed_level > max_speed_level) {
+            speed_level = max_speed_level;
+        }
+        th_encode_ctl(h->t_state, TH_ENCCTL_SET_SPLEVEL, &speed_level, sizeof(speed_level));
+    }
+
     // need to enable 2 pass (via TH_ENCCTL_2PASS_) before encoding headers
     if (avc_context->flags & AV_CODEC_FLAG_PASS1) {
         if ((ret = get_stats(avc_context, 0)) < 0)
