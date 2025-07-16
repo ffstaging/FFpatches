@@ -1156,6 +1156,10 @@ static int jpeg2000_decode_packet(Jpeg2000DecoderContext *s, Jpeg2000Tile *tile,
     else
         select_stream(s, tile, tp_index, codsty);
 
+    // refering to a non existing tile part
+    if (!s->g.buffer)
+        return AVERROR_INVALIDDATA;
+
     if (!(ret = get_bits(s, 1))) {
         jpeg2000_flush(s);
         goto skip_data;
@@ -1868,7 +1872,8 @@ static int jpeg2000_decode_packets(Jpeg2000DecoderContext *s, Jpeg2000Tile *tile
         );
     }
     /* EOC marker reached */
-    bytestream2_skip(&s->g, 2);
+    if (ret >= 0)
+        bytestream2_skip(&s->g, 2);
 
     return ret;
 }
