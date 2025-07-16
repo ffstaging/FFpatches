@@ -1983,7 +1983,17 @@ static unsigned klv_fill_size(uint64_t size)
         return pad & (KAG_SIZE-1);
 }
 
-static void mxf_write_index_table_segment(AVFormatContext *s)
+static inline int mxf_check_keyframe_offset(AVFormatContext *s, int offset)
+{
+    if (offset >= INT8_MIN && offset <= INT8_MAX)
+        return 0;
+
+    av_log(s, AV_LOG_ERROR, "keyframe offset %d out of range [%d,%d], please reduce "
+            "encoder GOP size\n", offset, INT8_MIN, INT8_MAX);
+    return AVERROR_INVALIDDATA;
+}
+
+static int mxf_write_index_table_segment(AVFormatContext *s)
 {
     MXFContext *mxf = s->priv_data;
     AVIOContext *pb = s->pb;
@@ -1992,11 +2002,12 @@ static void mxf_write_index_table_segment(AVFormatContext *s)
     int prev_non_b_picture = 0;
     int audio_frame_size = 0;
     int64_t pos;
+    int err;
 
     av_log(s, AV_LOG_DEBUG, "edit units count %d\n", mxf->edit_units_count);
 
     if (!mxf->edit_units_count && !mxf->edit_unit_byte_count)
-        return;
+        return 0;
 
     avio_write(pb, index_table_segment_key, 16);
 
@@ -2100,9 +2111,17 @@ static void mxf_write_index_table_segment(AVFormatContext *s)
             avio_w8(pb, temporal_offset);
 
             if ((mxf->index_entries[i].flags & 0x30) == 0x30) { // back and forward prediction
+                int offset = mxf->last_key_index - i;
+                err = mxf_check_keyframe_offset(s, offset);
+                if (err < 0)
+                    return err;
                 sc->b_picture_count = FFMAX(sc->b_picture_count, i - prev_non_b_picture);
-                avio_w8(pb, mxf->last_key_index - i);
+                avio_w8(pb, offset);
             } else {
+                int offset = key_index - i;
+                err = mxf_check_keyframe_offset(s, offset);
+                if (err < 0)
+                    return err;
                 avio_w8(pb, key_index - i); // key frame offset
                 if ((mxf->index_entries[i].flags & 0x20) == 0x20) // only forward
                     mxf->last_key_index = key_index;
@@ -2127,6 +2146,8 @@ static void mxf_write_index_table_segment(AVFormatContext *s)
     }
 
     mxf_update_klv_size(pb, pos);
+
+    return 0;
 }
 
 static void mxf_write_klv_fill(AVFormatContext *s)
@@ -3354,7 +3375,9 @@ static int mxf_write_packet(AVFormatContext *s, AVPacket *pkt)
             if ((err = mxf_write_partition(s, 1, 2, header_open_partition_key, 1)) < 0)
                 return err;
             mxf_write_klv_fill(s);
-            mxf_write_index_table_segment(s);
+            err = mxf_write_index_table_segment(s);
+            if (err < 0)
+                return err;
         } else {
             if ((err = mxf_write_partition(s, 0, 0, header_open_partition_key, 1)) < 0)
                 return err;
@@ -3370,7 +3393,9 @@ static int mxf_write_packet(AVFormatContext *s, AVPacket *pkt)
             if ((err = mxf_write_partition(s, 1, 2, body_partition_key, 0)) < 0)
                 return err;
             mxf_write_klv_fill(s);
-            mxf_write_index_table_segment(s);
+            err = mxf_write_index_table_segment(s);
+            if (err < 0)
+                return err;
         }
 
         mxf_write_klv_fill(s);
@@ -3455,7 +3480,9 @@ static int mxf_write_footer(AVFormatContext *s)
         if ((err = mxf_write_partition(s, 0, 2, footer_partition_key, 0)) < 0)
             return err;
         mxf_write_klv_fill(s);
-        mxf_write_index_table_segment(s);
+        err = mxf_write_index_table_segment(s);
+        if (err < 0)
+            return err;
     }
 
     mxf_write_klv_fill(s);
@@ -3474,7 +3501,9 @@ static int mxf_write_footer(AVFormatContext *s)
             if ((err = mxf_write_partition(s, 1, 2, header_closed_partition_key, 1)) < 0)
                 return err;
             mxf_write_klv_fill(s);
-            mxf_write_index_table_segment(s);
+            err = mxf_write_index_table_segment(s);
+            if (err < 0)
+                return err;
         } else {
             if ((err = mxf_write_partition(s, 0, 0, header_closed_partition_key, 1)) < 0)
                 return err;
