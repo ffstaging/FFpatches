@@ -4628,7 +4628,7 @@ add_sanitizer_flags(){
             add_cflags  -fsanitize=thread
             add_ldflags -fsanitize=thread
         ;;
-        usan)
+        usan|ubsan)
             add_cflags  -fsanitize=undefined
             add_ldflags -fsanitize=undefined
         ;;
