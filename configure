@@ -4643,6 +4643,9 @@ add_sanitizers(){
     for sanitizer in "${sanitizers[@]}"; do
         add_sanitizer_flags "$sanitizer"
     done
+    if [ "${#sanitizers[@]}" -gt 0 ]; then
+        add_cflags -fno-omit-frame-pointer
+    fi
 }
 
 case "$toolchain" in
