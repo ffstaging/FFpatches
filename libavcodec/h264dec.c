@@ -887,6 +887,23 @@ static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
             goto fail;
     }
 
+    // Attach the coding info from the main context.
+    if (srcp->coding_info_ref) {
+        AVFrameSideData *side_data;
+
+        av_log(h->avctx, AV_LOG_DEBUG, "Attaching coding_info to frame %"PRId64"\n", dst->pts);
+
+        // Create a new side data entry.
+        side_data = av_frame_new_side_data_from_buf(dst, AV_FRAME_DATA_VIDEO_CODING_INFO, srcp->coding_info_ref);
+        if (!side_data) {
+            av_log(h->avctx, AV_LOG_ERROR, "Failed to allocate side data for coding info.\n");
+        } else {
+            // The AVFrame now owns the buffer, so we release our reference to it.
+            // It will be freed when the frame is unreferenced.
+            srcp->coding_info_ref = NULL;
+        }
+    }
+
     if (!(h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_FILM_GRAIN))
         av_frame_remove_side_data(dst, AV_FRAME_DATA_FILM_GRAIN_PARAMS);
 

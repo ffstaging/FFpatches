@@ -266,6 +266,25 @@ static int alloc_picture(H264Context *h, H264Picture *pic)
     pic->mb_height = h->mb_height;
     pic->mb_stride = h->mb_stride;
 
+    // Allocate the coding info buffer for this picture.
+    if (h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_VIDEO_CODING_INFO) {
+        // Total size must account for the main struct, the array of parent blocks,
+        // a pool for all potential child blocks, and the sub-data for all blocks.
+        // For H.264, the max children per MB is 4 (for 8x8 mode).
+        size_t coding_info_size = sizeof(AVVideoCodingInfo) +
+                              h->mb_num * sizeof(AVVideoCodingInfoBlock) +      // Parent blocks
+                              h->mb_num * 4 * sizeof(AVVideoCodingInfoBlock) +  // Pool for child blocks
+                              h->mb_num * H264_MAX_SUB_DATA_PER_MB;             // Pool for sub-data (MVs, modes)
+
+
+        pic->coding_info_ref = av_buffer_allocz(coding_info_size);
+        if (!pic->coding_info_ref)
+            goto fail;
+        AVVideoCodingInfo *info = (AVVideoCodingInfo*)pic->coding_info_ref->data;
+        info->nb_blocks = h->mb_num;
+        info->blocks_offset = sizeof(AVVideoCodingInfo);
+    }
+
     return 0;
 fail:
     ff_h264_unref_picture(pic);

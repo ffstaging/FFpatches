@@ -35,6 +35,7 @@
 #include "libavutil/refstruct.h"
 #include "thread.h"
 #include "threadframe.h"
+#include "libavutil/mem.h"
 
 void ff_h264_unref_picture(H264Picture *pic)
 {
@@ -56,6 +57,7 @@ void ff_h264_unref_picture(H264Picture *pic)
         av_refstruct_unref(&pic->ref_index[i]);
     }
     av_refstruct_unref(&pic->decode_error_flags);
+    av_buffer_unref(&pic->coding_info_ref);
 
     memset((uint8_t*)pic + off, 0, sizeof(*pic) - off);
 }
@@ -103,6 +105,7 @@ static void h264_copy_picture_params(H264Picture *dst, const H264Picture *src)
     dst->mb_height     = src->mb_height;
     dst->mb_stride     = src->mb_stride;
     dst->needs_fg      = src->needs_fg;
+    av_buffer_replace(&dst->coding_info_ref, src->coding_info_ref);
 }
 
 int ff_h264_ref_picture(H264Picture *dst, const H264Picture *src)

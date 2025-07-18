@@ -45,6 +45,7 @@
 #include "mpegutils.h"
 #include "threadframe.h"
 #include "videodsp.h"
+#include "libavutil/video_coding_info.h"
 
 #define H264_MAX_PICTURE_COUNT 36
 
@@ -101,6 +102,14 @@
 
 // does this mb use listX, note does not work if subMBs
 #define USES_LIST(a, list) ((a) & ((MB_TYPE_P0L0 | MB_TYPE_P1L0) << (2 * (list))))
+
+/* Constants for AVVideoCodingInfo buffer allocation for H.264.
+ * Max sub-data per MB is for inter prediction with 16 partitions. */
+static const size_t H264_MAX_MV_SIZE_PER_LIST = 16 * sizeof(int16_t[2]);
+static const size_t H264_MAX_REF_SIZE_PER_LIST = 16 * sizeof(int8_t);
+static const size_t H264_INTER_SUB_DATA_SIZE = 2 * (H264_MAX_MV_SIZE_PER_LIST + H264_MAX_REF_SIZE_PER_LIST);
+static const size_t H264_INTRA_SUB_DATA_SIZE = 16 * sizeof(int8_t);
+static const size_t H264_MAX_SUB_DATA_PER_MB = FFMAX(H264_INTER_SUB_DATA_SIZE, H264_INTRA_SUB_DATA_SIZE);
 
 /**
  * Memory management control operation.
@@ -164,6 +173,9 @@ typedef struct H264Picture {
     atomic_int *decode_error_flags;
 
     int gray;
+
+    // Buffer to store macroblock mode information for this picture.
+    AVBufferRef *coding_info_ref;
 } H264Picture;
 
 typedef struct H264Ref {

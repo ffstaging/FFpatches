@@ -37,6 +37,156 @@
 #include "rectangle.h"
 #include "threadframe.h"
 
+/**
+ * Collects detailed mode, reference, and motion vector information for the
+ * current macroblock and stores it in the picture's coding_info buffer.
+ * This populates the generic AVVideoCodingInfoBlock structure for an H.264 macroblock.
+ */
+static void ff_h264_collect_coding_info(const H264Context *h, H264SliceContext *sl)
+{
+    AVVideoCodingInfo *coding_info;
+    AVVideoCodingInfoBlock *block;
+    AVVideoCodingInfoBlock *blocks_array;
+    uint8_t *mb_sub_data_base;
+    int mb_type;
+    int i, j, list;
+
+    if (!h->cur_pic_ptr || !h->cur_pic_ptr->coding_info_ref) {
+        return;
+    }
+
+    if (sl->mb_xy >= h->mb_num) {
+        return;
+    }
+
+    coding_info = (AVVideoCodingInfo*)h->cur_pic_ptr->coding_info_ref->data;
+    blocks_array = (AVVideoCodingInfoBlock*)((uint8_t*)coding_info + coding_info->blocks_offset);
+    block = &blocks_array[sl->mb_xy];
+    mb_type = h->cur_pic.mb_type[sl->mb_xy];
+
+    AVVideoCodingInfoBlock *child_blocks_pool = (AVVideoCodingInfoBlock*)(blocks_array + h->mb_num);
+    uint8_t *sub_data_pool_start = (uint8_t*)(child_blocks_pool + h->mb_num * 4);
+    mb_sub_data_base = sub_data_pool_start + sl->mb_xy * H264_MAX_SUB_DATA_PER_MB;
+
+    block->x = sl->mb_x * 16;
+    block->y = sl->mb_y * 16;
+    block->w = 16;
+    block->h = 16;
+    block->is_intra = IS_INTRA(mb_type);
+    block->codec_specific_type = mb_type;
+    block->num_children = 0;
+    block->children_offset = 0;
+
+    if (IS_8X8(mb_type)) {
+        block->num_children = 4;
+        block->children_offset = (uint8_t*)(child_blocks_pool + (sl->mb_xy * 4)) - (uint8_t*)coding_info;
+        const size_t sub_data_per_child = H264_MAX_SUB_DATA_PER_MB >> 2;
+
+        for (i = 0; i < 4; i++) {
+            AVVideoCodingInfoBlock *child = &((AVVideoCodingInfoBlock*)((uint8_t*)coding_info + block->children_offset))[i];
+            uint8_t *child_sub_data_base = mb_sub_data_base + i * sub_data_per_child;
+            int sub_mb_type = sl->sub_mb_type[i];
+            // Calculate 8x8 sub-block offsets from the raster-scan index 'i'.
+            int part_x = (i & 1) * 8; // Isolates bit 0 for horizontal position.
+            int part_y = (i & 2) * 4; // Isolates bit 1 for vertical position.
+
+            child->x = block->x + part_x;
+            child->y = block->y + part_y;
+            child->w = 8;
+            child->h = 8;
+            child->is_intra = 0;
+            child->codec_specific_type = sub_mb_type;
+            child->num_children = 0;
+            child->children_offset = 0;
+
+            int num_partitions = 1;
+            if (IS_SUB_8X4(sub_mb_type) || IS_SUB_4X8(sub_mb_type)) num_partitions = 2;
+            if (IS_SUB_4X4(sub_mb_type)) num_partitions = 4;
+
+            // Define the memory layout for this child's sub-data
+            int16_t (*mv_l0)[2]   = (void*)child_sub_data_base;
+            int8_t  *ref_idx_l0 = (int8_t*)(mv_l0 + num_partitions);
+            int16_t (*mv_l1)[2]   = (void*)(ref_idx_l0 + num_partitions);
+            int8_t  *ref_idx_l1 = (int8_t*)(mv_l1 + num_partitions);
+
+            for (list = 0; list < 2; list++) {
+                if (USES_LIST(sub_mb_type, list)) {
+                    child->inter.num_mv[list] = num_partitions;
+                    child->inter.mv_offset[list] = !list ? ((uint8_t*)mv_l0 - (uint8_t*)coding_info) : ((uint8_t*)mv_l1 - (uint8_t*)coding_info);
+                    child->inter.ref_idx_offset[list] = !list ? ((uint8_t*)ref_idx_l0 - (uint8_t*)coding_info) : ((uint8_t*)ref_idx_l1 - (uint8_t*)coding_info);
+
+                    // Reconstruct pointers to write data
+                    int16_t (*current_mv)[2] = (int16_t (*)[2])((uint8_t*)coding_info + child->inter.mv_offset[list]);
+                    int8_t *current_ref_idx = (int8_t*)((uint8_t*)coding_info + child->inter.ref_idx_offset[list]);
+
+                    for (j = 0; j < num_partitions; j++) {
+                        int block_idx = i * 4;
+                        if (IS_SUB_8X4(sub_mb_type)) block_idx += j * 2;
+                        else if (IS_SUB_4X8(sub_mb_type)) block_idx += j;
+                        else if (IS_SUB_4X4(sub_mb_type)) block_idx += j;
+
+                        current_ref_idx[j] = sl->ref_cache[list][scan8[block_idx]];
+                        current_mv[j][0]   = sl->mv_cache[list][scan8[block_idx]][0];
+                        current_mv[j][1]   = sl->mv_cache[list][scan8[block_idx]][1];
+                    }
+                } else {
+                    child->inter.num_mv[list] = 0;
+                    child->inter.mv_offset[list] = 0;
+                    child->inter.ref_idx_offset[list] = 0;
+                }
+            }
+        }
+    } else if (block->is_intra) {
+        block->intra.pred_mode_offset = (uint8_t*)mb_sub_data_base - (uint8_t*)coding_info;
+        int8_t *pred_mode = (int8_t*)mb_sub_data_base; // Keep temporary pointer to write data
+        if (IS_INTRA4x4(mb_type)) {
+            block->intra.num_pred_modes = 16;
+            for (i = 0; i < 16; i++)
+                pred_mode[i] = sl->intra4x4_pred_mode_cache[scan8[i]];
+        } else {
+            block->intra.num_pred_modes = 1;
+            pred_mode[0] = sl->intra16x16_pred_mode;
+        }
+        block->intra.chroma_pred_mode = sl->chroma_pred_mode;
+    } else { // Non-8x8 Inter modes
+        int num_mvs = 0;
+        if (IS_16X16(mb_type)) num_mvs = 1;
+        else if (IS_16X8(mb_type) || IS_8X16(mb_type)) num_mvs = 2;
+
+        // Define the memory layout for this block's sub-data
+        int16_t (*mv_l0)[2]   = (void*)mb_sub_data_base;
+        int16_t (*mv_l1)[2]   = mv_l0 + num_mvs;
+        int8_t  *ref_idx_l0 = (int8_t*)(mv_l1 + num_mvs);
+        int8_t  *ref_idx_l1 = ref_idx_l0 + num_mvs;
+
+        for (list = 0; list < 2; list++) {
+            if (USES_LIST(mb_type, list)) {
+                block->inter.num_mv[list] = num_mvs;
+                block->inter.mv_offset[list] = !list ? ((uint8_t*)mv_l0 - (uint8_t*)coding_info) : ((uint8_t*)mv_l1 - (uint8_t*)coding_info);
+                block->inter.ref_idx_offset[list] = !list ? ((uint8_t*)ref_idx_l0 - (uint8_t*)coding_info) : ((uint8_t*)ref_idx_l1 - (uint8_t*)coding_info);
+
+                // Reconstruct pointers to write data
+                int16_t (*current_mv)[2] = (int16_t (*)[2])((uint8_t*)coding_info + block->inter.mv_offset[list]);
+                int8_t *current_ref_idx = (int8_t*)((uint8_t*)coding_info + block->inter.ref_idx_offset[list]);
+
+                for (i = 0; i < num_mvs; i++) {
+                    int block_idx = 0;
+                    if (IS_16X8(mb_type)) block_idx = i * 8;
+                    else if (IS_8X16(mb_type)) block_idx = i * 4;
+
+                    current_ref_idx[i] = sl->ref_cache[list][scan8[block_idx]];
+                    current_mv[i][0]   = sl->mv_cache[list][scan8[block_idx]][0];
+                    current_mv[i][1]   = sl->mv_cache[list][scan8[block_idx]][1];
+                }
+            } else {
+                block->inter.num_mv[list] = 0;
+                block->inter.mv_offset[list] = 0;
+                block->inter.ref_idx_offset[list] = 0;
+            }
+        }
+    }
+}
+
 static inline int get_lowest_part_list_y(H264SliceContext *sl,
                                          int n, int height, int y_offset, int list)
 {
