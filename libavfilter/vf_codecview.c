@@ -39,6 +39,14 @@
 #include "qp_table.h"
 #include "video.h"
 
+#include "libavcodec/h264.h"
+#include "libavcodec/h264pred.h"
+#include "libavutil/video_coding_info.h"
+#include "libavcodec/h264dec.h"
+#include "libavcodec/mpegutils.h"
+
+#define GET_PTR(base, offset) ((void*)((uint8_t*)(base) + (offset)))
+
 #define MV_P_FOR  (1<<0)
 #define MV_B_FOR  (1<<1)
 #define MV_B_BACK (1<<2)
@@ -56,6 +64,8 @@ typedef struct CodecViewContext {
     int hsub, vsub;
     int qp;
     int block;
+    int show_modes;
+    int frame_count;
 } CodecViewContext;
 
 #define OFFSET(x) offsetof(CodecViewContext, x)
@@ -78,8 +88,57 @@ static const AVOption codecview_options[] = {
         CONST("pf", "P-frames", FRAME_TYPE_P, "frame_type"),
         CONST("bf", "B-frames", FRAME_TYPE_B, "frame_type"),
     { "block",      "set block partitioning structure to visualize", OFFSET(block), AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, FLAGS },
+    { "show_modes", "Visualize macroblock modes", OFFSET(show_modes), AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, FLAGS },
     { NULL }
 };
+
+static const char *get_intra_4x4_mode_name(int mode) {
+    if (mode < 0) return "N/A"; // Handle unavailable edge blocks
+    switch (mode) {
+    case VERT_PRED:            return "V";
+    case HOR_PRED:             return "H";
+    case DC_PRED:              return "DC";
+    case DIAG_DOWN_LEFT_PRED:  return "DL";
+    case DIAG_DOWN_RIGHT_PRED: return "DR";
+    case VERT_RIGHT_PRED:      return "VR";
+    case HOR_DOWN_PRED:        return "HD";
+    case VERT_LEFT_PRED:       return "VL";
+    case HOR_UP_PRED:          return "HU";
+    default:                   return "?";
+    }
+}
+
+static const char *get_intra_16x16_mode_name(int mode) {
+    switch (mode) {
+    case VERT_PRED8x8:   return "Vertical";
+    case HOR_PRED8x8:    return "Horizontal";
+    case DC_PRED8x8:     return "DC";
+    case PLANE_PRED8x8:  return "Plane";
+    default:             return "Unknown";
+    }
+}
+
+/**
+ * Get a string representation for an inter sub-macroblock type.
+ * For B-frames, this indicates prediction direction (L0, L1, BI).
+ * For P-frames, this indicates partition size (8x8, 8x4, etc.).
+ */
+static const char *get_inter_sub_mb_type_name(uint32_t type, char pict_type) {
+    if (pict_type == 'B') {
+        if (type & MB_TYPE_DIRECT2) return "D";
+        int has_l0 = (type & MB_TYPE_L0);
+        int has_l1 = (type & MB_TYPE_L1);
+        if (has_l0 && has_l1) return "BI";
+        if (has_l0) return "L0";
+        if (has_l1) return "L1";
+    } else if (pict_type == 'P') {
+        if (IS_SUB_8X8(type)) return "8x8";
+        if (IS_SUB_8X4(type)) return "8x4";
+        if (IS_SUB_4X8(type)) return "4x8";
+        if (IS_SUB_4X4(type)) return "4x4";
+    }
+    return "?";
+}
 
 AVFILTER_DEFINE_CLASS(codecview);
 
@@ -219,11 +278,138 @@ static void draw_block_rectangle(uint8_t *buf, int sx, int sy, int w, int h, ptr
     }
 }
 
+static void format_mv_info(char *buf, size_t buf_size, const AVVideoCodingInfo *info_base,
+                           const AVBlockInterInfo *inter, int list, int mv_idx)
+{
+    // Check if the list is active, the index is valid, and offsets are set.
+    if (inter->num_mv[list] <= mv_idx || !inter->mv_offset[list] || !inter->ref_idx_offset[list]) {
+        return;
+    }
+
+    int16_t (*mv)[2]   = GET_PTR(info_base, inter->mv_offset[list]);
+    int8_t  *ref_idx = GET_PTR(info_base, inter->ref_idx_offset[list]);
+
+    if (ref_idx[mv_idx] >= 0) {
+        snprintf(buf, buf_size, " L%d[ref%d, %4d, %4d]",
+                 list,
+                 ref_idx[mv_idx],
+                 mv[mv_idx][0],
+                 mv[mv_idx][1]);
+    }
+}
+
+/**
+ * Recursive function to log a block and its children.
+ * This version is fully generic and handles any tree-based partitioning.
+ */
+static void log_block_info(AVFilterContext *ctx, const AVVideoCodingInfo *info_base,
+                           const AVVideoCodingInfoBlock *block,
+                           char pict_type, int64_t frame_num, int indent_level)
+{
+    char indent[16] = {0};
+    char line_buf[1024];
+    char info_buf[512];
+    char mv_buf[256];
+    int mb_type = block->codec_specific_type;
+
+    if (indent_level > 0 && indent_level < sizeof(indent) - 1) {
+        memset(indent, '\t', indent_level);
+    }
+
+    // Common prefix for all log lines
+    snprintf(line_buf, sizeof(line_buf), "F:%-3"PRId64" |%c| %s%-3dx%-3d @(%4d,%4d)|",
+             frame_num, pict_type, indent, block->w, block->h, block->x, block->y);
+
+    if (block->is_intra) {
+        int8_t *pred_mode = GET_PTR(info_base, block->intra.pred_mode_offset);
+        if (IS_INTRA4x4(mb_type)) {
+            snprintf(info_buf, sizeof(info_buf),
+                     "Intra: I_4x4 P:[%s,%s,%s,%s|%s,%s,%s,%s|%s,%s,%s,%s|%s,%s,%s,%s]",
+                     get_intra_4x4_mode_name(pred_mode[0]), get_intra_4x4_mode_name(pred_mode[1]),
+                     get_intra_4x4_mode_name(pred_mode[2]), get_intra_4x4_mode_name(pred_mode[3]),
+                     get_intra_4x4_mode_name(pred_mode[4]), get_intra_4x4_mode_name(pred_mode[5]),
+                     get_intra_4x4_mode_name(pred_mode[6]), get_intra_4x4_mode_name(pred_mode[7]),
+                     get_intra_4x4_mode_name(pred_mode[8]), get_intra_4x4_mode_name(pred_mode[9]),
+                     get_intra_4x4_mode_name(pred_mode[10]), get_intra_4x4_mode_name(pred_mode[11]),
+                     get_intra_4x4_mode_name(pred_mode[12]), get_intra_4x4_mode_name(pred_mode[13]),
+                     get_intra_4x4_mode_name(pred_mode[14]), get_intra_4x4_mode_name(pred_mode[15]));
+        } else if (IS_INTRA16x16(mb_type)) {
+            snprintf(info_buf, sizeof(info_buf), "Intra: I_16x16 M:%-8s",
+                     get_intra_16x16_mode_name(pred_mode[0]));
+        } else {
+            snprintf(info_buf, sizeof(info_buf), "Intra: Type %d", mb_type);
+        }
+        av_log(ctx, AV_LOG_INFO, "%s%s\n", line_buf, info_buf);
+    } else { // Inter
+        const char *prefix = (pict_type == 'P') ? "P" : "B";
+        const char *type_str = "Unknown";
+
+        // Use codec_specific_type to get a human-readable name
+        if (IS_SKIP(mb_type)) type_str = "Skip";
+        else if (IS_16X16(mb_type)) type_str = "16x16";
+        else if (IS_16X8(mb_type)) type_str = "16x8";
+        else if (IS_8X16(mb_type)) type_str = "8x16";
+        else if (IS_8X8(mb_type)) type_str = "8x8";
+        else type_str = get_inter_sub_mb_type_name(mb_type, pict_type); // For sub-partitions
+
+        snprintf(info_buf, sizeof(info_buf), "Inter: %s_%s", prefix, type_str);
+
+        // If there are no children, this is a leaf node, print its MVs.
+        if (!block->num_children) {
+            mv_buf[0] = '\0';
+            // A block can have multiple MVs (e.g., 8x4 partition has 2)
+            for (int i = 0; i < FFMAX(block->inter.num_mv[0], block->inter.num_mv[1]); i++) {
+                char temp_mv_buf[128] = {0};
+                if (block->inter.num_mv[0] > i && block->inter.mv_offset[0])
+                    format_mv_info(temp_mv_buf, sizeof(temp_mv_buf), info_base, &block->inter, 0, i);
+                if (pict_type == 'B' && block->inter.num_mv[1] > i && block->inter.mv_offset[1])
+                    format_mv_info(temp_mv_buf + strlen(temp_mv_buf), sizeof(temp_mv_buf) - strlen(temp_mv_buf), info_base, &block->inter, 1, i);
+
+                if (i > 0) strncat(mv_buf, " |", sizeof(mv_buf) - strlen(mv_buf) - 1);
+                strncat(mv_buf, temp_mv_buf, sizeof(mv_buf) - strlen(mv_buf) - 1);
+            }
+            av_log(ctx, AV_LOG_INFO, "%s%s%s\n", line_buf, info_buf, mv_buf);
+        } else {
+            // This is a parent node, just print its type and recurse.
+            av_log(ctx, AV_LOG_INFO, "%s%s\n", line_buf, info_buf);
+        }
+    }
+
+    // Recursive call for children
+    if (block->num_children > 0 && block->children_offset > 0) {
+        const AVVideoCodingInfoBlock *children = GET_PTR(info_base, block->children_offset);
+        for (int i = 0; i < block->num_children; i++) {
+            log_block_info(ctx, info_base, &children[i], pict_type, frame_num, indent_level + 1);
+        }
+    }
+}
+
+static void log_coding_info(AVFilterContext *ctx, AVFrame *frame, int64_t frame_num)
+{
+    AVFrameSideData *sd = av_frame_get_side_data(frame, AV_FRAME_DATA_VIDEO_CODING_INFO);
+    if (!sd)
+        return;
+
+    const AVVideoCodingInfo *coding_info = (const AVVideoCodingInfo *)sd->data;
+    const AVVideoCodingInfoBlock *blocks_array = GET_PTR(coding_info, coding_info->blocks_offset);
+    char pict_type = av_get_picture_type_char(frame->pict_type);
+
+    for (int i = 0; i < coding_info->nb_blocks; i++) {
+        log_block_info(ctx, coding_info, &blocks_array[i], pict_type, frame_num, 0);
+    }
+}
+
 static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 {
     AVFilterContext *ctx = inlink->dst;
     CodecViewContext *s = ctx->priv;
     AVFilterLink *outlink = ctx->outputs[0];
+
+    if (s->show_modes) {
+            log_coding_info(ctx, frame, s->frame_count);
+    }
+
+    s->frame_count++;
 
     if (s->qp) {
         enum AVVideoEncParamsType qp_type;
