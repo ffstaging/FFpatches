@@ -254,6 +254,13 @@ enum AVFrameSideDataType {
      * libavutil/tdrdi.h.
      */
     AV_FRAME_DATA_3D_REFERENCE_DISPLAYS,
+
+    /**
+     * Detailed block-level coding information. The data is an AVVideoCodingInfo
+     * structure. This is exported by video decoders and can be used by filters
+     * for analysis and visualization.
+     */
+    AV_FRAME_DATA_VIDEO_CODING_INFO,
 };
 
 enum AVActiveFormatDescription {

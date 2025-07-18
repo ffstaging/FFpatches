@@ -94,6 +94,7 @@ HEADERS = adler32.h                                                     \
           tree.h                                                        \
           twofish.h                                                     \
           uuid.h                                                        \
+          video_coding_info.h                                           \
           version.h                                                     \
           video_enc_params.h                                            \
           xtea.h                                                        \
