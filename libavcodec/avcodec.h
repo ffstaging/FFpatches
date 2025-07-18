@@ -406,6 +406,12 @@ typedef struct RcOverride{
 #define AV_CODEC_EXPORT_DATA_ENHANCEMENTS (1 << 4)
 
 /**
+ * Export detailed video coding information from the decoder.
+ * @see AV_FRAME_DATA_VIDEO_CODING_INFO
+ */
+#define AV_CODEC_EXPORT_DATA_VIDEO_CODING_INFO (1 << 5)
+
+/**
  * The decoder will keep a reference to the frame and may reuse it later.
  */
 #define AV_GET_BUFFER_FLAG_REF (1 << 0)
