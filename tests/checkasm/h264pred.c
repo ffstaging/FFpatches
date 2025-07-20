@@ -172,8 +172,15 @@ static void check_pred8x8(H264PredContext *h, uint8_t *buf0, uint8_t *buf1,
             randomize_buffers();
             call_ref(src0, 24*SIZEOF_PIXEL);
             call_new(src1, 24*SIZEOF_PIXEL);
-            if (memcmp(buf0, buf1, BUF_SIZE))
+            if (memcmp(buf0, buf1, BUF_SIZE)) {
+                fprintf(stderr, "REF:\n");
+                for (int i = 0; i < BUF_SIZE; i++)
+                    fprintf(stderr, "%d\t", buf0[i]);
+                fprintf(stderr, "\nASM:\n");
+                for (int i = 0; i < BUF_SIZE; i++)
+                    fprintf(stderr, "%d\t", buf1[i]);
                 fail();
+            }
             bench_new(src1, 24*SIZEOF_PIXEL);
         }
     }
