@@ -42,6 +42,8 @@
 #include "thread.h"
 #include "compat/w32dlfcn.h"
 
+#define MAX_ARRAY_SIZE 64 // Driver specification limits ArraySize to 64 for decoder-bound resources
+
 typedef HRESULT(WINAPI *PFN_CREATE_DXGI_FACTORY)(REFIID riid, void **ppFactory);
 
 static AVOnce functions_loaded = AV_ONCE_INIT;
@@ -82,6 +84,8 @@ typedef struct D3D11VAFramesContext {
 
     int nb_surfaces;
     int nb_surfaces_used;
+    int retries;
+    int max_retries;
 
     DXGI_FORMAT format;
 
@@ -258,7 +262,9 @@ static AVBufferRef *d3d11va_pool_alloc(void *opaque, size_t size)
     ID3D11Texture2D_GetDesc(hwctx->texture, &texDesc);
 
     if (s->nb_surfaces_used >= texDesc.ArraySize) {
-        av_log(ctx, AV_LOG_ERROR, "Static surface pool size exceeded.\n");
+        if (s->retries >= s->max_retries) {
+            av_log(ctx, AV_LOG_ERROR, "Static surface pool size exceeded.\n");
+        }
         return NULL;
     }
 
@@ -287,6 +293,8 @@ static int d3d11va_frames_init(AVHWFramesContext *ctx)
                av_get_pix_fmt_name(ctx->sw_format));
         return AVERROR(EINVAL);
     }
+
+    ctx->initial_pool_size = FFMIN(ctx->initial_pool_size, MAX_ARRAY_SIZE);
 
     texDesc = (D3D11_TEXTURE2D_DESC){
         .Width      = ctx->width,
@@ -339,20 +347,35 @@ static int d3d11va_frames_init(AVHWFramesContext *ctx)
 static int d3d11va_get_buffer(AVHWFramesContext *ctx, AVFrame *frame)
 {
     AVD3D11FrameDescriptor *desc;
+    D3D11VAFramesContext       *s = ctx->hwctx;
+    s->retries = 0;
+    s->max_retries = 50;
 
-    frame->buf[0] = av_buffer_pool_get(ctx->pool);
-    if (!frame->buf[0])
-        return AVERROR(ENOMEM);
 
-    desc = (AVD3D11FrameDescriptor *)frame->buf[0]->data;
+    /**
+     * Loop until a buffer becomes available from the pool.
+     * In a full hardware pipeline, all buffers may be temporarily in use by
+     * other modules (encoder/filter/decoder). Rather than immediately failing
+     * with ENOMEM, we wait for a buffer to be released back to the pool, which
+     * maintains pipeline flow and prevents unnecessary allocation failures
+     * during normal operation.
+     */
+    while (s->retries < s->max_retries) {
+        frame->buf[0] = av_buffer_pool_get(ctx->pool);
+        if (frame->buf[0]) {
+            desc = (AVD3D11FrameDescriptor *)frame->buf[0]->data;
+            frame->data[0] = (uint8_t *)desc->texture;
+            frame->data[1] = (uint8_t *)desc->index;
+            frame->format  = AV_PIX_FMT_D3D11;
+            frame->width   = ctx->width;
+            frame->height  = ctx->height;
+            return 0;
+        }
 
-    frame->data[0] = (uint8_t *)desc->texture;
-    frame->data[1] = (uint8_t *)desc->index;
-    frame->format  = AV_PIX_FMT_D3D11;
-    frame->width   = ctx->width;
-    frame->height  = ctx->height;
+        av_usleep(1000);
+    }
 
-    return 0;
+    return AVERROR(ENOMEM);
 }
 
 static int d3d11va_transfer_get_formats(AVHWFramesContext *ctx,
