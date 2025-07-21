@@ -5297,7 +5297,7 @@ if test "$cpu" = host; then
     case "$cc_type" in
         gcc|llvm_gcc)
             check_native(){
-                $cc $1=native -v -c -o $TMPO $TMPC >$TMPE 2>&1 || return
+                $cc $1=native -v -c -o $TMPO -x c -pipe - >$TMPE 2>&1 < /dev/null || return
                 sed -n "/cc1.*$1=/{
                             s/.*$1=\\([^ ]*\\).*/\\1/
                             p
@@ -5308,7 +5308,7 @@ if test "$cpu" = host; then
         ;;
         clang)
             check_native(){
-                $cc $1=native -v -c -o $TMPO $TMPC >$TMPE 2>&1 || return
+                $cc $1=native -v -c -o $TMPO -x c -pipe - >$TMPE 2>&1 < /dev/null || return
                 sed -n "/cc1.*-target-cpu /{
                             s/.*-target-cpu \\([^ ]*\\).*/\\1/
                             p
