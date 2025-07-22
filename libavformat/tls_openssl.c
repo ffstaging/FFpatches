@@ -1013,7 +1013,7 @@ static int tls_write(URLContext *h, const uint8_t *buf, int size)
     uc->flags |= h->flags & AVIO_FLAG_NONBLOCK;
 
     if (c->tls_shared.is_dtls)
-        size = FFMIN(size, DTLS_get_data_mtu(c->ssl));
+        size = FFMIN(size, c->tls_shared.mtu);
 
     ret = SSL_write(c->ssl, buf, size);
     if (ret > 0)
