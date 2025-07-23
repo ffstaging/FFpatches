@@ -254,7 +254,7 @@ static AVBufferRef *d3d12va_pool_alloc(void *opaque, size_t size)
     if (!frame)
         return NULL;
 
-    if (FAILED(ID3D12Device_CreateCommittedResource(device_hwctx->device, &props, D3D12_HEAP_FLAG_NONE, &desc,
+    if (FAILED(ID3D12Device_CreateCommittedResource(device_hwctx->device, &props, hwctx->heap_flags, &desc,
         D3D12_RESOURCE_STATE_COMMON, NULL, &IID_ID3D12Resource, (void **)&frame->texture))) {
         av_log(ctx, AV_LOG_ERROR, "Could not create the texture\n");
         goto fail;
@@ -281,6 +281,7 @@ fail:
 static int d3d12va_frames_init(AVHWFramesContext *ctx)
 {
     AVD3D12VAFramesContext *hwctx = ctx->hwctx;
+    AVD3D12VADeviceContext *device_hwctx = ctx->device_ctx->hwctx;
     int i;
 
     for (i = 0; i < FF_ARRAY_ELEMS(supported_formats); i++) {
@@ -297,6 +298,9 @@ static int d3d12va_frames_init(AVHWFramesContext *ctx)
                av_get_pix_fmt_name(ctx->sw_format));
         return AVERROR(EINVAL);
     }
+
+    hwctx->flags |= device_hwctx->resource_flags;
+    hwctx->heap_flags |= device_hwctx->heap_flags;
 
     ffhwframesctx(ctx)->pool_internal = av_buffer_pool_init2(sizeof(AVD3D12VAFrame),
         ctx, d3d12va_pool_alloc, NULL);
@@ -672,6 +676,17 @@ static int d3d12va_device_create(AVHWDeviceContext *hwdev, const char *device,
             return AVERROR_UNKNOWN;
         }
     }
+
+    if (av_dict_get(opts, "UAV", NULL, 0))
+        ctx->resource_flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+    if (av_dict_get(opts, "RTV", NULL, 0))
+        ctx->resource_flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+    ctx->heap_flags = D3D12_HEAP_FLAG_NONE;
+
+    if (av_dict_get(opts, "SHARED", NULL, 0))
+        ctx->heap_flags |= D3D12_HEAP_FLAG_SHARED;
 
     return 0;
 }

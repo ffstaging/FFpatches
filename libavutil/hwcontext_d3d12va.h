@@ -75,6 +75,16 @@ typedef struct AVD3D12VADeviceContext {
     void (*lock)(void *lock_ctx);
     void (*unlock)(void *lock_ctx);
     void *lock_ctx;
+    /**
+     * Resource flags and Heap flags to be applied to D3D12 resources allocated
+     * for frames using this device context.
+     *
+     * Can be set by the user before initialization via av_hwdevice_ctx_create().
+     *
+     * These apply globally to all frames allocated from this device context.
+     */
+    D3D12_RESOURCE_FLAGS resource_flags;
+    D3D12_HEAP_FLAGS heap_flags;
 } AVD3D12VADeviceContext;
 
 /**
@@ -137,6 +147,7 @@ typedef struct AVD3D12VAFramesContext {
      * @see https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_resource_flags
      */
     D3D12_RESOURCE_FLAGS flags;
+    D3D12_HEAP_FLAGS heap_flags;
 } AVD3D12VAFramesContext;
 
 #endif /* AVUTIL_HWCONTEXT_D3D12VA_H */
