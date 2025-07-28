@@ -171,6 +171,8 @@ static int read_packet_openmpt(AVFormatContext *s, AVPacket *pkt)
     if ((ret = av_new_packet(pkt, AUDIO_PKT_SIZE)) < 0)
         return ret;
 
+    double pos = openmpt_module_get_position_seconds(openmpt->module);
+
     switch (openmpt->ch_layout.nb_channels) {
     case 1:
         ret = openmpt_module_read_float_mono(openmpt->module, openmpt->sample_rate,
@@ -195,6 +197,7 @@ static int read_packet_openmpt(AVFormatContext *s, AVPacket *pkt)
     }
 
     pkt->size = ret * (openmpt->ch_layout.nb_channels * 4);
+    pkt->pts = llrint(pos * AV_TIME_BASE);
 
     return 0;
 }
