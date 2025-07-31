@@ -10667,7 +10667,7 @@ static int mov_read_header(AVFormatContext *s)
         fix_timescale(mov, sc);
 
         /* Set the primary extradata based on the first Sample. */
-        if (sc->stsc_count && sc->extradata_size && !sc->iamf) {
+        if (sc->stsc_count && sc->extradata_size && sc->stsc_data[0].id != 1 && !sc->iamf) {
             sc->last_stsd_index = sc->stsc_data[0].id - 1;
             av_freep(&st->codecpar->extradata);
             st->codecpar->extradata_size = sc->extradata_size[sc->last_stsd_index];
