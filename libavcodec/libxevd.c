@@ -402,6 +402,7 @@ static int libxevd_receive_frame(AVCodecContext *avctx, AVFrame *frame)
                     return AVERROR_EXTERNAL;
                 } else if (xevd_ret == XEVD_OK_FRM_DELAYED) {
                     if(bs_read_pos == pkt_au->size) {
+                        av_packet_free(&pkt_au);
                         return AVERROR(EAGAIN);
                     }
                 } else { // XEVD_OK
@@ -422,6 +423,7 @@ static int libxevd_receive_frame(AVCodecContext *avctx, AVFrame *frame)
                 }
             }
         }
+        av_packet_free(&pkt_au);
     } else { // decoder draining mode handling
 
         xevd_ret = xevd_pull(xectx->id, &imgb);
