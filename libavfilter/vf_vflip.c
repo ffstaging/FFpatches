@@ -124,6 +124,7 @@ static const AVFilterPad avfilter_vf_vflip_inputs[] = {
         .get_buffer.video = get_video_buffer,
         .filter_frame     = filter_frame,
         .config_props     = config_input,
+        .flags            = AVFILTERPAD_FLAG_ACCEPT_PREMULTIPLIED,
     },
 };
 
