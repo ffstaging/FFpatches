@@ -683,6 +683,10 @@ int ff_amf_receive_packet(AVCodecContext *avctx, AVPacket *avpkt)
     int64_t     pts = 0;
     int max_b_frames = ctx->max_b_frames < 0 ? 0 : ctx->max_b_frames;
 
+    if (!frame) {
+        return AVERROR(ENOMEM);
+    }
+
     if (!ctx->encoder){
         av_frame_free(&frame);
         return AVERROR(EINVAL);
@@ -690,6 +694,7 @@ int ff_amf_receive_packet(AVCodecContext *avctx, AVPacket *avpkt)
     // check if some outputs are available
     av_fifo_read(ctx->output_list, &buffer, 1);
     if (buffer != NULL) { // return already retrieved output
+        av_frame_free(&frame);
         ret = amf_copy_buffer(avctx, avpkt, buffer);
         buffer->pVtbl->Release(buffer);
         return ret;
