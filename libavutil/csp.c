@@ -133,12 +133,12 @@ enum AVColorPrimaries av_csp_primaries_id_from_desc(const AVColorPrimariesDesc *
 }
 
 static const double approximate_gamma[AVCOL_TRC_NB] = {
-    [AVCOL_TRC_BT709] = 1.961,
-    [AVCOL_TRC_SMPTE170M] = 1.961,
-    [AVCOL_TRC_SMPTE240M] = 1.961,
-    [AVCOL_TRC_BT1361_ECG] = 1.961,
-    [AVCOL_TRC_BT2020_10] = 1.961,
-    [AVCOL_TRC_BT2020_12] = 1.961,
+    [AVCOL_TRC_BT709] = 2.4,
+    [AVCOL_TRC_SMPTE170M] = 2.4,
+    [AVCOL_TRC_SMPTE240M] = 2.4,
+    [AVCOL_TRC_BT1361_ECG] = 2.4,
+    [AVCOL_TRC_BT2020_10] = 2.4,
+    [AVCOL_TRC_BT2020_12] = 2.4,
     [AVCOL_TRC_GAMMA22] = 2.2,
     [AVCOL_TRC_IEC61966_2_1] = 2.2,
     [AVCOL_TRC_GAMMA28] = 2.8,
