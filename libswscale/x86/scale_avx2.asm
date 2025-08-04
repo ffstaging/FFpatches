@@ -68,8 +68,10 @@ cglobal hscale8to15_%1, 7, 9, 16, pos0, dst, w, srcmem, filter, fltpos, fltsize,
 .innerloop:
 %endif
     vpcmpeqd  m13, m13
+    pxor m3, m3  ; break loop-carried dependency
     vpgatherdd m3,[srcmemq + m1], m13
     vpcmpeqd  m13, m13
+    pxor m4, m4  ; break loop-carried dependency
     vpgatherdd m4,[srcmemq + m2], m13
     vpunpcklbw m5, m3, m0
     vpunpckhbw m6, m3, m0
@@ -119,6 +121,7 @@ cglobal hscale8to15_%1, 7, 9, 16, pos0, dst, w, srcmem, filter, fltpos, fltsize,
 .tail_innerloop:
 %endif
     vpcmpeqd  xm13, xm13
+    pxor m3, m3  ; break loop-carried dependency
     vpgatherdd xm3,[srcmemq + xm1], xm13
     vpunpcklbw xm5, xm3, xm0
     vpunpckhbw xm6, xm3, xm0
