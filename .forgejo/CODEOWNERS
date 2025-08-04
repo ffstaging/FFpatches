@@ -19,15 +19,15 @@ libavcodec/*ffv1* @lynne
 libavcodec/*prores* @lynne
 libavcodec/*siren* @lynne
 libavcodec/*vc2* @lynne
-libavcodec/x86/* @lynne
 libavcodec/aarch64/* @lynne
+libavcodec/x86/* @lynne
 
 # avutil
 # ======
 libavutil/*crc* @lynne
 libavutil/tx* @lynne
-libavutil/x86/* @lynne
 libavutil/aarch64/* @lynne
+libavutil/x86/* @lynne
 
 # Frameworks
 # ==========
