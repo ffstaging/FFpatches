@@ -344,13 +344,26 @@ static int apng_read_packet(AVFormatContext *s, AVPacket *pkt)
         if ((ret = decode_fctl_chunk(s, ctx, pkt)) < 0)
             return ret;
 
-        /* fcTL must precede fdAT or IDAT */
+        /* fcTL may be followed by other chunks before fdAT or IDAT */
         len = avio_rb32(pb);
         tag = avio_rl32(pb);
-        if (len > 0x7fffffff ||
-            tag != MKTAG('f', 'd', 'A', 'T') &&
-            tag != MKTAG('I', 'D', 'A', 'T'))
+        if (len > 0x7fffffff)
             return AVERROR_INVALIDDATA;
+
+        /* check for empty frame */
+        if (tag == MKTAG('f', 'c', 'T', 'L') ||
+            tag == MKTAG('I', 'E', 'N', 'D')) {
+            size = 38; /* size of fcTL chunk and its header */
+            if ((ret = avio_seek(pb, -46, SEEK_CUR)) < 0 ||
+                (ret = av_append_packet(pb, pkt, size)) < 0)
+                return ret;
+
+            if (ctx->is_key_frame)
+                pkt->flags |= AV_PKT_FLAG_KEY;
+            pkt->pts = pkt->dts = AV_NOPTS_VALUE;
+            pkt->duration = ctx->pkt_duration;
+            return ret;
+        }
 
         size = 38 /* fcTL */ + 8 /* len, tag */ + len + 4 /* crc */;
         if (size > INT_MAX)
