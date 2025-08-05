@@ -128,41 +128,48 @@ int main(int argc, char **argv)
     outfilename = argv[2];
 
     pkt = av_packet_alloc();
+    if (!pkt)
+        exit(1);
 
     /* find the MPEG audio decoder */
     codec = avcodec_find_decoder(AV_CODEC_ID_MP2);
     if (!codec) {
         fprintf(stderr, "Codec not found\n");
-        exit(1);
+        ret = -1;
+        goto free_pkt;
     }
 
     parser = av_parser_init(codec->id);
     if (!parser) {
         fprintf(stderr, "Parser not found\n");
-        exit(1);
+        ret = -1;
+        goto free_pkt;
     }
 
     c = avcodec_alloc_context3(codec);
     if (!c) {
         fprintf(stderr, "Could not allocate audio codec context\n");
-        exit(1);
+        ret = -1;
+        goto close_parser;
     }
 
     /* open it */
     if (avcodec_open2(c, codec, NULL) < 0) {
         fprintf(stderr, "Could not open codec\n");
-        exit(1);
+        ret = -1;
+        goto free_context;
     }
 
     f = fopen(filename, "rb");
     if (!f) {
         fprintf(stderr, "Could not open %s\n", filename);
-        exit(1);
+        ret = -1;
+        goto free_context;
     }
     outfile = fopen(outfilename, "wb");
     if (!outfile) {
-        av_free(c);
-        exit(1);
+        ret = -1;
+        goto fclose_f;
     }
 
     /* decode until eof */
@@ -173,7 +180,8 @@ int main(int argc, char **argv)
         if (!decoded_frame) {
             if (!(decoded_frame = av_frame_alloc())) {
                 fprintf(stderr, "Could not allocate audio frame\n");
-                exit(1);
+                ret = -1;
+                goto fclose_outfile;
             }
         }
 
@@ -182,7 +190,7 @@ int main(int argc, char **argv)
                                AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
         if (ret < 0) {
             fprintf(stderr, "Error while parsing\n");
-            exit(1);
+            goto end;
         }
         data      += ret;
         data_size -= ret;
@@ -225,13 +233,20 @@ int main(int argc, char **argv)
            fmt, n_channels, c->sample_rate,
            outfilename);
 end:
-    fclose(outfile);
-    fclose(f);
-
-    avcodec_free_context(&c);
-    av_parser_close(parser);
     av_frame_free(&decoded_frame);
+fclose_outfile:
+    fclose(outfile);
+fclose_f:
+    fclose(f);
+free_context:
+    avcodec_free_context(&c);
+close_parser:
+    av_parser_close(parser);
+free_pkt:
     av_packet_free(&pkt);
+
+    if (ret < 0)
+        exit(1);
 
     return 0;
 }
