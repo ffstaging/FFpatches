@@ -217,7 +217,7 @@ External library support:
   --enable-libaribcaption  enable ARIB text and caption decoding via libaribcaption [no]
   --enable-libass          enable libass subtitles rendering,
                            needed for subtitles and ass filter [no]
-  --enable-libbluray       enable BluRay reading using libbluray [no]
+  --enable-libbluray       enable libbluray, needed for BDMV demuxing [no]
   --enable-libbs2b         enable bs2b DSP library [no]
   --enable-libcaca         enable textual display using libcaca [no]
   --enable-libcelt         enable CELT decoding via libcelt [no]
@@ -3680,6 +3680,8 @@ av1_demuxer_select="av1_frame_merge_bsf av1_parser"
 avi_demuxer_select="riffdec exif"
 avi_muxer_select="riffenc"
 avif_muxer_select="mov_muxer"
+bdmv_demuxer_select="mpegts_demuxer"
+bdmv_demuxer_deps="libbluray"
 caf_demuxer_select="iso_media"
 caf_muxer_select="iso_media"
 dash_muxer_select="mp4_muxer"
