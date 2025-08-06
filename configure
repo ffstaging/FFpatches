@@ -2057,6 +2057,7 @@ DOCUMENT_LIST="
 "
 
 FEATURE_LIST="
+    audio_only
     ftrapv
     gray
     hardcoded_tables

@@ -166,7 +166,6 @@ OBJS = adler32.o                                                        \
        murmur3.o                                                        \
        opt.o                                                            \
        parseutils.o                                                     \
-       pixdesc.o                                                        \
        pixelutils.o                                                     \
        random_seed.o                                                    \
        rational.o                                                       \
@@ -203,6 +202,7 @@ OBJS = adler32.o                                                        \
        video_hint.o                                                     \
 
 
+OBJS-$(!CONFIG_AUDIO_ONLY)              += pixdesc.o
 OBJS-$(CONFIG_CUDA)                     += hwcontext_cuda.o
 OBJS-$(CONFIG_D3D11VA)                  += hwcontext_d3d11va.o
 OBJS-$(CONFIG_D3D12VA)                  += hwcontext_d3d12va.o
