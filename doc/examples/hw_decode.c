@@ -181,19 +181,22 @@ int main(int argc, char *argv[])
     /* open the input file */
     if (avformat_open_input(&input_ctx, argv[2], NULL, NULL) != 0) {
         fprintf(stderr, "Cannot open input file '%s'\n", argv[2]);
-        return -1;
+        ret = -1;
+        goto free_packet;
     }
 
     if (avformat_find_stream_info(input_ctx, NULL) < 0) {
         fprintf(stderr, "Cannot find input stream information.\n");
-        return -1;
+        ret = -1;
+        goto close_input;
     }
 
     /* find the video stream information */
     ret = av_find_best_stream(input_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &decoder, 0);
     if (ret < 0) {
         fprintf(stderr, "Cannot find a video stream in the input file\n");
-        return -1;
+        ret = -1;
+        goto close_input;
     }
     video_stream = ret;
 
@@ -202,7 +205,8 @@ int main(int argc, char *argv[])
         if (!config) {
             fprintf(stderr, "Decoder %s does not support device type %s.\n",
                     decoder->name, av_hwdevice_get_type_name(type));
-            return -1;
+            ret = -1;
+            goto close_input;
         }
         if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
             config->device_type == type) {
@@ -211,21 +215,28 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (!(decoder_ctx = avcodec_alloc_context3(decoder)))
-        return AVERROR(ENOMEM);
+    if (!(decoder_ctx = avcodec_alloc_context3(decoder))) {
+        ret = AVERROR(ENOMEM);
+        goto close_input;
+    }
 
     video = input_ctx->streams[video_stream];
-    if (avcodec_parameters_to_context(decoder_ctx, video->codecpar) < 0)
-        return -1;
+    if (avcodec_parameters_to_context(decoder_ctx, video->codecpar) < 0) {
+        ret = -1;
+        goto free_decoder_ctx;
+    }
 
     decoder_ctx->get_format  = get_hw_format;
 
-    if (hw_decoder_init(decoder_ctx, type) < 0)
-        return -1;
+    if (hw_decoder_init(decoder_ctx, type) < 0) {
+        ret -1;
+        goto free_decoder_ctx;
+    }
 
     if ((ret = avcodec_open2(decoder_ctx, decoder, NULL)) < 0) {
         fprintf(stderr, "Failed to open codec for stream #%u\n", video_stream);
-        return -1;
+        ret = -1;
+        goto av_frame_unref;
     }
 
     /* open the file to dump raw data */
@@ -243,14 +254,21 @@ int main(int argc, char *argv[])
     }
 
     /* flush the decoder */
-    ret = decode_write(decoder_ctx, NULL);
+    decode_write(decoder_ctx, NULL);
 
     if (output_file)
         fclose(output_file);
-    av_packet_free(&packet);
-    avcodec_free_context(&decoder_ctx);
-    avformat_close_input(&input_ctx);
-    av_buffer_unref(&hw_device_ctx);
 
-    return 0;
+    ret = 0;
+
+av_frame_unref:
+    av_buffer_unref(&hw_device_ctx);
+free_decoder_ctx:
+    avcodec_free_context(&decoder_ctx);
+close_input:
+    avformat_close_input(&input_ctx);
+free_packet:
+    av_packet_free(&packet);
+
+    return ret;
 }
