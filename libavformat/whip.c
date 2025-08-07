@@ -1553,6 +1553,7 @@ static int create_rtp_muxer(AVFormatContext *s)
 
         rtp_ctx->pb = avio_alloc_context(buffer, buffer_size, 1, s, NULL, on_rtp_write_packet, NULL);
         if (!rtp_ctx->pb) {
+            av_freep(&buffer);
             ret = AVERROR(ENOMEM);
             goto end;
         }
