@@ -1383,7 +1383,7 @@ static int config_output(AVFilterLink *outlink)
     s->fft_input = av_calloc(FFALIGN(s->fft_len + 64, 256), sizeof(*s->fft_input));
     s->fft_result = av_calloc(FFALIGN(s->fft_len + 64, 256), sizeof(*s->fft_result));
     s->cqt_result = av_malloc_array(s->cqt_len, sizeof(*s->cqt_result));
-    if (!s->fft_ctx || !s->fft_data || !s->fft_result || !s->cqt_result)
+    if (!s->fft_ctx || !s->fft_data || !s->fft_input || !s->fft_result || !s->cqt_result)
         return AVERROR(ENOMEM);
 
     s->remaining_fill_max = s->fft_len / 2;
