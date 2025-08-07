@@ -494,6 +494,7 @@ static QSVFrame *query_frame(QSVVPPContext *s, AVFilterLink *outlink, const AVFr
 
         ret = av_hwframe_get_buffer(l->hw_frames_ctx, out_frame->frame, 0);
         if (ret < 0) {
+            av_frame_free(&out_frame->frame);
             av_log(ctx, AV_LOG_ERROR, "Can't allocate a surface.\n");
             return NULL;
         }
@@ -505,13 +506,17 @@ static QSVFrame *query_frame(QSVVPPContext *s, AVFilterLink *outlink, const AVFr
         out_frame->frame = ff_get_video_buffer(outlink,
                                                FFALIGN(outlink->w, 128),
                                                FFALIGN(outlink->h, 64));
-        if (!out_frame->frame)
+        if (!out_frame->frame) {
+            av_frame_free(&out_frame->frame);
             return NULL;
+        }
 
         ret = map_frame_to_surface(out_frame->frame,
                                    &out_frame->surface);
-        if (ret < 0)
+        if (ret < 0) {
+            av_frame_free(&out_frame->frame);
             return NULL;
+        }
     }
 
     if (propref) {
