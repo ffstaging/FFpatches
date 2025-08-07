@@ -142,9 +142,9 @@ static int config_input(AVFilterLink *inlink)
             !s->map_factor_a[p] ||
             !s->map_factor_b[p] ||
             !s->slice_factor_a[p] ||
-            !s->slice_factor_a[p] ||
+            !s->slice_factor_b[p] ||
             !s->line_factor_a[p] ||
-            !s->line_factor_a[p])
+            !s->line_factor_b[p])
             return AVERROR(ENOMEM);
     }
 
