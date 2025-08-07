@@ -28,12 +28,12 @@
 #include "libavutil/imgutils.h"
 #include "libavutil/opt.h"
 #include "libavutil/pixfmt.h"
+#include "libavutil/frame.h"
 #include "avfilter.h"
 #include "drawutils.h"
 #include "formats.h"
 #include "filters.h"
 #include "framesync.h"
-#include "video.h"
 
 enum { Y, U, V, A };
 
@@ -78,11 +78,23 @@ static int do_alphamerge(FFFrameSync *fs)
             }
         }
     } else {
-        const int main_linesize = main_buf->linesize[A];
-        const int alpha_linesize = alpha_buf->linesize[Y];
-        av_image_copy_plane(main_buf->data[A], main_linesize,
-                            alpha_buf->data[Y], alpha_linesize,
-                            FFMIN(main_linesize, alpha_linesize), alpha_buf->height);
+        AVBufferRef *alpha_plane_buf = av_frame_get_plane_buffer(alpha_buf, Y);
+
+        if (!alpha_plane_buf) {
+            av_log(ctx, AV_LOG_ERROR, "Could not get buffer for alpha plane.\n");
+            return AVERROR(EINVAL);
+        }
+
+        av_buffer_unref(&main_buf->buf[A]);
+
+        main_buf->buf[A] = av_buffer_ref(alpha_plane_buf);
+        if (!main_buf->buf[A]) {
+            av_log(ctx, AV_LOG_ERROR, "Failed to reference alpha plane buffer.\n");
+            return AVERROR(ENOMEM);
+        }
+
+        main_buf->data[A] = alpha_buf->data[Y];
+        main_buf->linesize[A] = alpha_buf->linesize[Y];
     }
 
     return ff_filter_frame(ctx->outputs[0], main_buf);
