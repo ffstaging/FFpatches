@@ -26500,6 +26500,27 @@ Note: If FFmpeg detects the Nvidia CUDA Toolkit during configuration, it will en
 @item Configure FFmpeg with @code{--enable-cuda-llvm}. Additional requirement: @code{llvm} lib must be installed.
 @end itemize
 
+@subsection alphamerge_cuda
+Add or replace the alpha component of the primary input stream with the luma plane of a second input stream, using CUDA hardware acceleration.
+
+@subsubsection Examples
+@itemize
+@item
+Apply a circular alpha mask to a red video before overlaying it onto a blue background.
+@example
+ffmpeg -f lavfi -i "color=c=red:s=1280x720:d=5,format=yuva420p" \
+-f lavfi -i "color=c=black:s=1280x720:d=5,geq=lum='255*gt(W/4,hypot(X-W/2,Y-H/2))'" \
+-f lavfi -i "color=c=blue:s=1280x720:d=5" \
+-filter_complex \
+"[0:v]hwupload_cuda[base]; \
+ [1:v]hwupload_cuda[mask]; \
+ [2:v]hwupload_cuda[bkgd]; \
+ [base][mask]alphamerge_cuda[merged]; \
+ [bkgd][merged]overlay_cuda" \
+-c:v h264_nvenc -y out.mp4
+@end example
+@end itemize
+
 @subsection bilateral_cuda
 CUDA accelerated bilateral filter, an edge preserving filter.
 This filter is mathematically accurate thanks to the use of GPU acceleration.

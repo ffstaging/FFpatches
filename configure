@@ -3349,6 +3349,8 @@ vaapi_encode_deps="vaapi"
 vulkan_encode_deps="vulkan"
 v4l2_m2m_deps="linux_videodev2_h sem_timedwait"
 
+alphamerge_cuda_filter_deps="ffnvcodec"
+alphamerge_cuda_filter_deps_any="cuda_nvcc cuda_llvm"
 bilateral_cuda_filter_deps="ffnvcodec"
 bilateral_cuda_filter_deps_any="cuda_nvcc cuda_llvm"
 chromakey_cuda_filter_deps="ffnvcodec"
