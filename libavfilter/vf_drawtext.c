@@ -1437,6 +1437,11 @@ continue_on_failed:
     s->line_count = line_count;
     s->lines = av_mallocz(line_count * sizeof(TextLine));
     s->tab_clusters = av_mallocz(s->tab_count * sizeof(uint32_t));
+    if (!s->lines || !s->tab_clusters) {
+        ret = AVERROR(ENOMEM);
+        goto done;
+    }
+
     for (i = 0; i < s->tab_count; ++i) {
         s->tab_clusters[i] = -1;
     }
