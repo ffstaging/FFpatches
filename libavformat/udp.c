@@ -68,6 +68,13 @@
 #include "libavutil/thread.h"
 #endif
 
+#if HAVE_STRUCT_IPV6_MREQ && HAVE_IOCTL_GIFINDEX && defined(IPPROTO_IPV6)
+#include <sys/types.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <ifaddrs.h>
+#endif
+
 #ifndef IPV6_ADD_MEMBERSHIP
 #define IPV6_ADD_MEMBERSHIP IPV6_JOIN_GROUP
 #define IPV6_DROP_MEMBERSHIP IPV6_LEAVE_GROUP
@@ -205,6 +212,79 @@ static int udp_set_multicast_ttl(int sockfd, int mcastTTL,
 
     return 0;
 }
+#if HAVE_STRUCT_IPV6_MREQ && HAVE_IOCTL_GIFINDEX && defined(IPPROTO_IPV6)
+static int udp_ipv6_multicast_iterate(int sockfd, struct sockaddr_in6 *addr,
+                                      struct sockaddr_in6 *local_addr, int mop, void *logctx)
+{
+    struct in6_addr anyipv6 = IN6ADDR_ANY_INIT;
+    struct ifaddrs *ifal=NULL,*ife=NULL;
+    int iindex_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+    int membership_changed = 0;
+
+    if (iindex_fd >= 0 && !getifaddrs(&ifal)) {
+        for(ife=ifal; ife!=NULL; ife=ife->ifa_next) {
+            if (ife->ifa_addr &&
+                (ife->ifa_addr->sa_family == AF_INET6) &&
+                (ife->ifa_flags & IFF_MULTICAST) &&
+                (ife->ifa_flags & IFF_UP)) {
+                if ((!memcmp(&local_addr->sin6_addr, &anyipv6, sizeof(struct in6_addr))) ||
+                    (!memcmp(&local_addr->sin6_addr, &((struct sockaddr_in6 *)ife->ifa_addr)->sin6_addr, sizeof(struct in6_addr)))) {
+                    struct ifreq if_req;
+                    strncpy(if_req.ifr_name, ife->ifa_name, IFNAMSIZ);
+                    if (ioctl(iindex_fd, SIOCGIFINDEX, &if_req) != -1) {
+                        struct ipv6_mreq mreq6;
+                        memcpy(&mreq6.ipv6mr_multiaddr, &addr->sin6_addr, sizeof(struct in6_addr));
+                        mreq6.ipv6mr_interface = if_req.ifr_ifindex;
+                        switch (mop) {
+                        case IPV6_JOIN_GROUP:
+                            if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq6, sizeof(mreq6)) == 0) {
+                                membership_changed = 1;
+                            } else {
+                                /* Subscribe for all ipv6 addresses belong to a
+				   interface.It can generate EADDRINUSE but
+				   is accaptable. */
+                                if (errno != EADDRINUSE) {
+                                    ff_log_net_error(logctx, AV_LOG_ERROR, "setsockopt(IPV6_ADD_MEMBERSHIP)");
+                                    goto error;
+                                }
+                            }
+                            break;
+                        case IPV6_LEAVE_GROUP:
+                            if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, &mreq6, sizeof(mreq6)) == 0) {
+                                membership_changed = 1;
+                            } else {
+                                /* Unsubscribe for all ipv6 addresses belong to a
+				   interface. Ignore EADDRNOTAVAIL. */
+                                if (errno != EADDRNOTAVAIL) {
+                                    ff_log_net_error(logctx, AV_LOG_ERROR, "setsockopt(IPV6_DROP_MEMBERSHIP)");
+                                    goto error;
+                                }
+                            }
+                            break;
+                        default:
+                            av_log(logctx, AV_LOG_ERROR, "unknown multicast operation\n");
+                            goto error;
+                        }
+                    }
+		}
+            }
+        }
+    }
+    freeifaddrs(ifal);
+    close(iindex_fd);
+
+    if (!membership_changed) {
+        av_log(logctx, AV_LOG_ERROR, "no valid interfaces found\n");
+        return AVERROR(EINVAL);
+    }
+    return 0;
+error:
+    freeifaddrs(ifal);
+    close(iindex_fd);
+    av_log(logctx, AV_LOG_ERROR, "udp_ipv6_multicast_iterate failed\n");
+    return AVERROR(EINVAL);
+}
+#endif
 
 static int udp_join_multicast_group(int sockfd, struct sockaddr *addr,
                                     struct sockaddr *local_addr, void *logctx)
@@ -226,15 +306,22 @@ static int udp_join_multicast_group(int sockfd, struct sockaddr *addr,
 #endif
 #if HAVE_STRUCT_IPV6_MREQ && defined(IPPROTO_IPV6)
     if (addr->sa_family == AF_INET6) {
+#if HAVE_IOCTL_GIFINDEX
+        return udp_ipv6_multicast_iterate(sockfd,
+                                        (struct sockaddr_in6 *)addr,
+                                        (struct sockaddr_in6 *)local_addr,
+                                        IPV6_JOIN_GROUP,
+                                        logctx);
+#else
         struct ipv6_mreq mreq6;
 
         memcpy(&mreq6.ipv6mr_multiaddr, &(((struct sockaddr_in6 *)addr)->sin6_addr), sizeof(struct in6_addr));
-        //TODO: Interface index should be looked up from local_addr
         mreq6.ipv6mr_interface = 0;
         if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq6, sizeof(mreq6)) < 0) {
             ff_log_net_error(logctx, AV_LOG_ERROR, "setsockopt(IPV6_ADD_MEMBERSHIP)");
             return ff_neterrno();
         }
+#endif
     }
 #endif
     return 0;
@@ -260,15 +347,22 @@ static int udp_leave_multicast_group(int sockfd, struct sockaddr *addr,
 #endif
 #if HAVE_STRUCT_IPV6_MREQ && defined(IPPROTO_IPV6)
     if (addr->sa_family == AF_INET6) {
+#if HAVE_IOCTL_GIFINDEX
+	return udp_ipv6_multicast_iterate(sockfd,
+					  (struct sockaddr_in6 *)addr,
+					  (struct sockaddr_in6 *)local_addr,
+					  IPV6_LEAVE_GROUP,
+					  logctx);
+#else
         struct ipv6_mreq mreq6;
 
         memcpy(&mreq6.ipv6mr_multiaddr, &(((struct sockaddr_in6 *)addr)->sin6_addr), sizeof(struct in6_addr));
-        //TODO: Interface index should be looked up from local_addr
         mreq6.ipv6mr_interface = 0;
         if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, &mreq6, sizeof(mreq6)) < 0) {
             ff_log_net_error(logctx, AV_LOG_ERROR, "setsockopt(IPV6_DROP_MEMBERSHIP)");
             return -1;
         }
+#endif
     }
 #endif
     return 0;
