@@ -1459,8 +1459,10 @@ static int setup_queue_families(AVHWDeviceContext *ctx, VkDeviceCreateInfo *cd)
         return AVERROR(ENOMEM);
 
     qf_vid = av_malloc_array(num, sizeof(VkQueueFamilyVideoPropertiesKHR));
-    if (!qf_vid)
+    if (!qf_vid) {
+        av_free(qf);
         return AVERROR(ENOMEM);
+    }
 
     for (uint32_t i = 0; i < num; i++) {
         qf_vid[i] = (VkQueueFamilyVideoPropertiesKHR) {
