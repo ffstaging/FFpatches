@@ -55,13 +55,14 @@ static int video_decode_example(const char *input_filename)
     result = avformat_find_stream_info(fmt_ctx, NULL);
     if (result < 0) {
         av_log(NULL, AV_LOG_ERROR, "Can't get stream info\n");
-        return result;
+        goto cloce_fmt_ctx;
     }
 
     video_stream = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     if (video_stream < 0) {
-      av_log(NULL, AV_LOG_ERROR, "Can't find video stream in input file\n");
-      return -1;
+        av_log(NULL, AV_LOG_ERROR, "Can't find video stream in input file\n");
+        result = -1;
+        goto cloce_fmt_ctx;
     }
 
     origin_par = fmt_ctx->streams[video_stream]->codecpar;
@@ -69,44 +70,49 @@ static int video_decode_example(const char *input_filename)
     codec = avcodec_find_decoder(origin_par->codec_id);
     if (!codec) {
         av_log(NULL, AV_LOG_ERROR, "Can't find decoder\n");
-        return -1;
+        result = -1;
+        goto cloce_fmt_ctx;
     }
 
     ctx = avcodec_alloc_context3(codec);
     if (!ctx) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate decoder context\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_fmt_ctx;
     }
 
     result = avcodec_parameters_to_context(ctx, origin_par);
     if (result) {
         av_log(NULL, AV_LOG_ERROR, "Can't copy decoder context\n");
-        return result;
+        goto free_ctx;
     }
 
     result = avcodec_open2(ctx, codec, NULL);
     if (result < 0) {
         av_log(ctx, AV_LOG_ERROR, "Can't open decoder\n");
-        return result;
+        goto free_ctx;
     }
 
     fr = av_frame_alloc();
     if (!fr) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate frame\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_ctx;
     }
 
     pkt = av_packet_alloc();
     if (!pkt) {
         av_log(NULL, AV_LOG_ERROR, "Cannot allocate packet\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_fr;
     }
 
     byte_buffer_size = av_image_get_buffer_size(ctx->pix_fmt, ctx->width, ctx->height, 16);
     byte_buffer = av_malloc(byte_buffer_size);
     if (!byte_buffer) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate buffer\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_pkt;
     }
 
     printf("#tb %d: %d/%d\n", video_stream, fmt_ctx->streams[video_stream]->time_base.num, fmt_ctx->streams[video_stream]->time_base.den);
@@ -131,19 +137,19 @@ static int video_decode_example(const char *input_filename)
 
         if (result < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error submitting a packet for decoding\n");
-            return result;
+            goto free_byte_buffer;
         }
 
         while (result >= 0) {
             result = avcodec_receive_frame(ctx, fr);
             if (result == AVERROR_EOF)
-                goto finish;
+                goto free_byte_buffer;
             else if (result == AVERROR(EAGAIN)) {
                 result = 0;
                 break;
             } else if (result < 0) {
                 av_log(NULL, AV_LOG_ERROR, "Error decoding frame\n");
-                return result;
+                goto free_byte_buffer;
             }
 
             number_of_written_bytes = av_image_copy_to_buffer(byte_buffer, byte_buffer_size,
@@ -152,7 +158,8 @@ static int video_decode_example(const char *input_filename)
             if (number_of_written_bytes < 0) {
                 av_log(NULL, AV_LOG_ERROR, "Can't copy image to buffer\n");
                 av_frame_unref(fr);
-                return number_of_written_bytes;
+                result = number_of_written_bytes;
+                goto free_byte_buffer;
             }
             printf("%d, %s, %s, %8"PRId64", %8d, 0x%08"PRIx32"\n", video_stream,
                    av_ts2str(fr->pts), av_ts2str(fr->pkt_dts), fr->duration,
@@ -163,13 +170,19 @@ static int video_decode_example(const char *input_filename)
         i++;
     }
 
-finish:
-    av_packet_free(&pkt);
-    av_frame_free(&fr);
-    avformat_close_input(&fmt_ctx);
-    avcodec_free_context(&ctx);
+    result = 0;
+
+free_byte_buffer:
     av_freep(&byte_buffer);
-    return 0;
+free_pkt:
+    av_packet_free(&pkt);
+free_fr:
+    av_frame_free(&fr);
+free_ctx:
+    avcodec_free_context(&ctx);
+cloce_fmt_ctx:
+    avformat_close_input(&fmt_ctx);
+    return result;
 }
 
 int main(int argc, char **argv)
