@@ -95,7 +95,7 @@ static int compute_crc_of_packets(AVFormatContext *fmt_ctx, int video_stream,
         printf("Seeking to %"PRId64", computing crc for frames with pts < %"PRId64"\n", ts_start, ts_end);
         if (result < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error in seeking\n");
-            return result;
+            goto finish;
         }
         avcodec_flush_buffers(ctx);
     }
@@ -112,7 +112,8 @@ static int compute_crc_of_packets(AVFormatContext *fmt_ctx, int video_stream,
         else {
             if (pkt->pts == AV_NOPTS_VALUE) {
                 av_log(NULL, AV_LOG_ERROR, "Error: frames doesn't have pts values\n");
-                return -1;
+                result = -1;
+                goto finish;
             }
             result = avcodec_send_packet(ctx, pkt);
         }
@@ -121,7 +122,7 @@ static int compute_crc_of_packets(AVFormatContext *fmt_ctx, int video_stream,
 
         if (result < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error submitting a packet for decoding\n");
-            return result;
+            goto finish;
         }
 
         while (result >= 0) {
@@ -133,7 +134,7 @@ static int compute_crc_of_packets(AVFormatContext *fmt_ctx, int video_stream,
                 break;
             } else if (result < 0) {
                 av_log(NULL, AV_LOG_ERROR, "Error decoding frame\n");
-                return result;
+                goto finish;
             }
 
             number_of_written_bytes = av_image_copy_to_buffer(byte_buffer, byte_buffer_size,
@@ -141,7 +142,8 @@ static int compute_crc_of_packets(AVFormatContext *fmt_ctx, int video_stream,
                                     ctx->pix_fmt, ctx->width, ctx->height, 1);
             if (number_of_written_bytes < 0) {
                 av_log(NULL, AV_LOG_ERROR, "Can't copy image to buffer\n");
-                return number_of_written_bytes;
+                result = number_of_written_bytes;
+                goto finish;
             }
             if ((!no_seeking) && (fr->pts > ts_end))
                 break;
@@ -149,20 +151,24 @@ static int compute_crc_of_packets(AVFormatContext *fmt_ctx, int video_stream,
             printf("%10"PRId64", 0x%08"PRIx32"\n", fr->pts, crc);
             if (no_seeking) {
                 if (add_crc_to_array(crc, fr->pts) < 0)
-                    return -1;
+                    result = -1;
+                    goto finish;
             }
             else {
                 if (compare_crc_in_array(crc, fr->pts) < 0)
-                    return -1;
+                    result = -1;
+                    goto finish;
             }
             av_frame_unref(fr);
         }
     } while (result >= 0 && (no_seeking || (fr->pts + fr->duration <= ts_end)));
 
+    result = 0;
+
 finish:
     av_freep(&byte_buffer);
 
-    return 0;
+    return result;
 }
 
 static long int read_seek_range(const char *string_with_number)
