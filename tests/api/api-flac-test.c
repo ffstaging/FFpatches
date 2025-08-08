@@ -72,6 +72,7 @@ static int init_encoder(const AVCodec *enc, AVCodecContext **enc_ctx,
 
     result = avcodec_open2(ctx, enc, NULL);
     if (result < 0) {
+        avcodec_free_context(&ctx);
         av_log(ctx, AV_LOG_ERROR, "Can't open encoder\n");
         return result;
     }
@@ -97,6 +98,7 @@ static int init_decoder(const AVCodec *dec, AVCodecContext **dec_ctx,
 
     result = avcodec_open2(ctx, dec, NULL);
     if (result < 0) {
+        avcodec_free_context(&ctx);
         av_log(ctx, AV_LOG_ERROR, "Can't open decoder\n");
         return result;
     }
@@ -125,55 +127,61 @@ static int run_test(const AVCodec *enc, const AVCodec *dec,
     in_frame = av_frame_alloc();
     if (!in_frame) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate input frame\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_enc_pkt;
     }
 
     in_frame->nb_samples = enc_ctx->frame_size;
     in_frame->format = enc_ctx->sample_fmt;
     result = av_channel_layout_copy(&in_frame->ch_layout, &enc_ctx->ch_layout);
     if (result < 0)
-        return result;
+        goto free_in_frame;
     if (av_frame_get_buffer(in_frame, 0) != 0) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate a buffer for input frame\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_in_frame;
     }
 
     out_frame = av_frame_alloc();
     if (!out_frame) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate output frame\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_in_frame;
     }
 
     raw_in = av_malloc(in_frame->linesize[0] * NUMBER_OF_AUDIO_FRAMES);
     if (!raw_in) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate memory for raw_in\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_out_frame;
     }
 
     raw_out = av_malloc(in_frame->linesize[0] * NUMBER_OF_AUDIO_FRAMES);
     if (!raw_out) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate memory for raw_out\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_raw_in;
     }
 
     for (i = 0; i < NUMBER_OF_AUDIO_FRAMES; i++) {
         result = av_frame_make_writable(in_frame);
         if (result < 0)
-            return result;
+            goto free_raw_out;
 
         generate_raw_frame((uint16_t*)(in_frame->data[0]), i, enc_ctx->sample_rate,
                            enc_ctx->ch_layout.nb_channels, enc_ctx->frame_size);
         in_frame_bytes = in_frame->nb_samples * in_frame->ch_layout.nb_channels * sizeof(uint16_t);
         if (in_frame_bytes > in_frame->linesize[0]) {
             av_log(NULL, AV_LOG_ERROR, "Incorrect value of input frame linesize\n");
-            return 1;
+            result = 1;
+            goto free_raw_out;
         }
         memcpy(raw_in + in_offset, in_frame->data[0], in_frame_bytes);
         in_offset += in_frame_bytes;
         result = avcodec_send_frame(enc_ctx, in_frame);
         if (result < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error submitting a frame for encoding\n");
-            return result;
+            goto free_raw_out;
         }
 
         while (result >= 0) {
@@ -182,7 +190,7 @@ static int run_test(const AVCodec *enc, const AVCodec *dec,
                 break;
             else if (result < 0 && result != AVERROR_EOF) {
                 av_log(NULL, AV_LOG_ERROR, "Error encoding audio frame\n");
-                return result;
+                goto free_raw_out;
             }
 
             /* if we get an encoded packet, feed it straight to the decoder */
@@ -190,7 +198,7 @@ static int run_test(const AVCodec *enc, const AVCodec *dec,
             av_packet_unref(enc_pkt);
             if (result < 0) {
                 av_log(NULL, AV_LOG_ERROR, "Error submitting a packet for decoding\n");
-                return result;
+                goto free_raw_out;
             }
 
             result = avcodec_receive_frame(dec_ctx, out_frame);
@@ -202,27 +210,31 @@ static int run_test(const AVCodec *enc, const AVCodec *dec,
                 break;
             } else if (result < 0) {
                 av_log(NULL, AV_LOG_ERROR, "Error decoding audio packet\n");
-                return result;
+                goto free_raw_out;
             }
 
             if (in_frame->nb_samples != out_frame->nb_samples) {
                 av_log(NULL, AV_LOG_ERROR, "Error frames before and after decoding has different number of samples\n");
-                return AVERROR_UNKNOWN;
+                result = AVERROR_UNKNOWN;
+                goto free_raw_out;
             }
 
             if (av_channel_layout_compare(&in_frame->ch_layout, &out_frame->ch_layout)) {
                 av_log(NULL, AV_LOG_ERROR, "Error frames before and after decoding has different channel layout\n");
-                return AVERROR_UNKNOWN;
+                result = AVERROR_UNKNOWN;
+                goto free_raw_out;
             }
 
             if (in_frame->format != out_frame->format) {
                 av_log(NULL, AV_LOG_ERROR, "Error frames before and after decoding has different sample format\n");
-                return AVERROR_UNKNOWN;
+                result = AVERROR_UNKNOWN;
+                goto free_raw_out;
             }
             out_frame_bytes = out_frame->nb_samples * out_frame->ch_layout.nb_channels * sizeof(uint16_t);
             if (out_frame_bytes > out_frame->linesize[0]) {
                 av_log(NULL, AV_LOG_ERROR, "Incorrect value of output frame linesize\n");
-                return 1;
+                result = 1;
+                goto free_raw_out;
             }
             memcpy(raw_out + out_offset, out_frame->data[0], out_frame_bytes);
             out_offset += out_frame_bytes;
@@ -231,17 +243,24 @@ static int run_test(const AVCodec *enc, const AVCodec *dec,
 
     if (memcmp(raw_in, raw_out, out_frame_bytes * NUMBER_OF_AUDIO_FRAMES) != 0) {
         av_log(NULL, AV_LOG_ERROR, "Output differs\n");
-        return 1;
+        result = 1;
+        goto free_raw_out;
     }
 
     av_log(NULL, AV_LOG_INFO, "OK\n");
+    result = 0;
 
-    av_freep(&raw_in);
+free_raw_out:
     av_freep(&raw_out);
-    av_packet_free(&enc_pkt);
-    av_frame_free(&in_frame);
+free_raw_in:
+    av_freep(&raw_in);
+free_out_frame:
     av_frame_free(&out_frame);
-    return 0;
+free_in_frame:
+    av_frame_free(&in_frame);
+free_enc_pkt:
+    av_packet_free(&enc_pkt);
+    return result;
 }
 
 int main(void)
