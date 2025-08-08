@@ -41,9 +41,12 @@ int main(int argc, char **argv)
     uint8_t *dstBuffer = av_malloc(SIZE);
     int failedNum      = 0;
     int passedNum      = 0;
+    int ret;
 
-    if (!srcBuffer || !dstBuffer)
-        return -1;
+    if (!srcBuffer || !dstBuffer) {
+        ret = -1;
+        goto end;
+    }
 
     av_log(NULL, AV_LOG_INFO, "memory corruption test ...\n");
     ff_sws_rgb2rgb_init();
@@ -167,5 +170,10 @@ int main(int argc, char **argv)
     av_log(NULL, AV_LOG_INFO,
            "\n%d converters passed, %d converters randomly overwrote memory\n",
            passedNum, failedNum);
-    return failedNum;
+    ret = failedNum;
+
+err:
+    av_free(srcBuffer);
+    av_free(dstBuffer);
+    return ret;
 }
