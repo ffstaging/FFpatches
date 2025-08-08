@@ -89,13 +89,14 @@ static int video_decode(const char *input_filename)
     result = avformat_find_stream_info(fmt_ctx, NULL);
     if (result < 0) {
         av_log(NULL, AV_LOG_ERROR, "Can't get stream info\n");
-        return result;
+        goto close_input;
     }
 
     video_stream = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     if (video_stream < 0) {
       av_log(NULL, AV_LOG_ERROR, "Can't find video stream in input file\n");
-      return -1;
+      result = -1;
+      goto close_input;
     }
 
     origin_par = fmt_ctx->streams[video_stream]->codecpar;
@@ -103,24 +104,27 @@ static int video_decode(const char *input_filename)
     codec = avcodec_find_decoder(origin_par->codec_id);
     if (!codec) {
         av_log(NULL, AV_LOG_ERROR, "Can't find decoder\n");
-        return -1;
+        result = -1;
+        goto close_input;
     }
 
     if (!(codec->capabilities & AV_CODEC_CAP_DRAW_HORIZ_BAND)) {
         av_log(NULL, AV_LOG_ERROR, "Codec does not support draw_horiz_band\n");
-        return -1;
+        result = -1;
+        goto close_input;
     }
 
     ctx = avcodec_alloc_context3(codec);
     if (!ctx) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate decoder context\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto close_input;
     }
 
     result = avcodec_parameters_to_context(ctx, origin_par);
     if (result) {
         av_log(NULL, AV_LOG_ERROR, "Can't copy decoder context\n");
-        return result;
+        goto free_ctx;
     }
 
     ctx->draw_horiz_band = draw_horiz_band;
@@ -129,32 +133,36 @@ static int video_decode(const char *input_filename)
     result = avcodec_open2(ctx, codec, NULL);
     if (result < 0) {
         av_log(ctx, AV_LOG_ERROR, "Can't open decoder\n");
-        return result;
+        goto free_ctx;
     }
 
     fr = av_frame_alloc();
     if (!fr) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate frame\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_ctx;
     }
 
     pkt = av_packet_alloc();
     if (!pkt) {
         av_log(NULL, AV_LOG_ERROR, "Cannot allocate packet\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_fr;
     }
 
     byte_buffer_size = av_image_get_buffer_size(ctx->pix_fmt, ctx->width, ctx->height, 32);
     byte_buffer = av_malloc(byte_buffer_size);
     if (!byte_buffer) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate buffer\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_pkt;
     }
 
     slice_byte_buffer = av_malloc(byte_buffer_size);
     if (!slice_byte_buffer) {
         av_log(NULL, AV_LOG_ERROR, "Can't allocate buffer\n");
-        return AVERROR(ENOMEM);
+        result = AVERROR(ENOMEM);
+        goto free_byte_buffer;
     }
     memset(slice_byte_buffer, 0, byte_buffer_size);
 
@@ -173,19 +181,19 @@ static int video_decode(const char *input_filename)
 
         if (result < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error submitting a packet for decoding\n");
-            return result;
+            goto free_slice_byte_buffer;
         }
 
         while (result >= 0) {
             result = avcodec_receive_frame(ctx, fr);
             if (result == AVERROR_EOF)
-                goto finish;
+                goto free_slice_byte_buffer;
             else if (result == AVERROR(EAGAIN)) {
                 result = 0;
                 break;
             } else if (result < 0) {
                 av_log(NULL, AV_LOG_ERROR, "Error decoding frame\n");
-                return result;
+                goto free_slice_byte_buffer;
             }
 
             number_of_written_bytes = av_image_copy_to_buffer(byte_buffer, byte_buffer_size,
@@ -193,29 +201,39 @@ static int video_decode(const char *input_filename)
                                     ctx->pix_fmt, ctx->width, ctx->height, 1);
             if (number_of_written_bytes < 0) {
                 av_log(NULL, AV_LOG_ERROR, "Can't copy image to buffer\n");
-                return number_of_written_bytes;
+                result = number_of_written_bytes;
+                goto free_slice_byte_buffer;
             }
             if (draw_horiz_band_called == 0) {
                 av_log(NULL, AV_LOG_ERROR, "draw_horiz_band haven't been called!\n");
-                return -1;
+                result = -1;
+                goto free_slice_byte_buffer;
             }
             if (av_adler32_update(0, (const uint8_t*)byte_buffer, number_of_written_bytes) !=
                 av_adler32_update(0, (const uint8_t*)slice_byte_buffer, number_of_written_bytes)) {
                 av_log(NULL, AV_LOG_ERROR, "Decoded frames with and without draw_horiz_band are not the same!\n");
-                return -1;
+                result = -1;
+                goto free_slice_byte_buffer;
             }
             av_frame_unref(fr);
         }
     }
 
-finish:
-    av_packet_free(&pkt);
-    av_frame_free(&fr);
-    avformat_close_input(&fmt_ctx);
-    avcodec_free_context(&ctx);
-    av_freep(&byte_buffer);
+    result = 0;
+
+free_slice_byte_buffer:
     av_freep(&slice_byte_buffer);
-    return 0;
+free_byte_buffer:
+    av_freep(&byte_buffer);
+free_pkt:
+    av_packet_free(&pkt);
+free_fr:
+    av_frame_free(&fr);
+free_ctx:
+    avcodec_free_context(&ctx);
+close_input:
+    avformat_close_input(&fmt_ctx);
+    return result;
 }
 
 int main(int argc, char **argv)
