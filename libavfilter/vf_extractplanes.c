@@ -307,24 +307,45 @@ static int extract_plane(AVFilterLink *outlink, AVFrame *frame)
     const int idx = s->map[FF_OUTLINK_IDX(outlink)];
     AVFrame *out;
 
-    out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
-    if (!out)
-        return AVERROR(ENOMEM);
-    av_frame_copy_props(out, frame);
-    if (idx == 3 /* alpha */)
-        out->color_range = AVCOL_RANGE_JPEG;
-
     if (s->is_packed) {
+        out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
+        if (!out)
+            return AVERROR(ENOMEM);
+
         extract_from_packed(out->data[0], out->linesize[0],
                             frame->data[0], frame->linesize[0],
                             outlink->w, outlink->h,
                             s->depth,
                             s->step, idx);
     } else {
-        av_image_copy_plane(out->data[0], out->linesize[0],
-                            frame->data[idx], frame->linesize[idx],
-                            s->linesize[idx], outlink->h);
+        out = av_frame_alloc();
+        if (!out)
+            return AVERROR(ENOMEM);
+
+        AVBufferRef *source_plane_buf = av_frame_get_plane_buffer(frame, idx);
+        if (!source_plane_buf) {
+            av_frame_free(&out);
+            av_log(ctx, AV_LOG_ERROR, "Could not get buffer for source plane %d.\n", idx);
+            return AVERROR(EINVAL);
+        }
+
+        out->format = outlink->format;
+        out->width  = outlink->w;
+        out->height = outlink->h;
+
+        out->buf[0] = av_buffer_ref(source_plane_buf);
+        if (!out->buf[0]) {
+            av_frame_free(&out);
+            return AVERROR(ENOMEM);
+        }
+
+        out->data[0]     = frame->data[idx];
+        out->linesize[0] = frame->linesize[idx];
     }
+
+    av_frame_copy_props(out, frame);
+    if (idx == 3 /* alpha */)
+        out->color_range = AVCOL_RANGE_JPEG;
 
     return ff_filter_frame(outlink, out);
 }
