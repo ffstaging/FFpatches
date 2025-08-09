@@ -114,6 +114,7 @@ int main(int argc, char **argv)
     char *graph_string      = NULL;
     AVFilterGraph *graph    = NULL;
     char c;
+    int ret = 0;
 
     av_log_set_level(AV_LOG_DEBUG);
 
@@ -148,7 +149,8 @@ int main(int argc, char **argv)
     if (!outfile) {
         fprintf(stderr, "Failed to open output file '%s': %s\n",
                 outfilename, strerror(errno));
-        return 1;
+        ret = 1;
+        goto fclose_infile;
     }
 
     /* read from infile and put it in a buffer */
@@ -159,25 +161,29 @@ int main(int argc, char **argv)
         last_line = first_line = av_malloc(sizeof(struct line));
         if (!last_line) {
             fprintf(stderr, "Memory allocation failure\n");
-            return 1;
+            ret = 1;
+            goto fclose_outfile;
         }
 
+        last_line->next = NULL;
         while (fgets(last_line->data, sizeof(last_line->data), infile)) {
             struct line *new_line = av_malloc(sizeof(struct line));
             if (!new_line) {
                 fprintf(stderr, "Memory allocation failure\n");
-                return 1;
+                ret = 1;
+                goto free_lines;
             }
             count += strlen(last_line->data);
             last_line->next = new_line;
             last_line       = new_line;
+            last_line->next = NULL;
         }
-        last_line->next = NULL;
 
         graph_string = av_malloc(count + 1);
         if (!graph_string) {
             fprintf(stderr, "Memory allocation failure\n");
-            return 1;
+            ret = 1;
+            goto free_lines;
         }
         p = graph_string;
         for (line = first_line; line->next; line = line->next) {
@@ -186,24 +192,50 @@ int main(int argc, char **argv)
             p += l;
         }
         *p = '\0';
+
+free_lines:
+        line = first_line;
+        while (line) {
+            struct line *next = line->next;
+            av_free(line);
+            line = next;
+        }
+        if (ret)
+            goto free_graph_string;
     }
 
     graph = avfilter_graph_alloc();
     if (!graph) {
         fprintf(stderr, "Memory allocation failure\n");
-        return 1;
+        ret = 1;
+        goto free_graph_string;
     }
 
     if (avfilter_graph_parse(graph, graph_string, NULL, NULL, NULL) < 0) {
         fprintf(stderr, "Failed to parse the graph description\n");
-        return 1;
+        ret = 1;
+        goto free_graph;
     }
 
-    if (avfilter_graph_config(graph, NULL) < 0)
-        return 1;
+    if (avfilter_graph_config(graph, NULL) < 0) {
+        ret = 1;
+        goto free_graph;
+    }
 
     print_digraph(outfile, graph);
     fflush(outfile);
 
-    return 0;
+    ret = 0;
+
+free_graph:
+    avfilter_graph_free(&graph);
+free_graph_string:
+    if (graph_string)
+        av_free(graph_string);
+fclose_outfile:
+    fclose(outfile);
+fclose_infile:
+    fclose(infile);
+
+    return ret;
 }
