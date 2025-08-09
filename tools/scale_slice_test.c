@@ -157,6 +157,7 @@ int main(int argc, char **argv)
 
         ret = av_frame_get_buffer(frame, 0);
         if (ret < 0) {
+            av_frame_free(&frame);
             fprintf(stderr, "Error allocating frame data\n");
             return ret;
         }
@@ -173,6 +174,7 @@ int main(int argc, char **argv)
 
     ret = ds_open(&dc, filename, 0);
     if (ret < 0) {
+        av_frame_free(&frame);
         fprintf(stderr, "Error opening the file\n");
         return ret;
     }
