@@ -316,6 +316,10 @@ libavfilter
 ===========
 
 Generic parts:
+
+  Famework and orphaned filters         Nicolas George
+  (except hardware acceleration)
+
   graphdump.c                           Nicolas George
 
   motion_estimation.c                   Davinder Singh
