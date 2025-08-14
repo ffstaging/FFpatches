@@ -45,6 +45,10 @@ int main(int argc, char *argv[]) {
     long tmp[LZO1X_MEM_COMPRESS];
     int inlen, outlen;
     int i;
+
+    if (!in || !orig || !comp || !decomp)
+        goto end;
+
     av_log_set_level(AV_LOG_DEBUG);
     if (comp_level == 0) {
         lzo1x_1_compress(orig, s, comp, &clen, tmp);
@@ -71,7 +75,10 @@ int main(int argc, char *argv[]) {
         av_log(NULL, AV_LOG_ERROR, "decompression incorrect\n");
     else
         av_log(NULL, AV_LOG_ERROR, "decompression OK\n");
-    fclose(in);
+
+end:
+    if (in)
+        fclose(in);
     av_free(orig);
     av_free(comp);
     av_free(decomp);
