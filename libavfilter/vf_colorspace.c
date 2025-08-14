@@ -123,6 +123,7 @@ typedef struct ColorSpaceContext {
     int fast_mode;
     enum DitherMode dither;
     enum WhitepointAdaptation wp_adapt;
+    int clamplutoutput;
 
     int16_t *rgb[3];
     ptrdiff_t rgb_stride;
@@ -215,7 +216,9 @@ static int fill_gamma_table(ColorSpaceContext *s)
         } else {
             d = out_alpha * pow(v, out_gamma) - (out_alpha - 1.0);
         }
-        s->delin_lut[n] = av_clip_int16(lrint(d * 28672.0));
+        int d_int = av_clip_int16(lrint(d * 28672.0));
+        s->delin_lut[n] =
+            s->clamplutoutput ? FFMIN(FFMAX(0, d_int), 28672) : d_int; 
 
         // linearize
         if (v <= -in_beta * in_delta) {
@@ -225,7 +228,9 @@ static int fill_gamma_table(ColorSpaceContext *s)
         } else {
             l = pow((v + in_alpha - 1.0) * in_ialpha, in_igamma);
         }
-        s->lin_lut[n] = av_clip_int16(lrint(l * 28672.0));
+        int l_int = av_clip_int16(lrint(l * 28672.0));
+        s->lin_lut[n] =
+            s->clamplutoutput ? FFMIN(FFMAX(0, l_int), 28672) : l_int; 
     }
 
     return 0;
@@ -999,6 +1004,11 @@ static const AVOption colorspace_options[] = {
     ENUM("bradford", WP_ADAPT_BRADFORD, "wpadapt"),
     ENUM("vonkries", WP_ADAPT_VON_KRIES, "wpadapt"),
     ENUM("identity", WP_ADAPT_IDENTITY, "wpadapt"),
+
+    { "clamplutoutput", 
+      "Clamps the linear and delinear LUT output values to the range [0, 1].",
+      OFFSET(clamplutoutput), AV_OPT_TYPE_BOOL,  { .i64 = 0    },
+      0, 1, FLAGS },
 
     { "iall",       "Set all input color properties together",
       OFFSET(user_iall),   AV_OPT_TYPE_INT, { .i64 = CS_UNSPECIFIED },
