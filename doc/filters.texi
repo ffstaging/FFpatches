@@ -10403,6 +10403,9 @@ von Kries whitepoint adaptation
 identity whitepoint adaptation (i.e. no whitepoint adaptation)
 @end table
 
+@item clamptrc
+Clamps the linear and delinear transfer characteristics LUT values to the [0, 1] represented range.
+
 @item iall
 Override all input properties at once. Same accepted values as @ref{all}.
 
