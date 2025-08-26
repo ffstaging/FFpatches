@@ -1761,18 +1761,20 @@ static int whip_write_packet(AVFormatContext *s, AVPacket *pkt)
      * and RTCP like PLI requests, then respond to them.
      */
     ret = ffurl_read(whip->udp, whip->buf, sizeof(whip->buf));
-    if (ret > 0) {
-        if (is_dtls_packet(whip->buf, ret)) {
-            if ((ret = ffurl_write(whip->dtls_uc, whip->buf, ret)) < 0) {
-                av_log(whip, AV_LOG_ERROR, "Failed to handle DTLS message\n");
-                goto end;
-            }
-        }
-    } else if (ret != AVERROR(EAGAIN)) {
-        av_log(whip, AV_LOG_ERROR, "Failed to read from UDP socket\n");
+    if (ret < 0) {
+        if (ret == AVERROR(EAGAIN))
+            goto write_packet;
         goto end;
     }
-
+    if (!ret)
+        goto end;
+    if (is_dtls_packet(whip->buf, ret)) {
+        if ((ret = ffurl_write(whip->dtls_uc, whip->buf, ret)) < 0) {
+            av_log(whip, AV_LOG_ERROR, "Failed to handle DTLS message\n");
+            goto end;
+        }
+    }
+write_packet:
     if (whip->h264_annexb_insert_sps_pps && st->codecpar->codec_id == AV_CODEC_ID_H264) {
         if ((ret = h264_annexb_insert_sps_pps(s, pkt)) < 0) {
             av_log(whip, AV_LOG_ERROR, "Failed to insert SPS/PPS before IDR\n");
