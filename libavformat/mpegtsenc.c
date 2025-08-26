@@ -84,6 +84,7 @@ typedef struct MpegTSWrite {
     MpegTSSection pat; /* MPEG-2 PAT table */
     MpegTSSection sdt; /* MPEG-2 SDT table context */
     MpegTSSection nit; /* MPEG-2 NIT table context */
+    MpegTSSection scte35;
     MpegTSService **services;
     AVPacket *pkt;
     int64_t sdt_period; /* SDT period in PCR time base */
@@ -443,6 +444,9 @@ static int get_dvb_stream_type(AVFormatContext *s, AVStream *st)
             stream_type = STREAM_TYPE_PRIVATE_DATA;
         }
         break;
+    case AV_CODEC_ID_SCTE_35:
+        stream_type = STREAM_TYPE_SCTE_DATA_SCTE_35;
+        break;
     default:
         av_log_once(s, AV_LOG_WARNING, AV_LOG_DEBUG, &ts_st->data_st_warning,
                     "Stream %d, codec %s, is muxed as a private data stream "
@@ -528,6 +532,13 @@ static int mpegts_write_pmt(AVFormatContext *s, MpegTSService *service)
         put16(&q, 0x0fff);  // CA_System_ID
         *q++ = 0xfc;        // private_data_byte
         *q++ = 0xfc;        // private_data_byte
+    }
+
+    for (i = 0; i < s->nb_streams; i++) {
+        if(s->streams[i]->codecpar->codec_id==AV_CODEC_ID_SCTE_35) {
+            put_registration_descriptor(&q, MKTAG('C', 'U', 'E', 'I'));
+            break;
+        }
     }
 
     val = 0xf000 | (q - program_info_length_ptr - 2);
@@ -1159,6 +1170,11 @@ static int mpegts_init(AVFormatContext *s)
     ts->nit.discontinuity= ts->flags & MPEGTS_FLAG_DISCONT;
     ts->nit.write_packet = section_write_packet;
     ts->nit.opaque       = s;
+
+    ts->scte35.cc           = 15;
+    ts->scte35.discontinuity= ts->flags & MPEGTS_FLAG_DISCONT;
+    ts->scte35.write_packet = section_write_packet;
+    ts->scte35.opaque       = s;
 
     ts->pkt = ffformatcontext(s)->pkt;
 
@@ -2194,6 +2210,17 @@ static int mpegts_write_packet_internal(AVFormatContext *s, AVPacket *pkt)
     } else if (st->codecpar->codec_id == AV_CODEC_ID_PCM_BLURAY && ts->m2ts_mode) {
         mpegts_write_pes(s, st, buf, size, pts, dts,
                          pkt->flags & AV_PKT_FLAG_KEY, stream_id);
+        return 0;
+    } else if (st->codecpar->codec_id == AV_CODEC_ID_SCTE_35) {
+        uint8_t q[1024];
+        unsigned int len;
+
+        len = pkt->size;
+        memcpy(q, pkt->data, len);
+
+        ts->scte35.pid = ts_st->pid;
+        
+        mpegts_write_section(&ts->scte35, q, len);
         return 0;
     }
 

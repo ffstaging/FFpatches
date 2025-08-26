@@ -325,7 +325,8 @@ static int init_muxer(AVFormatContext *s, AVDictionary **options)
         }
 
         if (par->codec_type != AVMEDIA_TYPE_ATTACHMENT &&
-            par->codec_id != AV_CODEC_ID_SMPTE_2038)
+            par->codec_id != AV_CODEC_ID_SMPTE_2038 &&
+            par->codec_id != AV_CODEC_ID_SCTE_35)
             fci->nb_interleaved_streams++;
     }
     fci->interleave_packet = of->interleave_packet;
@@ -959,7 +960,8 @@ int ff_interleave_packet_per_dts(AVFormatContext *s, AVPacket *pkt,
         } else if (par->codec_type != AVMEDIA_TYPE_ATTACHMENT &&
                    par->codec_id != AV_CODEC_ID_VP8 &&
                    par->codec_id != AV_CODEC_ID_VP9 &&
-                   par->codec_id != AV_CODEC_ID_SMPTE_2038) {
+                   par->codec_id != AV_CODEC_ID_SMPTE_2038 &&
+                   par->codec_id != AV_CODEC_ID_SCTE_35) {
             ++noninterleaved_count;
         }
     }
