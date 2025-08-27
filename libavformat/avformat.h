@@ -2364,6 +2364,75 @@ int av_read_play(AVFormatContext *s);
  */
 int av_read_pause(AVFormatContext *s);
 
+enum AVFormatCommandID {
+    /**
+     * Sent a RTSP SET_PARAMETER request to the server
+     *
+     * Sends an SET_PARAMETER RTSP command to the server,
+     * with a data payload of type ::AVRTSPCommandRequest,
+     * ownership of it and its data remains with the caller.
+     *
+     * A reply retrieved is of type ::AVRTSPResponse and it
+     * and its contents must be freed by the caller.
+     */
+    AVFORMAT_COMMAND_RTSP_SET_PARAMETER,
+};
+
+typedef struct AVRTSPCommandRequest {
+    /**
+     * Headers sent in the request to the server
+     */
+    AVDictionary *headers;
+
+    /**
+     * Body payload size
+     */
+    size_t body_len;
+
+    /**
+     * Body payload
+     */
+    char *body;
+} AVRTSPCommandRequest;
+
+typedef struct AVRTSPResponse {
+    /**
+     * Response status code from server
+     */
+    int status_code;
+
+    /**
+     * Reason phrase from the server, describing the
+     * status in a human-readable way.
+     */
+    char *reason;
+
+    /**
+     * Body payload size
+     */
+    size_t body_len;
+
+    /**
+     * Body payload
+     */
+    unsigned char *body;
+} AVRTSPResponse;
+
+/**
+ * Send a command to the demuxer
+ *
+ * Sends the specified command and (depending on the command)
+ * optionally a command-specific payload to the demuxer to handle.
+ */
+int avformat_send_command(AVFormatContext *s, enum AVFormatCommandID id, void *data);
+
+/**
+ * Receive a command reply from the demuxer
+ *
+ * Retrieves a reply for a previously sent command from the muxer.
+ */
+int avformat_receive_command_reply(AVFormatContext *s, enum AVFormatCommandID id, void **data_out);
+
 /**
  * Close an opened input AVFormatContext. Free it and all its contents
  * and set *s to NULL.

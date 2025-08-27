@@ -611,6 +611,52 @@ static int rtsp_read_pause(AVFormatContext *s)
     return 0;
 }
 
+static int rtsp_handle_command(struct AVFormatContext *s, enum AVFormatCommandID id, void *data)
+{
+    // TODO: Actually handle the data payload...
+    if (id != AVFORMAT_COMMAND_RTSP_SET_PARAMETER)
+        return AVERROR(ENOTSUP);
+
+    RTSPState *rt = s->priv_data;
+    av_log(s, AV_LOG_INFO, "Sending SET_PARAMETER command to %s\n", rt->control_uri);
+
+    int ret = ff_rtsp_send_cmd_with_content_async(s, "SET_PARAMETER", rt->control_uri, NULL, NULL, 0);
+    if (ret != 0)
+        av_log(s, AV_LOG_ERROR, "Failure sending SET_PARAMETER command: %s\n", av_err2str(ret));
+
+    return ret;
+}
+
+static int rtsp_read_command_reply(AVFormatContext *s, enum AVFormatCommandID id, void **data_out)
+{
+    if (id != AVFORMAT_COMMAND_RTSP_SET_PARAMETER)
+        return AVERROR(ENOTSUP);
+
+    if (!data_out)
+        return AVERROR(EINVAL);
+
+    AVRTSPResponse *res = av_malloc(sizeof(*res));
+    if (!res)
+        return AVERROR(ENOMEM);
+
+    RTSPMessageHeader reply;
+    int ret = ff_rtsp_read_reply(s, &reply, &res->body, 0, "SET_PARAMETER");
+    if (ret < 0)
+        return ret;
+
+    res->status_code = reply.status_code;
+    res->body_len = reply.content_length;
+
+    res->reason = av_strdup(reply.reason);
+    if (!res->reason) {
+        av_free(res);
+        return AVERROR(ENOMEM);
+    }
+
+    *data_out = res;
+    return 0;
+}
+
 int ff_rtsp_setup_input_streams(AVFormatContext *s, RTSPMessageHeader *reply)
 {
     RTSPState *rt = s->priv_data;
@@ -1007,4 +1053,6 @@ const FFInputFormat ff_rtsp_demuxer = {
     .read_seek      = rtsp_read_seek,
     .read_play      = rtsp_read_play,
     .read_pause     = rtsp_read_pause,
+    .handle_command = rtsp_handle_command,
+    .read_command_reply = rtsp_read_command_reply,
 };

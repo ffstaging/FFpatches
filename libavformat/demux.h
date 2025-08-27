@@ -133,6 +133,24 @@ typedef struct FFInputFormat {
      * @see avdevice_list_devices() for more details.
      */
     int (*get_device_list)(struct AVFormatContext *s, struct AVDeviceInfoList *device_list);
+
+    /**
+     * Handle demuxer commands
+     * Demuxers implementing this must return AVERROR(ENOTSUP)
+     * if the provided \p id is not handled by the demuxer.
+     *
+     * @see avformat_send_command()
+     */
+    int (*handle_command)(struct AVFormatContext *, enum AVFormatCommandID id, void *data);
+
+    /**
+     * Retrieve the reply for a previously submitted command, if any.
+     * Submitting another command before reading a previous reply, discards it.
+     * @return 0 on success, < 0 on error
+     *
+     * @see avformat_receive_command_reply()
+     */
+    int (*read_command_reply)(struct AVFormatContext *, enum AVFormatCommandID id, void **data_out);
 } FFInputFormat;
 
 static inline const FFInputFormat *ffifmt(const AVInputFormat *fmt)
