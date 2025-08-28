@@ -414,12 +414,22 @@ static int libjxl_receive_frame(AVCodecContext *avctx, AVFrame *frame)
          * the number of bytes that it did read
          */
         remaining = JxlDecoderReleaseInput(ctx->decoder);
-        pkt->data += pkt->size - remaining;
+        size_t consumed = pkt->size - remaining;
+        pkt->data += consumed;
         pkt->size = remaining;
 
         switch(jret) {
         case JXL_DEC_ERROR:
             av_log(avctx, AV_LOG_ERROR, "Unknown libjxl decode error\n");
+            if (!consumed) {
+                /*
+                 * we consume all remaining input on error, if nothing was consumed
+                 * this prevents libjxl from consuming nothing forever
+                 * and just dumping the last error over and over
+                 */
+                pkt->data += pkt->size;
+                pkt->size = 0;
+            }
             return AVERROR_INVALIDDATA;
         case JXL_DEC_NEED_MORE_INPUT:
             av_log(avctx, AV_LOG_DEBUG, "NEED_MORE_INPUT event emitted\n");
