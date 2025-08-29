@@ -126,6 +126,7 @@ typedef struct UDPContext {
     int remaining_in_dg;
     char *localaddr;
     int multicast_max_join;
+    char *multicast_interface;
     int timeout;
     struct sockaddr_storage local_addr_storage;
     char *sources;
@@ -146,6 +147,7 @@ static const AVOption options[] = {
     { "local_port",     "Local port",                                      OFFSET(local_port),     AV_OPT_TYPE_INT,    { .i64 = -1 },    -1, INT_MAX, .flags = D|E },
     { "localaddr",      "Local address",                                   OFFSET(localaddr),      AV_OPT_TYPE_STRING, { .str = NULL },               .flags = D|E },
     { "multicast_max_join", "Number of ipv6 network intefaces to join multicast group", OFFSET(multicast_max_join), AV_OPT_TYPE_INT, { .i64 = IPV6_DEFAULT_JOIN }, -1, INT_MAX, .flags = D|E },
+    { "multicast_interface", "Name of network inteface to join multicast group", OFFSET(multicast_interface), AV_OPT_TYPE_STRING, { .str = NULL },         .flags = D|E },
     { "udplite_coverage", "choose UDPLite head size which should be validated by checksum", OFFSET(udplite_coverage), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, D|E },
     { "pkt_size",       "Maximum UDP packet size",                         OFFSET(pkt_size),       AV_OPT_TYPE_INT,    { .i64 = 1472 },  -1, INT_MAX, .flags = D|E },
     { "reuse",          "explicitly allow reusing UDP sockets",            OFFSET(reuse_socket),   AV_OPT_TYPE_BOOL,   { .i64 = -1 },    -1, 1,       D|E },
@@ -259,7 +261,8 @@ static int udp_ipv6_mc_devname_membership(int mop, const char *name,
 
 static int udp_ipv6_multicast_iterate(int sockfd, struct sockaddr_in6 *addr,
                                       struct sockaddr_in6 *local_addr, int mop,
-                                      int multicast_max_join, void *logctx)
+                                      int multicast_max_join,
+                                      char *interfacename, void *logctx)
 {
     struct in6_addr anyipv6 = IN6ADDR_ANY_INIT;
     struct ifaddrs *ifal=NULL,*ife=NULL;
@@ -275,11 +278,13 @@ static int udp_ipv6_multicast_iterate(int sockfd, struct sockaddr_in6 *addr,
                 multicast_max_join ) {
                 if ((!memcmp(&local_addr->sin6_addr, &anyipv6, sizeof(struct in6_addr))) ||
                     (!memcmp(&local_addr->sin6_addr, &((struct sockaddr_in6 *)ife->ifa_addr)->sin6_addr, sizeof(struct in6_addr)))) {
-                    if (udp_ipv6_mc_devname_membership(mop,ife->ifa_name,
-                                                       iindex_fd, &addr->sin6_addr,
-                                                       sockfd, logctx) == 1) {
-                        membership_changed = 1;
-                        multicast_max_join--;
+                    if (!interfacename || !strncmp(interfacename, ife->ifa_name, IFNAMSIZ)) {
+                        if (udp_ipv6_mc_devname_membership(mop,ife->ifa_name,
+                                                           iindex_fd, &addr->sin6_addr,
+                                                           sockfd, logctx) == 1) {
+                            membership_changed = 1;
+                            multicast_max_join--;
+                        }
                     }
                 }
             }
@@ -298,7 +303,8 @@ static int udp_ipv6_multicast_iterate(int sockfd, struct sockaddr_in6 *addr,
 
 static int udp_join_multicast_group(int sockfd, struct sockaddr *addr,
                                     struct sockaddr *local_addr,
-                                    int multicast_max_join, void *logctx)
+                                    int multicast_max_join,
+                                    char *multicast_interface,void *logctx)
 {
 #ifdef IP_ADD_MEMBERSHIP
     if (addr->sa_family == AF_INET) {
@@ -313,6 +319,8 @@ static int udp_join_multicast_group(int sockfd, struct sockaddr *addr,
             ff_log_net_error(logctx, AV_LOG_ERROR, "setsockopt(IP_ADD_MEMBERSHIP)");
             return ff_neterrno();
         }
+        if (multicast_interface)
+            ff_log_net_error(logctx, AV_LOG_WARNING, "multicast_inteface is not used in ip4");
         if (multicast_max_join)
             ff_log_net_error(logctx, AV_LOG_WARNING, "multicast_max_join is not used in ip4");
     }
@@ -337,6 +345,7 @@ static int udp_join_multicast_group(int sockfd, struct sockaddr *addr,
                                               (struct sockaddr_in6 *)local_addr,
                                               IPV6_JOIN_GROUP,
                                               multicast_max_join,
+                                              multicast_interface,
                                               logctx);
         }
 #else
@@ -354,7 +363,8 @@ static int udp_join_multicast_group(int sockfd, struct sockaddr *addr,
 
 static int udp_leave_multicast_group(int sockfd, struct sockaddr *addr,
                                      struct sockaddr *local_addr,
-                                     int multicast_max_join, void *logctx)
+                                     int multicast_max_join,
+                                     char *multicast_interface,void *logctx)
 {
 #ifdef IP_DROP_MEMBERSHIP
     if (addr->sa_family == AF_INET) {
@@ -391,6 +401,7 @@ static int udp_leave_multicast_group(int sockfd, struct sockaddr *addr,
                                               (struct sockaddr_in6 *)local_addr,
                                               IPV6_LEAVE_GROUP,
                                               multicast_max_join,
+                                              multicast_interface,
                                               logctx);
         }
 #else
@@ -922,6 +933,14 @@ static int udp_open(URLContext *h, const char *uri, int flags)
                 goto fail;
             }
         }
+        if (av_find_info_tag(buf, sizeof(buf), "multicast_interface", p)) {
+            av_freep(&s->multicast_interface);
+            s->multicast_interface = av_strdup(buf);
+            if (!s->multicast_interface) {
+                ret = AVERROR(ENOMEM);
+                goto fail;
+            }
+        }
         if (av_find_info_tag(buf, sizeof(buf), "sources", p)) {
             if ((ret = ff_ip_parse_sources(h, buf, &s->filters)) < 0)
                 goto fail;
@@ -1051,7 +1070,8 @@ static int udp_open(URLContext *h, const char *uri, int flags)
             } else {
                 if ((ret = udp_join_multicast_group(udp_fd, (struct sockaddr *)&s->dest_addr,
                                                     (struct sockaddr *)&s->local_addr_storage,
-                                                    s->multicast_max_join, h)) < 0)
+                                                    s->multicast_max_join,
+                                                    s->multicast_interface, h)) < 0)
                     goto fail;
             }
             if (s->filters.nb_exclude_addrs) {
@@ -1306,7 +1326,7 @@ static int udp_close(URLContext *h)
     if (s->is_multicast && (h->flags & AVIO_FLAG_READ))
         udp_leave_multicast_group(s->udp_fd, (struct sockaddr *)&s->dest_addr,
                                   (struct sockaddr *)&s->local_addr_storage,
-                                  s->multicast_max_join, h);
+                                  s->multicast_max_join, s->multicast_interface, h);
 #if HAVE_PTHREAD_CANCEL
     if (s->thread_started) {
         int ret;

@@ -61,6 +61,7 @@ typedef struct RTPContext {
     char *fec_options_str;
     int64_t rw_timeout;
     char *localaddr;
+    char *multicast_interface;
     int multicast_max_join;
 } RTPContext;
 
@@ -83,6 +84,7 @@ static const AVOption options[] = {
     { "fec",                "FEC",                                                              OFFSET(fec_options_str), AV_OPT_TYPE_STRING, { .str = NULL },               .flags = E },
     { "localaddr",          "Local address",                                                    OFFSET(localaddr),       AV_OPT_TYPE_STRING, { .str = NULL },               .flags = D|E },
     { "multicast_max_join", "Number of ipv6 network intefaces to join multicast group",         OFFSET(multicast_max_join), AV_OPT_TYPE_INT,    { .i64 = 1 }, 1, INT_MAX, .flags = D|E },
+    { "multicast_interface", "Name of network inteface to join multicast group",                OFFSET(multicast_interface), AV_OPT_TYPE_STRING, { .str = NULL },           .flags = D|E },
     { NULL }
 };
 
@@ -202,6 +204,8 @@ static void build_udp_url(RTPContext *s,
     if (localaddr && localaddr[0])
         url_add_option(buf, buf_size, "localaddr=%s", localaddr);
     url_add_option(buf, buf_size, "multicast_max_join=%d", s->multicast_max_join);
+    if (s->multicast_interface)
+          url_add_option(buf, buf_size, "multicast_interface=%s", s->multicast_interface);
 }
 
 /**
