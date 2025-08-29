@@ -1207,7 +1207,15 @@ This is a deprecated option. Instead, @option{localrtpport} should be
 used.
 
 @item localaddr=@var{addr}
-Local IP address of a network interface used for sending packets or joining
+Local IP address of a network interface used for sending or receiving packets or joining
+multicast groups.
+
+@item multicast_interface=@var{interfacename}
+Local IP address of a network interface used for receiving packets or joining
+multicast groups.
+
+@item multicast_max_join=@var{n}
+Local IP address of a network interface used for receiving packets or joining
 multicast groups.
 
 @item timeout=@var{n}
@@ -1229,6 +1237,13 @@ port will be used for the local RTP and RTCP ports.
 @item
 If @option{localrtcpport} (the local RTCP port) is not set it will be
 set to the local RTP port value plus 1.
+
+@item
+On IPv6 the default receive behavior is using outgoing routing table for selection of
+a interface for multicast streams. With @option{multicast_max_join} receiving
+can be added for multiple interfaces. With @option{multicast_interface} a
+interface is directly selected for receiving.
+
 @end enumerate
 
 @section rtsp
