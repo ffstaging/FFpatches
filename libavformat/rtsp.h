@@ -419,6 +419,7 @@ typedef struct RTSPState {
     int buffer_size;
     int pkt_size;
     char *localaddr;
+    int multicast_max_join;
 
     /**
      * Options used for TLS based RTSP streams.

@@ -61,6 +61,7 @@ typedef struct RTPContext {
     char *fec_options_str;
     int64_t rw_timeout;
     char *localaddr;
+    int multicast_max_join;
 } RTPContext;
 
 #define OFFSET(x) offsetof(RTPContext, x)
@@ -81,6 +82,7 @@ static const AVOption options[] = {
     { "block",              "Block list",                                                       OFFSET(block),           AV_OPT_TYPE_STRING, { .str = NULL },               .flags = D|E },
     { "fec",                "FEC",                                                              OFFSET(fec_options_str), AV_OPT_TYPE_STRING, { .str = NULL },               .flags = E },
     { "localaddr",          "Local address",                                                    OFFSET(localaddr),       AV_OPT_TYPE_STRING, { .str = NULL },               .flags = D|E },
+    { "multicast_max_join", "Number of ipv6 network intefaces to join multicast group",         OFFSET(multicast_max_join), AV_OPT_TYPE_INT,    { .i64 = 1 }, 1, INT_MAX, .flags = D|E },
     { NULL }
 };
 
@@ -199,6 +201,7 @@ static void build_udp_url(RTPContext *s,
         url_add_option(buf, buf_size, "block=%s", exclude_sources);
     if (localaddr && localaddr[0])
         url_add_option(buf, buf_size, "localaddr=%s", localaddr);
+    url_add_option(buf, buf_size, "multicast_max_join=%d", s->multicast_max_join);
 }
 
 /**

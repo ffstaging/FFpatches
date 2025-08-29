@@ -81,6 +81,7 @@
 #define COMMON_OPTS() \
     { "reorder_queue_size", "set number of packets to buffer for handling of reordered packets", OFFSET(reordering_queue_size), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, INT_MAX, DEC }, \
     { "buffer_size",        "Underlying protocol send/receive buffer size",                  OFFSET(buffer_size),           AV_OPT_TYPE_INT, { .i64 = -1 }, -1, INT_MAX, DEC|ENC }, \
+    { "multicast_max_join", "Number of ipv6 network intefaces to join multicast group",      OFFSET(multicast_max_join),           AV_OPT_TYPE_INT, { .i64 = 1 }, 1, INT_MAX, ENC }, \
     { "pkt_size",           "Underlying protocol send packet size",                          OFFSET(pkt_size),              AV_OPT_TYPE_INT, { .i64 = 1472 }, -1, INT_MAX, ENC } \
 
 
@@ -139,7 +140,7 @@ static AVDictionary *map_to_opts(RTSPState *rt)
     av_dict_set_int(&opts, "pkt_size",    rt->pkt_size,    0);
     if (rt->localaddr && rt->localaddr[0])
         av_dict_set(&opts, "localaddr", rt->localaddr, 0);
-
+    av_dict_set_int(&opts, "multicast_max_join", rt->multicast_max_join, 0);
     return opts;
 }
 
