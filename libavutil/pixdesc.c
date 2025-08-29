@@ -2266,6 +2266,21 @@ static const AVPixFmtDescriptor av_pix_fmt_descriptors[AV_PIX_FMT_NB] = {
         .name = "qsv",
         .flags = AV_PIX_FMT_FLAG_HWACCEL,
     },
+    // NETINT: AV_PIX_FMT_NI_QUAD pixel format for Quadra HW frame
+    [AV_PIX_FMT_NI_QUAD] = {
+        .name = "ni_quadra",
+        .flags = AV_PIX_FMT_FLAG_HWACCEL,
+    },
+    // NETINT: AV_PIX_FMT_NI_QUAD_8_TILE_4X4 pixel format for Quadra internally compressed frame
+    [AV_PIX_FMT_NI_QUAD_8_TILE_4X4] = {
+        .name = "ni_quadra_8_tile4x4",
+        .flags = AV_PIX_FMT_FLAG_HWACCEL,
+    },
+    // NETINT: AV_PIX_FMT_NI_QUAD_10_TILE_4X4 pixel format for Quadra internally compressed frame
+    [AV_PIX_FMT_NI_QUAD_10_TILE_4X4] = {
+        .name = "ni_quadra_10_tile4x4",
+        .flags = AV_PIX_FMT_FLAG_HWACCEL,
+    },
     [AV_PIX_FMT_MEDIACODEC] = {
         .name = "mediacodec",
         .flags = AV_PIX_FMT_FLAG_HWACCEL,
