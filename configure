@@ -4072,6 +4072,7 @@ zscale_filter_deps="libzimg const_nan"
 scale_vaapi_filter_deps="vaapi"
 scale_vt_filter_deps="videotoolbox VTPixelTransferSessionCreate"
 scale_vulkan_filter_deps="vulkan spirv_compiler"
+scale_d3d12_filter_deps="d3d12va ID3D12VideoProcessor ID3D12VideoProcessCommandList D3D12_VIDEO_PROCESS_OUTPUT_STREAM_ARGUMENTS D3D12_VIDEO_PROCESS_INPUT_STREAM_ARGUMENTS"
 vpp_qsv_filter_deps="libmfx"
 vpp_qsv_filter_select="qsvvpp"
 xfade_opencl_filter_deps="opencl"
@@ -6885,6 +6886,10 @@ check_type "windows.h d3d11.h" "ID3D11VideoContext"
 check_type "windows.h d3d12.h" "ID3D12Device"
 check_type "windows.h d3d12video.h" "ID3D12VideoDecoder"
 check_type "windows.h d3d12video.h" "ID3D12VideoEncoder"
+check_type "windows.h d3d12video.h" "ID3D12VideoProcessor"
+check_type "windows.h d3d12video.h" "ID3D12VideoProcessCommandList"
+check_type "windows.h d3d12video.h" "D3D12_VIDEO_PROCESS_OUTPUT_STREAM_ARGUMENTS"
+check_type "windows.h d3d12video.h" "D3D12_VIDEO_PROCESS_INPUT_STREAM_ARGUMENTS"
 test_code cc "windows.h d3d12video.h" "D3D12_FEATURE_VIDEO feature = D3D12_FEATURE_VIDEO_ENCODER_CODEC" && \
 test_code cc "windows.h d3d12video.h" "D3D12_FEATURE_DATA_VIDEO_ENCODER_RESOURCE_REQUIREMENTS req" && enable d3d12_encoder_feature
 check_type "windows.h" "DPI_AWARENESS_CONTEXT" -D_WIN32_WINNT=0x0A00
