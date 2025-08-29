@@ -1282,6 +1282,20 @@ int x;
 EOF
 }
 
+test_ioctl(){
+    log test_ioctl "$@"
+    ctl=$1
+    shift 1
+    test_cc "$@" <<EOF
+#include <stddef.h>
+#include <sys/ioctl.h>
+int f;
+void x(){
+ioctl(f, $ctl, NULL);
+}
+EOF
+}
+
 check_cflags(){
     log check_cflags "$@"
     test_cflags "$@" && add_cflags "$@"
@@ -2542,6 +2556,7 @@ HAVE_LIST="
     $TOOLCHAIN_FEATURES
     $TYPES_LIST
     gzip
+    ioctl_gifindex
     ioctl_posix
     libdrm_getfb2
     makeinfo
@@ -6658,6 +6673,7 @@ if ! disabled network; then
     else
         disable network
     fi
+    test_ioctl SIOCGIFINDEX && enable ioctl_gifindex
 fi
 
 check_builtin MemoryBarrier windows.h "MemoryBarrier()"
