@@ -1,0 +1,126 @@
+{
+    "version": "v1.0.0",
+
+    "entity": {
+        "type": "group",
+        "role": "owner",
+        "name": "FFmpeg",
+        "email": "ffmpeg-devel@ffmpeg.org",
+        "description": "FFmpeg is the leading multimedia framework, able to decode, encode, transcode, mux, demux, stream, filter and play pretty much anything that humans and machines have created. It supports the most obscure ancient formats up to the cutting edge. No matter if they were designed by some standards committee, the community or a corporation. It is also highly portable: FFmpeg compiles, runs, and passes our testing infrastructure FATE across Linux, Mac OS X, Microsoft Windows, the BSDs, Solaris, etc. under a wide variety of build environments, machine architectures, and configurations.",
+        "webpageUrl": {
+            "url": "https://ffmpeg.org/"
+        }
+    },
+
+    "projects": [{
+        "guid": "ffmpeg",
+        "name": "FFmpeg",
+        "description": "FFmpeg is the leading multimedia framework, able to decode, encode, transcode, mux, demux, stream, filter and play pretty much anything that humans and machines have created. It supports the most obscure ancient formats up to the cutting edge. No matter if they were designed by some standards committee, the community or a corporation. It is also highly portable: FFmpeg compiles, runs, and passes our testing infrastructure FATE across Linux, Mac OS X, Microsoft Windows, the BSDs, Solaris, etc. under a wide variety of build environments, machine architectures, and configurations.",
+        "webpageUrl": {
+            "url": "https://ffmpeg.org/"
+        },
+        "repositoryUrl": {
+            "url": "https://ffmpeg.org/download"
+        },
+        "licenses": ["spdx:LGPL-2.1-or-later", "spdx:GPL-2.0-or-later"],
+        "tags": ["audio", "graphics"]
+    }],
+
+    "funding": {
+        "channels": [{
+            "guid": "ffmpeg-spi",
+            "type": "other",
+            "address": "https://ffmpeg.org/donations.html",
+            "description": "Paypal, CreditCard, Check, Money Order"
+        },{
+            "guid": "ffmpeg-spi-bank",
+            "type": "bank",
+            "address": "Please email us for payment details.",
+            "description": "Bank transfer"
+        }
+        ],
+
+        "plans": [{
+            "guid": "ffmpeg-individual",
+            "status": "active",
+            "name": "FFmpeg individual",
+            "description": "Pay as much or as little as you want",
+            "amount": 0,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi"]
+        },{
+            "guid": "visionary",
+            "status": "active",
+            "name": "Visionary Sponsor",
+            "amount": 155000,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi-bank"]
+        },{
+            "guid": "sustainability",
+            "status": "active",
+            "name": "Sustainability Sponsor",
+            "amount": 95000,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi-bank"]
+        },{
+            "guid": "maintaining",
+            "status": "active",
+            "name": "Maintaining Sponsor",
+            "amount": 63000,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi-bank"]
+        },{
+            "guid": "contributing",
+            "status": "active",
+            "name": "Contributing Sponsor",
+            "amount": 33000,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi-bank"]
+        },{
+            "guid": "supporting",
+            "status": "active",
+            "name": "Supporting Sponsor",
+            "amount": 16500,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi-bank"]
+        },{
+            "guid": "partner",
+            "status": "active",
+            "name": "Partner Sponsor",
+            "amount": 11000,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi-bank"]
+        },{
+            "guid": "participating",
+            "status": "active",
+            "name": "Participating Sponsor",
+            "amount": 4000,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi", "ffmpeg-spi-bank"]
+        },{
+            "guid": "associate",
+            "status": "active",
+            "name": "Associate Sponsor",
+            "amount": 1500,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi", "ffmpeg-spi-bank"]
+        },{
+            "guid": "ffmpeg-maintainer",
+            "status": "active",
+            "name": "Sponsor a full time maintainer and patch reviewer",
+            "amount": 100000,
+            "currency": "USD",
+            "frequency": "yearly",
+            "channels": ["ffmpeg-spi-bank"]
+        }]
+    }
+}
