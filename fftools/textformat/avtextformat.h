@@ -155,6 +155,10 @@ typedef struct AVTextFormatOptions {
 #define AV_TEXTFORMAT_PRINT_STRING_OPTIONAL 1
 #define AV_TEXTFORMAT_PRINT_STRING_VALIDATE 2
 
+extern const char avtext_unit_second_str[];
+extern const char avtext_unit_byte_str[];
+extern const char avtext_unit_decibel_str[];
+
 int avtext_context_open(AVTextFormatContext **ptctx, const AVTextFormatter *formatter, AVTextWriterContext *writer_context, const char *args,
                         const AVTextFormatSection *sections, int nb_sections, AVTextFormatOptions options, char *show_data_hash);
 
@@ -170,6 +174,8 @@ void avtext_print_integer(AVTextFormatContext *tctx, const char *key, int64_t va
 int avtext_print_string(AVTextFormatContext *tctx, const char *key, const char *val, int flags);
 
 void avtext_print_unit_integer(AVTextFormatContext *tctx, const char *key, int64_t val, const char *unit);
+
+void avtext_print_unit_double(AVTextFormatContext *tctx, const char *key, double val, const char *unit);
 
 void avtext_print_rational(AVTextFormatContext *tctx, const char *key, AVRational q, char sep);
 

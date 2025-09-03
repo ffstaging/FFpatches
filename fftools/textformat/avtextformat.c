@@ -242,10 +242,9 @@ fail:
 }
 
 /* Temporary definitions during refactoring */
-static const char unit_second_str[]         = "s";
-static const char unit_hertz_str[]          = "Hz";
-static const char unit_byte_str[]           = "byte";
-static const char unit_bit_per_second_str[] = "bit/s";
+const char avtext_unit_second_str[]         = "s";
+const char avtext_unit_byte_str[]           = "byte";
+const char avtext_unit_decibel_str[]        = "dB";
 
 
 void avtext_print_section_header(AVTextFormatContext *tctx, const void *data, int section_id)
@@ -377,21 +376,27 @@ struct unit_value {
     const char *unit;
 };
 
+static const char float_fmt_default[] = "%f";
+static const char float_fmt_full[] = "%f";
+static const char float_fmt_singledigit[] = "%.1f";
 static char *value_string(const AVTextFormatContext *tctx, char *buf, int buf_size, struct unit_value uv)
 {
     double vald;
     int64_t vali = 0;
-    int show_float = 0;
+    const char *float_fmt = float_fmt_default;
 
-    if (uv.unit == unit_second_str) {
+    if (uv.unit == avtext_unit_second_str) {
         vald = uv.val.d;
-        show_float = 1;
+        float_fmt = float_fmt_full;
+    } else if (uv.unit == avtext_unit_decibel_str) {
+        vald = 20 * log10(uv.val.d);
+        float_fmt = float_fmt_singledigit;
     } else {
         vald = (double)uv.val.i;
         vali = uv.val.i;
     }
 
-    if (uv.unit == unit_second_str && tctx->use_value_sexagesimal_format) {
+    if (uv.unit == avtext_unit_second_str && tctx->use_value_sexagesimal_format) {
         double secs;
         int hours, mins;
         secs  = vald;
@@ -406,7 +411,7 @@ static char *value_string(const AVTextFormatContext *tctx, char *buf, int buf_si
         if (tctx->use_value_prefix && vald > 1) {
             int64_t index;
 
-            if (uv.unit == unit_byte_str && tctx->use_byte_value_binary_prefix) {
+            if (uv.unit == avtext_unit_byte_str && tctx->use_byte_value_binary_prefix) {
                 index = (int64_t)(log2(vald) / 10);
                 index = av_clip64(index, 0, FF_ARRAY_ELEMS(si_prefixes) - 1);
                 vald /= si_prefixes[index].bin_val;
@@ -420,8 +425,8 @@ static char *value_string(const AVTextFormatContext *tctx, char *buf, int buf_si
             vali = (int64_t)vald;
         }
 
-        if (show_float || (tctx->use_value_prefix && vald != (int64_t)vald))
-            snprintf(buf, buf_size, "%f", vald);
+        if (float_fmt != float_fmt_default || (tctx->use_value_prefix && vald != (int64_t)vald))
+            snprintf(buf, buf_size, float_fmt, vald);
         else
             snprintf(buf, buf_size, "%"PRId64, vali);
 
@@ -442,6 +447,14 @@ void avtext_print_unit_integer(AVTextFormatContext *tctx, const char *key, int64
     avtext_print_string(tctx, key, value_string(tctx, val_str, sizeof(val_str), uv), 0);
 }
 
+void avtext_print_unit_double(AVTextFormatContext *tctx, const char *key, double val, const char *unit)
+{
+    char val_str[128];
+    struct unit_value uv;
+    uv.val.d = val;
+    uv.unit = unit;
+    avtext_print_string(tctx, key, value_string(tctx, val_str, sizeof(val_str), uv), 0);
+}
 
 int avtext_print_string(AVTextFormatContext *tctx, const char *key, const char *val, int flags)
 {
@@ -502,7 +515,7 @@ void avtext_print_time(AVTextFormatContext *tctx, const char *key,
         double d = av_q2d(*time_base) * ts;
         struct unit_value uv;
         uv.val.d = d;
-        uv.unit = unit_second_str;
+        uv.unit = avtext_unit_second_str;
         value_string(tctx, buf, sizeof(buf), uv);
         avtext_print_string(tctx, key, buf, 0);
     }
