@@ -350,7 +350,7 @@ static int argo_cvg_write_trailer(AVFormatContext *s)
                    + ((ctx->size>>16) & 255)
                    +  (ctx->size>>24);
 
-    av_log(s, AV_LOG_TRACE, "size     = %zu\n", ctx->size);
+    av_log(s, AV_LOG_TRACE, "size     = %"SIZE_SPECIFIER"\n", ctx->size);
     av_log(s, AV_LOG_TRACE, "checksum = %u\n",  ctx->checksum);
 
     avio_wl32(s->pb, ctx->checksum);

@@ -175,7 +175,7 @@ static int d3d12va_encode_hevc_write_access_unit(AVCodecContext *avctx,
 
     if (*data_len < 8 * au->data_size - au->data_bit_padding) {
         av_log(avctx, AV_LOG_ERROR, "Access unit too large: "
-               "%zu < %zu.\n", *data_len,
+               "%"SIZE_SPECIFIER" < %"SIZE_SPECIFIER".\n", *data_len,
                8 * au->data_size - au->data_bit_padding);
         return AVERROR(ENOSPC);
     }

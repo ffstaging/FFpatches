@@ -266,7 +266,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
     // load up enough frames to fill a frame and keep the queue filled on subsequent
     // calls, until we receive EOF, and then we either pad or end
     if (!s->eof_recv && s->input_size < outlink->w - s->pad) {
-        av_log(ctx, AV_LOG_DEBUG, "Not enough frames in the list (%zu/%d), waiting for more.\n", s->input_size, outlink->w - s->pad);
+        av_log(ctx, AV_LOG_DEBUG, "Not enough frames in the list (%"SIZE_SPECIFIER"/%d), waiting for more.\n", s->input_size, outlink->w - s->pad);
         return 0;
     }
 
@@ -294,7 +294,7 @@ static int request_frame(AVFilterLink *outlink)
 
     if (s->eof_recv) {
         while (s->input_size) {
-            av_log(ctx, AV_LOG_DEBUG, "Emptying buffers (%zu/%d).\n", s->input_size, outlink->w - s->pad);
+            av_log(ctx, AV_LOG_DEBUG, "Emptying buffers (%"SIZE_SPECIFIER"/%d).\n", s->input_size, outlink->w - s->pad);
             ret = output_frame(outlink);
             if (ret < 0) {
                 return ret;

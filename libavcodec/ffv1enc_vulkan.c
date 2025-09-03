@@ -1557,14 +1557,14 @@ static av_cold int vulkan_encode_ffv1_init(AVCodecContext *avctx)
 
     maxsize = ff_ffv1_encode_buffer_size(avctx);
     if (maxsize > fv->s.props_11.maxMemoryAllocationSize) {
-        av_log(avctx, AV_LOG_WARNING, "Encoding buffer size (%zu) larger "
-                                      "than maximum device allocation (%zu), clipping\n",
+        av_log(avctx, AV_LOG_WARNING, "Encoding buffer size (%"SIZE_SPECIFIER") larger "
+                                      "than maximum device allocation (%"SIZE_SPECIFIER"), clipping\n",
                maxsize, fv->s.props_11.maxMemoryAllocationSize);
         maxsize = fv->s.props_11.maxMemoryAllocationSize;
     }
 
     if (max_heap_size < maxsize) {
-        av_log(avctx, AV_LOG_WARNING, "Encoding buffer (%zu) larger than VRAM (%zu), "
+        av_log(avctx, AV_LOG_WARNING, "Encoding buffer (%"SIZE_SPECIFIER") larger than VRAM (%"SIZE_SPECIFIER"), "
                                       "using host memory (slower)\n",
                maxsize, fv->max_heap_size);
 
@@ -1575,7 +1575,7 @@ static av_cold int vulkan_encode_ffv1_init(AVCodecContext *avctx)
         max_heap_size = max_heap_size - (max_heap_size >> 3);
     }
 
-    av_log(avctx, AV_LOG_INFO, "Async buffers: %zuMiB per context, %zuMiB total, depth: %i\n",
+    av_log(avctx, AV_LOG_INFO, "Async buffers: %"SIZE_SPECIFIER"MiB per context, %"SIZE_SPECIFIER"MiB total, depth: %i\n",
            maxsize / (1024*1024),
            (fv->async_depth * maxsize) / (1024*1024),
            fv->async_depth);

@@ -323,7 +323,7 @@ static int FUNC(metadata_itu_t_t35)(CodedBitstreamContext *ctx,
 #else
     if (current->data_size != read_size) {
         av_log(ctx->log_ctx, AV_LOG_ERROR, "Write size mismatch: "
-               "payload %zu but expecting %zu\n",
+               "payload %"SIZE_SPECIFIER" but expecting %"SIZE_SPECIFIER"\n",
                current->data_size, read_size);
         return AVERROR(EINVAL);
     }
@@ -409,7 +409,7 @@ static int FUNC(metadata_user_defined)(CodedBitstreamContext *ctx,
 #else
     if (current->data_size != payload_size - 16) {
         av_log(ctx->log_ctx, AV_LOG_ERROR, "Write size mismatch: "
-               "payload %zu but expecting %zu\n",
+               "payload %"SIZE_SPECIFIER" but expecting %"SIZE_SPECIFIER"\n",
                current->data_size, payload_size - 16);
         return AVERROR(EINVAL);
     }
@@ -441,7 +441,7 @@ static int FUNC(metadata_undefined)(CodedBitstreamContext *ctx,
 #else
     if (current->data_size != payload_size) {
         av_log(ctx->log_ctx, AV_LOG_ERROR, "Write size mismatch: "
-               "payload %zu but expecting %zu\n",
+               "payload %"SIZE_SPECIFIER" but expecting %"SIZE_SPECIFIER"\n",
                current->data_size, payload_size - 16);
         return AVERROR(EINVAL);
     }

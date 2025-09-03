@@ -2279,7 +2279,7 @@ static int create_shader_object(FFVulkanContext *s, FFVulkanShader *shd,
 
     if (vk->GetShaderBinaryDataEXT(s->hwctx->act_dev, shd->object,
                                    &shader_size, NULL) == VK_SUCCESS)
-        av_log(s, AV_LOG_VERBOSE, "Shader %s size: %zu binary (%zu SPIR-V)\n",
+        av_log(s, AV_LOG_VERBOSE, "Shader %s size: %"SIZE_SPECIFIER" binary (%"SIZE_SPECIFIER" SPIR-V)\n",
                shd->name, shader_size, spirv_len);
 
     return 0;
