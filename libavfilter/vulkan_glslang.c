@@ -16,4 +16,4 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "libavutil/vulkan_glslang.c"
+#include "libavutil/vulkan/vulkan_glslang.c"
