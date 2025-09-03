@@ -46,7 +46,6 @@
 #include "avfilter.h"
 #include "drawutils.h"
 #include "filters.h"
-#include "filters.h"
 #include "formats.h"
 #include "video.h"
 
