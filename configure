@@ -445,6 +445,7 @@ Advanced options (experts only):
                             crashes and arbitrary code execution, it may be faster, but
                             should only be used with trusted input)
   --sws-max-filter-size=N  the max filter size swscale uses [$sws_max_filter_size_default]
+  --swr-ch-max=N           the max channel number swresamle uses [$swr_ch_max_default]
 
 Optimization options (experts only):
   --disable-asm            disable all assembly optimizations
@@ -2755,6 +2756,7 @@ CMDLINE_SET="
     stdcxx
     strip
     sws_max_filter_size
+    swr_ch_max
     sysinclude
     sysroot
     target_exec
@@ -4242,6 +4244,8 @@ enable valgrind_backtrace
 
 sws_max_filter_size_default=256
 set_default sws_max_filter_size
+swr_ch_max_default=64
+set_default swr_ch_max
 
 # internal components are enabled by default
 enable $EXTRALIBS_LIST
@@ -8413,6 +8417,7 @@ cat > $TMPH <<EOF
 #define BUILDSUF "$build_suffix"
 #define SLIBSUF "$SLIBSUF"
 #define SWS_MAX_FILTER_SIZE $sws_max_filter_size
+#define SWR_CH_MAX $swr_ch_max
 EOF
 
 test -n "$assert_level" &&
