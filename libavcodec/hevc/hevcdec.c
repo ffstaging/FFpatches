@@ -3523,7 +3523,7 @@ static int hevc_frame_end(HEVCContext *s, HEVCLayerContext *l)
     }
     s->sei.picture_hash.is_md5 = 0;
 
-    av_log(s->avctx, AV_LOG_DEBUG, "Decoded frame with POC %zu/%d.\n",
+    av_log(s->avctx, AV_LOG_DEBUG, "Decoded frame with POC %"SIZE_SPECIFIER"/%d.\n",
            l - s->layers, s->poc);
 
     return 0;
