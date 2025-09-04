@@ -89,7 +89,7 @@ get_next:
     *poutbuf_size = buf_size;
 
     if (got_frame) {
-        int bit_rate;
+        int bit_rate = 0;
 
         /* Due to backwards compatible HE-AAC the sample rate, channel count,
            and total number of samples found in an AAC ADTS header are not
