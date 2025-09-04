@@ -69,6 +69,51 @@ static void openmpt_logfunc(const char *message, void *userdata)
     av_log(userdata, level, "%s\n", message);
 }
 
+static size_t av_openmpt_read(void *stream, void *dst, size_t bytes)
+{
+    AVIOContext *ioctx = stream;
+    int r;
+
+    /* avio_read takes an int, cap the size accordingly */
+    if (bytes > (size_t)INT_MAX)
+        bytes = (size_t)INT_MAX;
+
+    r = avio_read(ioctx, dst, bytes);
+
+    return (r >= 0) ? r : 0;
+}
+
+static int av_openmpt_seek(void *stream, int64_t offset, int whence)
+{
+    AVIOContext *ioctx = stream;
+    int whence_av;
+
+    switch (whence) {
+    case OPENMPT_STREAM_SEEK_SET: whence_av = SEEK_SET; break;
+    case OPENMPT_STREAM_SEEK_CUR: whence_av = SEEK_CUR; break;
+    case OPENMPT_STREAM_SEEK_END: whence_av = SEEK_END; break;
+    /* invalid value, punt */
+    default: return -1;
+    }
+
+    /* openmpt expects stdio-style seek; don't return new position */
+    return (avio_seek(ioctx, offset, whence_av) < 0) ? -1 : 0;
+}
+
+static int64_t av_openmpt_tell(void *stream)
+{
+    AVIOContext *ioctx = stream;
+    int64_t r = avio_tell(ioctx);
+
+    return (r < 0) ? -1 : r;
+}
+
+static const openmpt_stream_callbacks openmpt_cbs = {
+    av_openmpt_read,
+    av_openmpt_seek,
+    av_openmpt_tell
+};
+
 #define add_meta(s, name, meta)                    \
 do {                                               \
     const char *value = meta;                      \
@@ -81,30 +126,14 @@ static int read_header_openmpt(AVFormatContext *s)
 {
     AVStream *st;
     OpenMPTContext *openmpt = s->priv_data;
-    int64_t size;
-    char *buf;
 #if OPENMPT_API_VERSION_AT_LEAST(0,3,0)
     int error;
 #endif
     int ret;
 
-    size = avio_size(s->pb);
-    if (size <= 0)
-        return AVERROR_INVALIDDATA;
-    buf = av_malloc(size);
-    if (!buf)
-        return AVERROR(ENOMEM);
-    size = avio_read(s->pb, buf, size);
-    if (size < 0) {
-        av_log(s, AV_LOG_ERROR, "Reading input buffer failed.\n");
-        av_freep(&buf);
-        return size;
-    }
-
 #if OPENMPT_API_VERSION_AT_LEAST(0,3,0)
     error = OPENMPT_ERROR_OK;
-    openmpt->module = openmpt_module_create_from_memory2(buf, size, openmpt_logfunc, s, NULL, NULL, &error, NULL, NULL);
-    av_freep(&buf);
+    openmpt->module = openmpt_module_create2(openmpt_cbs, s->pb, openmpt_logfunc, s, NULL, NULL, &error, NULL, NULL);
     if (!openmpt->module) {
         if (error == OPENMPT_ERROR_OUT_OF_MEMORY)
             return AVERROR(ENOMEM);
@@ -114,8 +143,7 @@ static int read_header_openmpt(AVFormatContext *s)
             return AVERROR_UNKNOWN;
     }
 #else
-    openmpt->module = openmpt_module_create_from_memory(buf, size, openmpt_logfunc, s, NULL);
-    av_freep(&buf);
+    openmpt->module = openmpt_module_create(openmpt_cbs, s->pb, openmpt_logfunc, s, NULL);
     if (!openmpt->module)
             return AVERROR_INVALIDDATA;
 #endif
