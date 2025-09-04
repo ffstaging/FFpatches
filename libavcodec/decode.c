@@ -1469,12 +1469,12 @@ static int side_data_map(AVFrame *dst,
 
 {
     for (int i = 0; map[i].packet < AV_PKT_DATA_NB; i++) {
-        const enum AVPacketSideDataType type_pkt   = map[i].packet;
+        const enum AVPacketSideDataType type_pkt   = (enum AVFrameSideDataType)map[i].packet;
         const enum AVFrameSideDataType  type_frame = map[i].frame;
         const AVPacketSideData *sd_pkt;
         AVFrameSideData *sd_frame;
 
-        sd_pkt = packet_side_data_get(sd_src, nb_sd_src, type_pkt);
+        sd_pkt = packet_side_data_get(sd_src, nb_sd_src, (enum AVPacketSideDataType)type_pkt);
         if (!sd_pkt)
             continue;
 
