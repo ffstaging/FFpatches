@@ -29,10 +29,18 @@
 #include "opencl_source.h"
 #include "video.h"
 
+#define MAX_PLANES 4
+
+typedef struct PlaneParams {
+    cl_float4 scale;
+    cl_int4   swizzle;
+} PlaneParams;
+
 typedef struct RemapOpenCLContext {
     OpenCLFilterContext ocf;
 
     int nb_planes;
+    PlaneParams plane[MAX_PLANES];
     int interp;
     uint8_t fill_rgba[4];
     cl_float4 cl_fill_color;
@@ -40,6 +48,7 @@ typedef struct RemapOpenCLContext {
     int              initialised;
     cl_kernel        kernel;
     cl_command_queue command_queue;
+
 
     FFFrameSync fs;
 } RemapOpenCLContext;
@@ -73,10 +82,9 @@ static int remap_opencl_load(AVFilterContext *avctx,
     cl_int cle;
     const char *source = ff_source_remap_cl;
     const char *kernel = kernels[ctx->interp];
-    const AVPixFmtDescriptor *main_desc;
     int err, main_planes;
-    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(main_format);
-    int is_rgb = !!(desc->flags & AV_PIX_FMT_FLAG_RGB);
+    const AVPixFmtDescriptor *main_desc = av_pix_fmt_desc_get(main_format);
+    int is_rgb = !!(main_desc->flags & AV_PIX_FMT_FLAG_RGB);
     const float scale = 1.f / 255.f;
     uint8_t rgba_map[4];
 
@@ -94,14 +102,32 @@ static int remap_opencl_load(AVFilterContext *avctx,
         ctx->cl_fill_color.s[3] = ctx->fill_rgba[3] * scale;
     }
 
-    main_desc = av_pix_fmt_desc_get(main_format);
-
     main_planes = 0;
     for (int i = 0; i < main_desc->nb_components; i++)
         main_planes = FFMAX(main_planes,
                             main_desc->comp[i].plane + 1);
 
     ctx->nb_planes = main_planes;
+
+    for (int p = 0; p < ctx->nb_planes; p++) {
+        PlaneParams *pp = &ctx->plane[p];
+
+        if (is_rgb) {
+            // RGB plane (single plane)
+            pp->scale = (cl_float4){{1.0f, 1.0f, 1.0f, 1.0f}};
+            pp->swizzle = (cl_int4){{0, 1, 2, 3}};
+        } else {
+            if (p == 0) {
+                // Y plane
+                pp->scale = (cl_float4){{1.0f, 0.0f, 0.0f, 1.0f}};
+                pp->swizzle = (cl_int4){{0, 0, 0, 3}};
+            } else {
+                // UV plane (assume 4:2:0, adjust if necessary)
+                pp->scale = (cl_float4){{1.0f, 1.0f, 0.0f, 1.0f}};
+                pp->swizzle = (cl_int4){{0, 1, 0, 3}};
+            }
+        }
+    }
 
     err = ff_opencl_filter_load_program(avctx, &source, 1);
     if (err < 0)
@@ -132,6 +158,7 @@ static int remap_opencl_process_frame(FFFrameSync *fs)
     AVFilterContext *avctx = fs->parent;
     AVFilterLink *outlink = avctx->outputs[0];
     RemapOpenCLContext *ctx = avctx->priv;
+
     AVFrame *input_main, *input_xmap, *input_ymap;
     AVFrame *output;
     cl_mem mem;
@@ -197,6 +224,12 @@ static int remap_opencl_process_frame(FFFrameSync *fs)
         kernel_arg++;
 
         CL_SET_KERNEL_ARG(ctx->kernel, kernel_arg, cl_float4, &cl_fill_color);
+        kernel_arg++;
+
+        CL_SET_KERNEL_ARG(ctx->kernel, kernel_arg, cl_float4, &(ctx->plane[plane].scale));
+        kernel_arg++;
+
+        CL_SET_KERNEL_ARG(ctx->kernel, kernel_arg, cl_int4, &(ctx->plane[plane].swizzle));
         kernel_arg++;
 
         err = ff_opencl_filter_work_size_from_image(avctx, global_work,
