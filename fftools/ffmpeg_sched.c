@@ -189,7 +189,6 @@ typedef struct PreMuxQueue {
 
 typedef struct SchMuxStream {
     SchedulerNode       src;
-    SchedulerNode       src_sched;
 
     unsigned           *sub_heartbeat_dst;
     unsigned         nb_sub_heartbeat_dst;
@@ -235,7 +234,6 @@ typedef struct SchMux {
 
 typedef struct SchFilterIn {
     SchedulerNode       src;
-    SchedulerNode       src_sched;
     int                 send_finished;
     int                 receive_finished;
 } SchFilterIn;
@@ -389,7 +387,7 @@ static int queue_alloc(ThreadQueue **ptq, unsigned nb_streams, unsigned queue_si
         // for frames held in queues inside the ffmpeg utility.  If this
         // can ever dynamically change then the corresponding decode
         // code needs to be updated as well.
-        av_assert0(queue_size == DEFAULT_FRAME_THREAD_QUEUE_SIZE);
+        av_assert0(queue_size <= DEFAULT_FRAME_THREAD_QUEUE_SIZE);
     }
 
     tq = tq_alloc(nb_streams, queue_size,
@@ -1268,24 +1266,61 @@ static void unchoke_for_stream(Scheduler *sch, SchedulerNode src)
 {
     while (1) {
         SchFilterGraph *fg;
-
-        // fed directly by a demuxer (i.e. not through a filtergraph)
-        if (src.type == SCH_NODE_TYPE_DEMUX) {
+        switch (src.type) {
+        case SCH_NODE_TYPE_DEMUX:
+            // fed directly by a demuxer (i.e. not through a filtergraph)
             sch->demux[src.idx].waiter.choked_next = 0;
             return;
-        }
-
-        av_assert0(src.type == SCH_NODE_TYPE_FILTER_OUT);
-        fg = &sch->filters[src.idx];
-
-        // the filtergraph contains internal sources and
-        // requested to be scheduled directly
-        if (fg->best_input == fg->nb_inputs) {
-            fg->waiter.choked_next = 0;
+        case SCH_NODE_TYPE_DEC:
+            src = sch->dec[src.idx].src;
+            continue;
+        case SCH_NODE_TYPE_ENC:
+            src = sch->enc[src.idx].src;
+            continue;
+        case SCH_NODE_TYPE_FILTER_OUT:
+            fg = &sch->filters[src.idx];
+            // the filtergraph contains internal sources and
+            // requested to be scheduled directly
+            if (fg->best_input == fg->nb_inputs) {
+                fg->waiter.choked_next = 0;
+                return;
+            }
+            src = fg->inputs[fg->best_input].src;
+            continue;
+        default:
+            av_unreachable("Invalid source node type?");
             return;
         }
+    }
+}
 
-        src = fg->inputs[fg->best_input].src_sched;
+static void choke_demux(const Scheduler *sch, int demux_id, int choked)
+{
+    av_assert1(demux_id < sch->nb_demux);
+    SchDemux *demux = &sch->demux[demux_id];
+
+    for (int i = 0; i < demux->nb_streams; i++) {
+        SchedulerNode *dst = demux->streams[i].dst;
+        SchFilterGraph *fg;
+
+        switch (dst->type) {
+        case SCH_NODE_TYPE_DEC:
+            tq_choke(sch->dec[dst->idx].queue, choked);
+            break;
+        case SCH_NODE_TYPE_ENC:
+            tq_choke(sch->enc[dst->idx].queue, choked);
+            break;
+        case SCH_NODE_TYPE_MUX:
+            break;
+        case SCH_NODE_TYPE_FILTER_IN:
+            fg = &sch->filters[dst->idx];
+            if (fg->nb_inputs == 1)
+                tq_choke(fg->queue, choked);
+            break;
+        default:
+            av_unreachable("Invalid destination node type?");
+            break;
+        }
     }
 }
 
@@ -1328,7 +1363,7 @@ static void schedule_update_locked(Scheduler *sch)
                 continue;
 
             // resolve the source to unchoke
-            unchoke_for_stream(sch, ms->src_sched);
+            unchoke_for_stream(sch, ms->src);
             have_unchoked = 1;
         }
     }
@@ -1345,13 +1380,16 @@ static void schedule_update_locked(Scheduler *sch)
             }
         }
 
-
-    for (unsigned type = 0; type < 2; type++)
+    for (unsigned type = 0; type < 2; type++) {
         for (unsigned i = 0; i < (type ? sch->nb_filters : sch->nb_demux); i++) {
             SchWaiter *w = type ? &sch->filters[i].waiter : &sch->demux[i].waiter;
-            if (w->choked_prev != w->choked_next)
+            if (w->choked_prev != w->choked_next) {
                 waiter_set(w, w->choked_next);
+                if (!type)
+                    choke_demux(sch, i, w->choked_next);
+            }
         }
+    }
 
 }
 
@@ -1360,6 +1398,27 @@ enum {
     CYCLE_NODE_STARTED,
     CYCLE_NODE_DONE,
 };
+
+// Finds the filtergraph or muxer upstream of a scheduler node
+static SchedulerNode src_filtergraph(const Scheduler *sch, SchedulerNode src)
+{
+    while (1) {
+        switch (src.type) {
+        case SCH_NODE_TYPE_DEMUX:
+        case SCH_NODE_TYPE_FILTER_OUT:
+            return src;
+        case SCH_NODE_TYPE_DEC:
+            src = sch->dec[src.idx].src;
+            continue;
+        case SCH_NODE_TYPE_ENC:
+            src = sch->enc[src.idx].src;
+            continue;
+        default:
+            av_unreachable("Invalid source node type?");
+            return (SchedulerNode) {0};
+        }
+    }
+}
 
 static int
 check_acyclic_for_output(const Scheduler *sch, SchedulerNode src,
@@ -1377,22 +1436,23 @@ check_acyclic_for_output(const Scheduler *sch, SchedulerNode src,
         // descend into every input, depth first
         if (src.idx_stream < fg->nb_inputs) {
             const SchFilterIn *fi = &fg->inputs[src.idx_stream++];
+            SchedulerNode node = src_filtergraph(sch, fi->src);
 
             // connected to demuxer, no cycles possible
-            if (fi->src_sched.type == SCH_NODE_TYPE_DEMUX)
+            if (node.type == SCH_NODE_TYPE_DEMUX)
                 continue;
 
             // otherwise connected to another filtergraph
-            av_assert0(fi->src_sched.type == SCH_NODE_TYPE_FILTER_OUT);
+            av_assert0(node.type == SCH_NODE_TYPE_FILTER_OUT);
 
             // found a cycle
-            if (filters_visited[fi->src_sched.idx] == CYCLE_NODE_STARTED)
+            if (filters_visited[node.idx] == CYCLE_NODE_STARTED)
                 return AVERROR(EINVAL);
 
             // place current position on stack and descend
             av_assert0(nb_filters_stack < sch->nb_filters);
             filters_stack[nb_filters_stack++] = src;
-            src = (SchedulerNode){ .idx = fi->src_sched.idx, .idx_stream = 0 };
+            src = (SchedulerNode){ .idx = node.idx, .idx_stream = 0 };
             continue;
         }
 
@@ -1514,22 +1574,7 @@ static int start_prepare(Scheduler *sch)
         for (unsigned j = 0; j < mux->nb_streams; j++) {
             SchMuxStream *ms = &mux->streams[j];
 
-            switch (ms->src.type) {
-            case SCH_NODE_TYPE_ENC: {
-                SchEnc *enc = &sch->enc[ms->src.idx];
-                if (enc->src.type == SCH_NODE_TYPE_DEC) {
-                    ms->src_sched = sch->dec[enc->src.idx].src;
-                    av_assert0(ms->src_sched.type == SCH_NODE_TYPE_DEMUX);
-                } else {
-                    ms->src_sched = enc->src;
-                    av_assert0(ms->src_sched.type == SCH_NODE_TYPE_FILTER_OUT);
-                }
-                break;
-                }
-            case SCH_NODE_TYPE_DEMUX:
-                ms->src_sched = ms->src;
-                break;
-            default:
+            if (!ms->src.type) {
                 av_log(mux, AV_LOG_ERROR,
                        "Muxer stream #%u not connected to a source\n", j);
                 return AVERROR(EINVAL);
@@ -1547,25 +1592,11 @@ static int start_prepare(Scheduler *sch)
 
         for (unsigned j = 0; j < fg->nb_inputs; j++) {
             SchFilterIn *fi = &fg->inputs[j];
-            SchDec     *dec;
 
             if (!fi->src.type) {
                 av_log(fg, AV_LOG_ERROR,
                        "Filtergraph input %u not connected to a source\n", j);
                 return AVERROR(EINVAL);
-            }
-
-            if (fi->src.type == SCH_NODE_TYPE_FILTER_OUT)
-                fi->src_sched = fi->src;
-            else {
-                av_assert0(fi->src.type == SCH_NODE_TYPE_DEC);
-                dec = &sch->dec[fi->src.idx];
-
-                switch (dec->src.type) {
-                case SCH_NODE_TYPE_DEMUX: fi->src_sched = dec->src;                   break;
-                case SCH_NODE_TYPE_ENC:   fi->src_sched = sch->enc[dec->src.idx].src; break;
-                default: av_assert0(0);
-                }
             }
         }
 
@@ -2512,6 +2543,18 @@ int sch_filter_command(Scheduler *sch, unsigned fg_idx, AVFrame *frame)
     return send_to_filter(sch, fg, fg->nb_inputs, frame);
 }
 
+void sch_filter_choke_inputs(Scheduler *sch, unsigned fg_idx)
+{
+    SchFilterGraph *fg;
+    av_assert0(fg_idx < sch->nb_filters);
+    fg = &sch->filters[fg_idx];
+
+    pthread_mutex_lock(&sch->schedule_lock);
+    fg->best_input = fg->nb_inputs;
+    schedule_update_locked(sch);
+    pthread_mutex_unlock(&sch->schedule_lock);
+}
+
 static int task_cleanup(Scheduler *sch, SchedulerNode node)
 {
     switch (node.type) {
@@ -2585,6 +2628,8 @@ int sch_stop(Scheduler *sch, int64_t *finish_ts)
         for (unsigned i = 0; i < (type ? sch->nb_demux : sch->nb_filters); i++) {
             SchWaiter *w = type ? &sch->demux[i].waiter : &sch->filters[i].waiter;
             waiter_set(w, 1);
+            if (type)
+                choke_demux(sch, i, 0); // unfreeze to allow draining
         }
 
     for (unsigned i = 0; i < sch->nb_demux; i++) {

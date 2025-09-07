@@ -149,6 +149,7 @@ typedef struct FrameThreadContext {
 
     int next_decoding;             ///< The next context to submit a packet to.
     int next_finished;             ///< The next context to return output from.
+    int nb_early_frames;           ///< Frames to immediately decode before saturating threads
 
     /* hwaccel state for thread-unsafe hwaccels is temporarily stored here in
      * order to transfer its ownership to the next decoding thread without the
@@ -588,7 +589,7 @@ int ff_thread_receive_frame(AVCodecContext *avctx, AVFrame *frame)
 
         /* do not return any frames until all threads have something to do */
         if (fctx->next_decoding != fctx->next_finished &&
-            !avctx->internal->draining)
+            !avctx->internal->draining && !fctx->nb_early_frames)
             continue;
 
         p                   = &fctx->threads[fctx->next_finished];
@@ -612,6 +613,8 @@ int ff_thread_receive_frame(AVCodecContext *avctx, AVFrame *frame)
      * we first return all the frames, then the error */
     if (fctx->df.nb_f) {
         decoded_frames_pop(&fctx->df, frame);
+        if (fctx->nb_early_frames)
+            fctx->nb_early_frames--;
         ret = 0;
     } else {
         ret = fctx->result;
@@ -973,6 +976,7 @@ av_cold int ff_frame_thread_init(AVCodecContext *avctx)
             goto error;
     }
 
+    fctx->nb_early_frames = 1;
     return 0;
 
 error:
