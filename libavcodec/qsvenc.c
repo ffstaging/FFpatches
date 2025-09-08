@@ -1842,6 +1842,13 @@ int ff_qsv_enc_init(AVCodecContext *avctx, QSVEncContext *q)
         return ret;
     }
 
+    // Update AVCodecContext with actual encoding parameters
+    mfxInfoMFX *info = &q->param.mfx;
+    avctx->has_b_frames = 0;
+    if (info->GopRefDist > 1) {
+        avctx->has_b_frames = info->GopRefDist - 1;
+    }
+
     q->avctx = avctx;
 
     return 0;
