@@ -72,6 +72,59 @@ enum AVSampleFormat {
 };
 
 /**
+ * Descriptor containing essential information about a sample format.
+ */
+typedef struct AVSampleFmtDescriptor {
+    const char *name;
+
+    /**
+     * Bits per sample.
+     */
+    int bits;
+
+    /**
+     * Combination of AV_SAMPLE_FMT_FLAG_... flags.
+     */
+    uint64_t flags;
+} AVSampleFmtDescriptor;
+
+/**
+ * Format is planar (each audio channel is in a separate data plane).
+ */
+#define AV_SAMPLE_FMT_FLAG_PLANAR       (1 << 0)
+
+/**
+ * The sample format contains unsinged values.
+ */
+#define AV_SAMPLE_FMT_FLAG_UNSIGNED     (1 << 1)
+
+/**
+ * The sample format contains IEEE-754 floating point values.
+ */
+#define AV_SAMPLE_FMT_FLAG_FLOAT        (1 << 2)
+
+/**
+ * @return a sample format descriptor for provided sample format or NULL if
+ * this sample format is unknown.
+ */
+const AVSampleFmtDescriptor *av_sample_fmt_desc_get(enum AVSampleFormat sample_fmt);
+
+/**
+ * Iterate over all sample format descriptors known to libavutil.
+ *
+ * @param prev previous descriptor. NULL to get the first descriptor.
+ *
+ * @return next descriptor or NULL after the last descriptor
+ */
+const AVSampleFmtDescriptor *av_sample_fmt_desc_next(const AVSampleFmtDescriptor *prev);
+
+/**
+ * @return an AVSampleFormat id described by desc, or AV_SAMPLE_FMT_NONE if desc
+ * is not a valid pointer to a sample format descriptor.
+ */
+enum AVSampleFormat av_sample_fmt_desc_get_id(const AVSampleFmtDescriptor *desc);
+
+/**
  * Return the name of sample_fmt, or NULL if sample_fmt is not
  * recognized.
  */
