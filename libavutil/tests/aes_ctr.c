@@ -46,6 +46,8 @@ static DECLARE_ALIGNED(8, uint32_t, key)[4];
 
 static DECLARE_ALIGNED(8, uint8_t, tmp)[20];
 
+#define SIZE 12
+
 int main (void)
 {
     int ret = 1;
@@ -85,14 +87,28 @@ int main (void)
         iv =   av_aes_ctr_get_iv(ae);
         av_aes_ctr_set_full_iv(ad, iv);
 
-        av_aes_ctr_crypt(ae, tmp, plain, sizeof(tmp));
-        if (i && memcmp(tmp, encrypted, sizeof(tmp)) != 0) {
+        // encrypt less than a full block in the first call to test the state
+        // preserving code of aes-ctr.
+        av_aes_ctr_crypt(ae, tmp, plain, SIZE);
+        if (i && memcmp(tmp, encrypted, SIZE) != 0) {
+            av_log(NULL, AV_LOG_ERROR, "test failed\n");
+            goto ERROR;
+        }
+        // encrypt the rest
+        av_aes_ctr_crypt(ae, tmp + SIZE, plain + SIZE, sizeof(tmp) - SIZE);
+        if (i && memcmp(tmp + SIZE, encrypted + SIZE, sizeof(tmp) - SIZE) != 0) {
             av_log(NULL, AV_LOG_ERROR, "test failed\n");
             goto ERROR;
         }
 
-        av_aes_ctr_crypt(ad, tmp, tmp,   sizeof(tmp));
-        if (memcmp(tmp, plain, sizeof(tmp)) != 0){
+        // same as with encryption, test the state preserving code of aes-ctr.
+        av_aes_ctr_crypt(ad, tmp, tmp, SIZE);
+        if (memcmp(tmp, plain, SIZE) != 0) {
+            av_log(NULL, AV_LOG_ERROR, "test failed\n");
+            goto ERROR;
+        }
+        av_aes_ctr_crypt(ad, tmp + SIZE, tmp + SIZE, sizeof(tmp) - SIZE);
+        if (memcmp(tmp + SIZE, plain + SIZE, sizeof(tmp) - SIZE) != 0) {
             av_log(NULL, AV_LOG_ERROR, "test failed\n");
             goto ERROR;
         }
