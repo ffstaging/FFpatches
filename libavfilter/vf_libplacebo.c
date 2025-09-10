@@ -1035,6 +1035,7 @@ props_done:
         };
         target.color.transfer = PL_COLOR_TRC_LINEAR;
         use_linear_compositor = true;
+        pl_render_image(s->linear_rr, NULL, &target, &opts->params);
     }
 
     /* Draw first frame opaque, others with blending */
