@@ -342,6 +342,9 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
     av_log(s->avctx, AV_LOG_DEBUG, "sof0: picture: %dx%d\n", width, height);
     if (av_image_check_size(width, height, 0, s->avctx) < 0)
         return AVERROR_INVALIDDATA;
+
+    // can the smallest valid representation (of blank 8x8 blocks) be in buf_size ?
+    // if thats not possible than this cannot be a valid frame
     if (s->buf_size && (width + 7) / 8 * ((height + 7) / 8) > s->buf_size * 4LL)
         return AVERROR_INVALIDDATA;
 
