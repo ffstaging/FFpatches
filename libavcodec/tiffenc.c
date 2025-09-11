@@ -250,6 +250,7 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(avctx->pix_fmt);
     TiffEncoderContext *s = avctx->priv_data;
     const AVFrame *const p = pict;
+    AVFrameSideData *side_data;
     int i;
     uint8_t *ptr;
     uint8_t *offset;
@@ -504,6 +505,11 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
             ADD_ENTRY1(s, TIFF_YCBCR_POSITIONING, AV_TIFF_SHORT, 2);
         ADD_ENTRY(s, TIFF_REFERENCE_BW,      AV_TIFF_RATIONAL, 6, refbw);
     }
+
+    side_data = av_frame_get_side_data(pict, AV_FRAME_DATA_ICC_PROFILE);
+    if (side_data)
+        ADD_ENTRY(s, TIFF_ICC_PROFILE, AV_TIFF_STRING, side_data->size, side_data->data);
+
     // write offset to dir
     bytestream_put_le32(&offset, ptr - pkt->data);
 
@@ -575,7 +581,7 @@ const FFCodec ff_tiff_encoder = {
     .p.type         = AVMEDIA_TYPE_VIDEO,
     .p.id           = AV_CODEC_ID_TIFF,
     .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS |
-                      AV_CODEC_CAP_ENCODER_REORDERED_OPAQUE,
+                      AV_CODEC_CAP_ENCODER_REORDERED_OPAQUE | FF_CODEC_CAP_ICC_PROFILES,
     .priv_data_size = sizeof(TiffEncoderContext),
     .init           = encode_init,
     .close          = encode_close,
