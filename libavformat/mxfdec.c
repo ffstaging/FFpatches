@@ -230,6 +230,7 @@ typedef struct MXFDescriptor {
     size_t mastering_size;
     AVContentLightMetadata *coll;
     size_t coll_size;
+    int alpha_mode;
 } MXFDescriptor;
 
 typedef struct MXFMCASubDescriptor {
@@ -356,6 +357,7 @@ static const uint8_t mxf_indirect_value_utf16le[]          = { 0x4c,0x00,0x02,0x
 static const uint8_t mxf_indirect_value_utf16be[]          = { 0x42,0x01,0x10,0x02,0x00,0x00,0x00,0x00,0x00,0x06,0x0e,0x2b,0x34,0x01,0x04,0x01,0x01 };
 static const uint8_t mxf_apple_coll_max_cll[]              = { 0x06,0x0e,0x2b,0x34,0x01,0x01,0x01,0x0e,0x0e,0x20,0x04,0x01,0x05,0x03,0x01,0x01 };
 static const uint8_t mxf_apple_coll_max_fall[]             = { 0x06,0x0e,0x2b,0x34,0x01,0x01,0x01,0x0e,0x0e,0x20,0x04,0x01,0x05,0x03,0x01,0x02 };
+static const uint8_t mxf_lavf_meta_alpha_mode[]            = { 0x6c,0x61,0x76,0x66,0x6d,0x65,0x74,0x61,0x00,0x00,0x00,0x00,0x61,0x6c,0x70,0x6d };
 
 static const uint8_t mxf_mca_label_dictionary_id[]         = { 0x06,0x0e,0x2b,0x34,0x01,0x01,0x01,0x0e,0x01,0x03,0x07,0x01,0x01,0x00,0x00,0x00 };
 static const uint8_t mxf_mca_tag_symbol[]                  = { 0x06,0x0e,0x2b,0x34,0x01,0x01,0x01,0x0e,0x01,0x03,0x07,0x01,0x02,0x00,0x00,0x00 };
@@ -1503,6 +1505,9 @@ static int mxf_read_generic_descriptor(void *arg, AVIOContext *pb, int tag, int 
             }
         }
 
+        if (IS_KLV_KEY(uid, mxf_lavf_meta_alpha_mode))
+            descriptor->alpha_mode = avio_r8(pb);
+
         if (IS_KLV_KEY(uid, mxf_sub_descriptor))
             return mxf_read_strong_ref_array(pb, &descriptor->sub_descriptors_refs, &descriptor->sub_descriptors_count);
 
@@ -2548,6 +2553,18 @@ static enum AVColorRange mxf_get_color_range(MXFContext *mxf, MXFDescriptor *des
     return AVCOL_RANGE_UNSPECIFIED;
 }
 
+static enum AVAlphaMode mxf_get_alpha_mode(MXFContext *mxf, MXFDescriptor *descriptor)
+{
+    switch (descriptor->alpha_mode) {
+    case 0x00: return AVALPHA_MODE_UNSPECIFIED;
+    case 0x01: return AVALPHA_MODE_PREMULTIPLIED;
+    case 0x02: return AVALPHA_MODE_STRAIGHT;
+    default:
+        avpriv_request_sample(mxf->fc, "Unrecognized alpha mode %d", descriptor->alpha_mode);
+        return AVALPHA_MODE_UNSPECIFIED;
+    }
+}
+
 static int is_pcm(enum AVCodecID codec_id)
 {
     /* we only care about "normal" PCM codecs until we get samples */
@@ -3037,6 +3054,7 @@ static int mxf_parse_structural_metadata(MXFContext *mxf)
             st->codecpar->color_primaries = mxf_get_codec_ul(ff_mxf_color_primaries_uls, &descriptor->color_primaries_ul)->id;
             st->codecpar->color_trc       = mxf_get_codec_ul(ff_mxf_color_trc_uls, &descriptor->color_trc_ul)->id;
             st->codecpar->color_space     = mxf_get_codec_ul(ff_mxf_color_space_uls, &descriptor->color_space_ul)->id;
+            st->codecpar->alpha_mode      = mxf_get_alpha_mode(mxf, descriptor);
             if (descriptor->mastering) {
                 if (!av_packet_side_data_add(&st->codecpar->coded_side_data, &st->codecpar->nb_coded_side_data,
                                              AV_PKT_DATA_MASTERING_DISPLAY_METADATA,

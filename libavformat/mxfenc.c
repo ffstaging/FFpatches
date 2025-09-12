@@ -447,6 +447,8 @@ static const MXFLocalTagPair mxf_local_tag_batch[] = {
     { 0x840A, {0x06,0x0e,0x2b,0x34,0x01,0x01,0x01,0x0a,0x04,0x01,0x06,0x03,0x0A,0x00,0x00,0x00}}, /* Csiz: The number of components in the picture */
     { 0x840B, {0x06,0x0e,0x2b,0x34,0x01,0x01,0x01,0x0a,0x04,0x01,0x06,0x03,0x0B,0x00,0x00,0x00}}, /* Ssizi, XRSizi, YRSizi: Array of picture components where each component comprises 3 bytes named Ssizi, XRSizi, YRSizi.  The array of 3-byte groups is preceded by the array header comprising a 4-byte value of the number of components followed by a 4-byte value of 3. */
     { 0x840C, {0x06,0x0e,0x2b,0x34,0x01,0x01,0x01,0x0a,0x04,0x01,0x06,0x03,0x0E,0x00,0x00,0x00}}, /* The nature and order of the image components in the compressed domain as carried in the J2C codestream. */
+    // libavformat private tags
+    { 0x8500, {0x6c,0x61,0x76,0x66,0x6d,0x65,0x74,0x61,0x00,0x00,0x00,0x00,0x61,0x6c,0x70,0x6d}}, /* AlphaMode */
 };
 
 #define MXF_NUM_TAGS FF_ARRAY_ELEMS(mxf_local_tag_batch)
@@ -1397,6 +1399,11 @@ static int64_t mxf_write_cdci_common(AVFormatContext *s, AVStream *st, const UID
         mxf_write_local_tag(s, 16, 0x321A);
         avio_write(pb, color_space_ul->uid, 16);
     };
+
+    if (av_pix_fmt_desc_get(st->codecpar->format)->flags & AV_PIX_FMT_FLAG_ALPHA) {
+        mxf_write_local_tag(s, 1, 0x8500);
+        avio_w8(pb, st->codecpar->alpha_mode);
+    }
 
     mxf_write_local_tag(s, 16, 0x3201);
     avio_write(pb, *sc->codec_ul, 16);

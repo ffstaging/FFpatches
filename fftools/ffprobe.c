@@ -1810,6 +1810,7 @@ static int show_stream(AVTextFormatContext *tfc, AVFormatContext *fmt_ctx, int s
         print_color_trc(tfc, par->color_trc);
         print_primaries(tfc, par->color_primaries);
         print_chroma_location(tfc, par->chroma_location);
+        print_alpha_mode(tfc, par->alpha_mode);
 
         if (par->field_order == AV_FIELD_PROGRESSIVE)
             print_str("field_order", "progressive");
