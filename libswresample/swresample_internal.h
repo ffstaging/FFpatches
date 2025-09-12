@@ -167,7 +167,6 @@ struct SwrContext {
     struct Resampler const *resampler;              ///< resampler virtual function table
 
     double matrix[SWR_CH_MAX][SWR_CH_MAX];          ///< floating point rematrixing coefficients
-    float matrix_flt[SWR_CH_MAX][SWR_CH_MAX];       ///< single precision floating point rematrixing coefficients
     uint8_t *native_matrix;
     uint8_t *native_one;
     uint8_t *native_simd_one;

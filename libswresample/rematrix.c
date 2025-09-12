@@ -69,13 +69,12 @@ int swr_set_matrix(struct SwrContext *s, const double *matrix, int stride)
     if (!s || s->in_convert) // s needs to be allocated but not initialized
         return AVERROR(EINVAL);
     memset(s->matrix, 0, sizeof(s->matrix));
-    memset(s->matrix_flt, 0, sizeof(s->matrix_flt));
 
     nb_in = s->user_in_chlayout.nb_channels;
     nb_out = s->user_out_chlayout.nb_channels;
     for (out = 0; out < nb_out; out++) {
         for (in = 0; in < nb_in; in++)
-            s->matrix_flt[out][in] = s->matrix[out][in] = matrix[in];
+            s->matrix[out][in] = matrix[in];
         matrix += stride;
     }
     s->rematrix_custom = 1;
@@ -452,13 +451,6 @@ av_cold static int auto_matrix(SwrContext *s)
                            maxval, s->rematrix_volume, (double*)s->matrix,
                            s->matrix[1] - s->matrix[0], s->matrix_encoding, s);
 
-    if (ret >= 0 && s->int_sample_fmt == AV_SAMPLE_FMT_FLTP) {
-        int i, j;
-        for (i = 0; i < FF_ARRAY_ELEMS(s->matrix[0]); i++)
-            for (j = 0; j < FF_ARRAY_ELEMS(s->matrix[0]); j++)
-                s->matrix_flt[i][j] = s->matrix[i][j];
-    }
-
     return ret;
 }
 
@@ -628,7 +620,7 @@ int swri_rematrix(SwrContext *s, AudioData *out, AudioData *in, int len, int mus
                     float v=0;
                     for(j=0; j<s->matrix_ch[out_i][0]; j++){
                         in_i= s->matrix_ch[out_i][1+j];
-                        v+= ((float*)in->ch[in_i])[i] * s->matrix_flt[out_i][in_i];
+                        v+= ((float*)in->ch[in_i])[i] * (float)s->matrix[out_i][in_i];
                     }
                     ((float*)out->ch[out_i])[i]= v;
                 }
