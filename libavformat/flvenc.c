@@ -1270,9 +1270,9 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
 
     ts = pkt->dts;
 
-    if (s->event_flags & AVSTREAM_EVENT_FLAG_METADATA_UPDATED) {
+    if (s->streams[pkt->stream_index]->event_flags & AVSTREAM_EVENT_FLAG_METADATA_UPDATED) {
         write_metadata(s, ts);
-        s->event_flags &= ~AVSTREAM_EVENT_FLAG_METADATA_UPDATED;
+        s->streams[pkt->stream_index]->event_flags &= ~AVSTREAM_EVENT_FLAG_METADATA_UPDATED;
     }
 
     avio_write_marker(pb, av_rescale(ts, AV_TIME_BASE, 1000),
