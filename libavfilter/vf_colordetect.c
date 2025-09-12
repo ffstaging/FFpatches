@@ -204,7 +204,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     return ff_filter_frame(inlink->dst->outputs[0], in);
 }
 
-static av_cold void uninit(AVFilterContext *ctx)
+static av_cold void report_detected_props(AVFilterContext *ctx)
 {
     ColorDetectContext *s = ctx->priv;
     if (!s->mode)
@@ -224,6 +224,38 @@ static av_cold void uninit(AVFilterContext *ctx)
                s->detected_alpha == FF_ALPHA_TRANSPARENT ? "undetermined"
                                                          : "opaque");
     }
+}
+
+static int activate(AVFilterContext *ctx)
+{
+    AVFilterLink *inlink  = ctx->inputs[0];
+    AVFilterLink *outlink = ctx->outputs[0];
+    AVFrame *frame;
+    int64_t pts;
+    int ret;
+
+    ret = ff_outlink_get_status(outlink);
+    if (ret) {
+        ff_inlink_set_status(inlink, ret);
+        report_detected_props(ctx);
+        return 0;
+    }
+
+    ret = ff_inlink_consume_frame(inlink, &frame);
+    if (ret < 0) {
+        return ret;
+    } else if (ret) {
+        return filter_frame(inlink, frame);
+    }
+
+    if (ff_inlink_acknowledge_status(inlink, &ret, &pts)) {
+        ff_outlink_set_status(outlink, ret, pts);
+        report_detected_props(ctx);
+        return 0;
+    }
+
+    FF_FILTER_FORWARD_WANTED(outlink, inlink);
+    return FFERROR_NOT_READY;
 }
 
 av_cold void ff_color_detect_dsp_init(FFColorDetectDSPContext *dsp, int depth,
@@ -248,7 +280,6 @@ static const AVFilterPad colordetect_inputs[] = {
         .name          = "default",
         .type          = AVMEDIA_TYPE_VIDEO,
         .config_props  = config_input,
-        .filter_frame  = filter_frame,
     },
 };
 
@@ -261,5 +292,5 @@ const FFFilter ff_vf_colordetect = {
     FILTER_INPUTS(colordetect_inputs),
     FILTER_OUTPUTS(ff_video_default_filterpad),
     FILTER_QUERY_FUNC2(query_format),
-    .uninit        = uninit,
+    .activate      = activate,
 };
