@@ -55,6 +55,7 @@ typedef struct {
 
     AVBufferRef *frames_ref;
     AVBufferRef *device_ref;
+    AVPacket pkt;
 } RKMPPDecoder;
 
 typedef struct {
@@ -148,6 +149,7 @@ static void rkmpp_release_decoder(AVRefStructOpaque unused, void *obj)
 
     av_buffer_unref(&decoder->frames_ref);
     av_buffer_unref(&decoder->device_ref);
+    av_packet_unref(&decoder->pkt);
 }
 
 static av_cold int rkmpp_init_decoder(AVCodecContext *avctx)
@@ -485,7 +487,6 @@ static int rkmpp_receive_frame(AVCodecContext *avctx, AVFrame *frame)
     RKMPPDecodeContext *rk_context = avctx->priv_data;
     RKMPPDecoder *decoder = rk_context->decoder;
     int ret = MPP_NOK;
-    AVPacket pkt = {0};
     RK_S32 usedslots, freeslots;
 
     if (!decoder->eos_reached) {
@@ -498,26 +499,35 @@ static int rkmpp_receive_frame(AVCodecContext *avctx, AVFrame *frame)
 
         freeslots = INPUT_MAX_PACKETS - usedslots;
         if (freeslots > 0) {
-            ret = ff_decode_get_packet(avctx, &pkt);
-            if (ret < 0 && ret != AVERROR_EOF) {
-                return ret;
+            if (!decoder->pkt.size) {
+                ret = ff_decode_get_packet(avctx, &decoder->pkt);
+                if (ret < 0 && ret != AVERROR_EOF) {
+                    return ret;
+                }
             }
 
-            ret = rkmpp_send_packet(avctx, &pkt);
-            av_packet_unref(&pkt);
-
-            if (ret < 0) {
+            ret = rkmpp_send_packet(avctx, &decoder->pkt);
+            if (ret < 0 && ret != AVERROR(EAGAIN)) {
                 av_log(avctx, AV_LOG_ERROR, "Failed to send packet to decoder (code = %d)\n", ret);
                 return ret;
+            } else if (ret == AVERROR(EAGAIN)) {
+                // Input queue is full, don't queue more packet.
+                freeslots = 0;
+            } else {
+                av_packet_unref(&decoder->pkt);
             }
         }
 
         // make sure we keep decoder full
-        if (freeslots > 1)
+        if (freeslots > 1 && !decoder->eos_reached)
             return AVERROR(EAGAIN);
     }
 
-    return rkmpp_retrieve_frame(avctx, frame);
+    do {
+        ret = rkmpp_retrieve_frame(avctx, frame);
+    } while (decoder->eos_reached && ret == AVERROR(EAGAIN));
+
+    return ret;
 }
 
 static av_cold void rkmpp_flush(AVCodecContext *avctx)
