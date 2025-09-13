@@ -953,6 +953,7 @@ static int exif_clone_entry(AVExifEntry *dst, const AVExifEntry *src)
     dst->count = src->count;
     dst->id = src->id;
     dst->type = src->type;
+    memset(&dst->value, 0, sizeof(dst->value));
 
     dst->ifd_offset = src->ifd_offset;
     if (src->ifd_lead) {
@@ -1151,7 +1152,7 @@ AVExifMetadata *av_exif_clone_ifd(const AVExifMetadata *ifd)
         size_t required_size;
         if (av_size_mult(ret->count, sizeof(*ret->entries), &required_size) < 0)
             goto fail;
-        ret->entries = av_fast_realloc(NULL, &ret->size, required_size);
+        av_fast_mallocz(&ret->entries, &ret->size, required_size);
         if (!ret->entries)
             goto fail;
     }
