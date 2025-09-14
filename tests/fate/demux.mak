@@ -54,6 +54,9 @@ fate-flv-demux: CMD = ffprobe_demux $(TARGET_SAMPLES)/flv/Enigma_Principles_of_L
 FATE_SAMPLES_DEMUX-$(call FRAMECRC, GIF,, GIF_PARSER) += fate-gif-demux
 fate-gif-demux: CMD = framecrc -i $(TARGET_SAMPLES)/gif/Newtons_cradle_animation_book_2.gif -c:v copy
 
+FATE_SAMPLES_DEMUX-$(call FRAMECRC, HXVS, HEVC PCM_ALAW) += fate-hxvs-demux
+fate-hxvs-demux: CMD = framecrc -i $(TARGET_SAMPLES)/hxvs/A231130_171422_171436.bin -c copy
+
 FATE_SAMPLES_DEMUX-$(call FRAMECRC, IFF) += fate-iff-demux
 fate-iff-demux: CMD = framecrc -i $(TARGET_SAMPLES)/iff-anim/Hammer2.sndanim -c:v copy -c:a copy
 
