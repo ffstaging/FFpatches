@@ -518,8 +518,8 @@ static int rkmpp_receive_frame(AVCodecContext *avctx, AVFrame *frame)
             }
         }
 
-        // make sure we keep decoder full
-        if (freeslots > 1 && !decoder->eos_reached)
+        // make sure we keep decoder full unless in low-delay mode
+        if (freeslots > 1 && !decoder->eos_reached && !(avctx->flags & AV_CODEC_FLAG_LOW_DELAY))
             return AVERROR(EAGAIN);
     }
 
