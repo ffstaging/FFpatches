@@ -636,6 +636,7 @@ static void mark_pns(AACEncContext *s, AVCodecContext *avctx, SingleChannelEleme
     int bandwidth, cutoff;
     const float lambda = s->lambda;
     const float freq_mult = avctx->sample_rate*0.5f/wlen;
+    const float thr_mult = NOISE_LAMBDA_REPLACE*(100.0f/lambda);
     const float spread_threshold = FFMIN(0.75f, NOISE_SPREAD_THRESHOLD*FFMAX(0.5f, lambda/100.f));
     const float pns_transient_energy_r = FFMIN(0.7f, lambda / 140.f);
 
@@ -690,7 +691,10 @@ static void mark_pns(AACEncContext *s, AVCodecContext *avctx, SingleChannelEleme
              * 3. on short window groups, all windows have similar energy (variations in energy would be destroyed by PNS)
              */
             sce->pns_ener[w*16+g] = sfb_energy;
-            if (sfb_energy < threshold*sqrtf(1.5f/freq_boost) || spread < spread_threshold || min_energy < pns_transient_energy_r * max_energy) {
+            if (sfb_energy < threshold*sqrtf(1.5f/freq_boost) ||
+				sfb_energy > 100.0f * threshold*thr_mult*freq_boost ||
+				spread < spread_threshold ||
+				min_energy < pns_transient_energy_r * max_energy) {
                 sce->can_pns[w*16+g] = 0;
             } else {
                 sce->can_pns[w*16+g] = 1;
