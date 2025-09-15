@@ -36,6 +36,8 @@
 #include "exif.h"
 #include "version_major.h"
 
+#define EXIF_ORIENTATION_TAG        0x112
+
 #if LIBAVCODEC_VERSION_MAJOR < 63
 /* Used by the AVI demuxer */
 int avpriv_exif_decode_ifd(void *logctx, const uint8_t *buf, int size,

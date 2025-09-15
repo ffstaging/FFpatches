@@ -47,7 +47,6 @@
 
 #define EXIF_TAG_NAME_LENGTH   32
 #define MAKERNOTE_TAG          0x927c
-#define ORIENTATION_TAG        0x112
 #define EXIFIFD_TAG            0x8769
 #define IMAGE_WIDTH_TAG        0x100
 #define IMAGE_LENGTH_TAG       0x101
@@ -1250,7 +1249,7 @@ int ff_exif_sanitize_ifd(void *logctx, const AVFrame *frame, AVExifMetadata *ifd
 
     for (size_t i = 0; i < ifd->count; i++) {
         AVExifEntry *entry = &ifd->entries[i];
-        if (entry->id == ORIENTATION_TAG && entry->count > 0 && entry->type == AV_TIFF_SHORT) {
+        if (entry->id == EXIF_ORIENTATION_TAG && entry->count > 0 && entry->type == AV_TIFF_SHORT) {
             or = entry;
             continue;
         }
@@ -1300,7 +1299,7 @@ int ff_exif_sanitize_ifd(void *logctx, const AVFrame *frame, AVExifMetadata *ifd
     }
     if (!or && orientation != 1) {
         rewrite = 1;
-        ret = av_exif_set_entry(logctx, ifd, ORIENTATION_TAG, AV_TIFF_SHORT, 1, NULL, 0, &orientation);
+        ret = av_exif_set_entry(logctx, ifd, EXIF_ORIENTATION_TAG, AV_TIFF_SHORT, 1, NULL, 0, &orientation);
         if (ret < 0)
             goto end;
     }
