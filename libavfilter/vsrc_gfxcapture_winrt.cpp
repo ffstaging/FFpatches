@@ -196,12 +196,18 @@ static HRESULT get_activation_factory(GfxCaptureContextCpp *ctx, PCWSTR clsid, T
  ****************************************************/
 
 static void wgc_frame_arrived_handler(const std::unique_ptr<GfxCaptureContextWgc> &wgctx) {
-    wgctx->frame_seq.fetch_add(1, std::memory_order_release);
+    {
+        std::lock_guard lock(wgctx->frame_arrived_mutex);
+        wgctx->frame_seq.fetch_add(1, std::memory_order_release);
+    }
     wgctx->frame_arrived_cond.notify_one();
 }
 
 static void wgc_closed_handler(const std::unique_ptr<GfxCaptureContextWgc> &wgctx) {
-    wgctx->window_closed.store(true, std::memory_order_release);
+    {
+        std::lock_guard lock(wgctx->frame_arrived_mutex);
+        wgctx->window_closed.store(true, std::memory_order_release);
+    }
     wgctx->frame_arrived_cond.notify_one();
 }
 
@@ -1455,8 +1461,6 @@ static int gfxcapture_activate(AVFilterContext *avctx)
     if (!ff_outlink_frame_wanted(outlink))
         return FFERROR_NOT_READY;
 
-    std::unique_lock frame_lock(wgctx->frame_arrived_mutex);
-
     for (;;) {
         uint64_t last_seq = wgctx->frame_seq.load(std::memory_order_acquire);
 
@@ -1469,6 +1473,7 @@ static int gfxcapture_activate(AVFilterContext *avctx)
             break;
         }
 
+        std::unique_lock frame_lock(wgctx->frame_arrived_mutex);
         if (!wgctx->frame_arrived_cond.wait_for(frame_lock, std::chrono::seconds(1), [&]() {
             return wgctx->frame_seq.load(std::memory_order_acquire) != last_seq ||
                    wgctx->window_closed.load(std::memory_order_acquire);
