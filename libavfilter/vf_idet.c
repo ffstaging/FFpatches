@@ -259,6 +259,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *picref)
 
         av_frame_free(&idet->cur );
         av_frame_free(&idet->next);
+        idet->csp = NULL;
     }
 
     idet->prev = idet->cur;
@@ -272,13 +273,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *picref)
     if (!idet->prev)
         return 0;
 
-    if (!idet->csp)
+    if (!idet->csp) {
         idet->csp = av_pix_fmt_desc_get(link->format);
-    if (idet->csp->comp[0].depth > 8){
-        idet->filter_line = (ff_idet_filter_func)ff_idet_filter_line_c_16bit;
-#if ARCH_X86
-        ff_idet_init_x86(idet, 1);
-#endif
+        ff_idet_dsp_init(idet, idet->csp->comp[0].depth > 8);
     }
 
     if (idet->analyze_interlaced_flag) {
@@ -395,6 +392,14 @@ static const enum AVPixelFormat pix_fmts[] = {
     AV_PIX_FMT_NONE
 };
 
+void ff_idet_dsp_init(IDETContext *idet, int for_16b)
+{
+    idet->filter_line = for_16b ? (ff_idet_filter_func)ff_idet_filter_line_c_16bit : ff_idet_filter_line_c;
+#if ARCH_X86
+    ff_idet_init_x86(idet, for_16b);
+#endif
+}
+
 static av_cold int init(AVFilterContext *ctx)
 {
     IDETContext *idet = ctx->priv;
@@ -408,11 +413,7 @@ static av_cold int init(AVFilterContext *ctx)
     else
         idet->decay_coefficient = PRECISION;
 
-    idet->filter_line = ff_idet_filter_line_c;
-
-#if ARCH_X86
-    ff_idet_init_x86(idet, 0);
-#endif
+    ff_idet_dsp_init(idet, 0);
 
     return 0;
 }

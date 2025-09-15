@@ -59,6 +59,12 @@ static int idet_filter_line_16bit_##KIND(const uint16_t *a, const uint16_t *b, \
 FUNC_MAIN_DECL(sse2, 16)
 FUNC_MAIN_DECL_16bit(sse2, 8)
 
+FUNC_MAIN_DECL(avx2, 32)
+FUNC_MAIN_DECL_16bit(avx2, 16)
+
+FUNC_MAIN_DECL(avx512icl, 64)
+FUNC_MAIN_DECL_16bit(avx512icl, 32)
+
 #endif
 av_cold void ff_idet_init_x86(IDETContext *idet, int for_16b)
 {
@@ -67,6 +73,12 @@ av_cold void ff_idet_init_x86(IDETContext *idet, int for_16b)
 
     if (EXTERNAL_SSE2(cpu_flags)) {
         idet->filter_line = for_16b ? (ff_idet_filter_func)idet_filter_line_16bit_sse2 : idet_filter_line_sse2;
+    }
+    if (EXTERNAL_AVX2(cpu_flags)) {
+        idet->filter_line = for_16b ? (ff_idet_filter_func)idet_filter_line_16bit_avx2 : idet_filter_line_avx2;
+    }
+    if (EXTERNAL_AVX512ICL(cpu_flags)) {
+        idet->filter_line = for_16b ? (ff_idet_filter_func)idet_filter_line_16bit_avx512icl : idet_filter_line_avx512icl;
     }
 #endif // HAVE_X86ASM
 }
