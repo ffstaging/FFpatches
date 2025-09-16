@@ -3312,6 +3312,7 @@ static const char * const color_transfer_names[] = {
     [AVCOL_TRC_SMPTE2084] = "smpte2084",
     [AVCOL_TRC_SMPTE428] = "smpte428",
     [AVCOL_TRC_ARIB_STD_B67] = "arib-std-b67",
+    [AVCOL_TRC_V_LOG] = "vlog",
 };
 
 static const char * const color_space_names[] = {

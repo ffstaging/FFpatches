@@ -374,7 +374,7 @@ static int flac_seek(AVFormatContext *s, int stream_index, int64_t timestamp, in
 const FFInputFormat ff_flac_demuxer = {
     .p.name         = "flac",
     .p.long_name    = NULL_IF_CONFIG_SMALL("raw FLAC"),
-    .p.flags        = AVFMT_GENERIC_INDEX,
+    .p.flags        = AVFMT_GENERIC_INDEX | AVFMT_FLAG_ID3V2_AUTO,
     .p.extensions   = "flac",
     .p.priv_class   = &ff_raw_demuxer_class,
     .read_probe     = flac_probe,

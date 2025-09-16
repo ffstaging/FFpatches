@@ -680,6 +680,12 @@ enum AVColorTransferCharacteristic {
     AVCOL_TRC_SMPTE428     = 17, ///< SMPTE ST 428-1
     AVCOL_TRC_SMPTEST428_1 = AVCOL_TRC_SMPTE428,
     AVCOL_TRC_ARIB_STD_B67 = 18, ///< ARIB STD-B67, known as "Hybrid log-gamma"
+
+    /**
+     * NOTE: The following transfer functions are not a part of H.274
+     */
+
+    AVCOL_TRC_V_LOG        = 256, ///< Panasonic V-Log
     AVCOL_TRC_NB                 ///< Not part of ABI
 };
 

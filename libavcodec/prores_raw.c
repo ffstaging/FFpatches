@@ -334,13 +334,28 @@ static int decode_frame(AVCodecContext *avctx,
     DECLARE_ALIGNED(32, uint8_t, qmat)[64];
     memset(qmat, 1, 64);
 
+    switch (avctx->codec_tag) {
+    case 0:
+        break;
+    case MKTAG('a','p','r','n'):
+        avctx->profile = AV_PROFILE_PRORES_RAW;
+        break;
+    case MKTAG('a','p','r','h'):
+        avctx->profile = AV_PROFILE_PRORES_RAW_HQ;
+        break;
+    default:
+        avpriv_request_sample(avctx, "Profile %d", avctx->codec_tag);
+        return AVERROR_PATCHWELCOME;
+        break;
+    }
+
     GetByteContext gb;
     bytestream2_init(&gb, avpkt->data, avpkt->size);
     if (bytestream2_get_be32(&gb) != avpkt->size)
         return AVERROR_INVALIDDATA;
 
     /* ProRes RAW frame */
-    if (bytestream2_get_le32(&gb) != MKTAG('p','r','r','f'))
+    if (bytestream2_get_be32(&gb) != MKBETAG('p','r','r','f'))
         return AVERROR_INVALIDDATA;
 
     int header_len = bytestream2_get_be16(&gb);
@@ -359,7 +374,22 @@ static int decode_frame(AVCodecContext *avctx,
     }
 
     /* Vendor header (e.g. "peac" for Panasonic or "atm0" for Atmos) */
-    bytestream2_skip(&gb_hdr, 4);
+    uint32_t vendor = bytestream2_get_be32(&gb_hdr);
+    switch (vendor) {
+    case MKBETAG('p','e','a','c'):
+        /* Internal recording from a Panasonic camera, V-Log */
+        avctx->color_trc = AVCOL_TRC_V_LOG;
+        break;
+    case MKBETAG('a','t','m','0'):
+        /* External recording from an Atomos recorder. Cameras universally
+         * record in their own native log curve internally, but linearize it
+         * when outputting RAW externally */
+        avctx->color_trc = AVCOL_TRC_LINEAR;
+        break;
+    default:
+        avctx->color_trc = AVCOL_TRC_UNSPECIFIED;
+        break;
+    }
 
     /* Width and height must always be even */
     int w = bytestream2_get_be16(&gb_hdr);
