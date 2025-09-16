@@ -4811,6 +4811,7 @@ fi
 set_default target_os
 if test "$target_os" = android; then
     cc_default="clang"
+    cxx_default="clang++"
 fi
 
 ar_default="${cross_prefix}${ar_default}"
@@ -4821,6 +4822,18 @@ pkg_config_default="${cross_prefix}${pkg_config_default}"
 ranlib_default="${cross_prefix}${ranlib_default}"
 strip_default="${cross_prefix}${strip_default}"
 windres_default="${cross_prefix}${windres_default}"
+
+case "$cc" in
+    *gcc*)
+        cxx_default="$(echo "$cc" | sed 's/\(.*\)gcc/\1g++/')"
+    ;;
+    *clang*)
+        cxx_default="$(echo "$cc" | sed 's/\(.*\)clang/\1clang++/')"
+    ;;
+    *cl.exe|*cl|*icl)
+        cxx_default="$cc"
+    ;;
+esac
 
 sysinclude_default="${sysroot}/usr/include"
 
