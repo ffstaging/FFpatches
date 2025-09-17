@@ -644,24 +644,76 @@ static int add_icc_profile_size(AVCodecContext *avctx, const AVFrame *pict,
     return 0;
 }
 
-static int encode_png(AVCodecContext *avctx, AVPacket *pkt,
-                      const AVFrame *pict, int *got_packet)
+static int add_exif_profile_size(AVCodecContext *avctx, const AVFrame *pict,
+                                 uint64_t *max_packet_size)
 {
     PNGEncContext *s = avctx->priv_data;
-    int ret;
+    const AVFrameSideData *sd;
+    uint64_t new_pkt_size;
+    /* includes orientation tag */
+    const int base_exif_size = 92;
+    uint64_t estimated_exif_size;
+
+    if (!pict)
+        return 0;
+
+    sd = av_frame_get_side_data(pict, AV_FRAME_DATA_EXIF);
+    estimated_exif_size = sd ? sd->size : 0;
+    sd = av_frame_get_side_data(pict, AV_FRAME_DATA_DISPLAYMATRIX);
+    if (sd)
+        estimated_exif_size += base_exif_size;
+
+    if (!estimated_exif_size)
+        return 0;
+
+    /* 12 is the png chunk header size */
+    new_pkt_size = *max_packet_size + estimated_exif_size + 12;
+    if (new_pkt_size < *max_packet_size)
+        return AVERROR_INVALIDDATA;
+
+    *max_packet_size = new_pkt_size;
+
+    return 0;
+}
+
+static int get_max_packet_size(AVCodecContext *avctx, const AVFrame *pict,
+                               uint64_t *max_packet_size)
+{
+    PNGEncContext *s = avctx->priv_data;
     int enc_row_size;
     uint64_t max_packet_size;
+    int ret;
 
-    enc_row_size    = deflateBound(&s->zstream.zstream,
-                                   (avctx->width * s->bits_per_pixel + 7) >> 3);
+    enc_row_size = deflateBound(&s->zstream.zstream, (avctx->width * s->bits_per_pixel + 7) >> 3);
     max_packet_size =
         FF_INPUT_BUFFER_MIN_SIZE + // headers
         avctx->height * (
             enc_row_size +
             12 * (((int64_t)enc_row_size + IOBUF_SIZE - 1) / IOBUF_SIZE) // IDAT * ceil(enc_row_size / IOBUF_SIZE)
         );
-    if ((ret = add_icc_profile_size(avctx, pict, &max_packet_size)))
+
+    ret = add_icc_profile_size(avctx, pict, &max_packet_size);
+    if (ret < 0)
         return ret;
+
+    ret = add_exif_profile_size(avctx, pict, &max_packet_size);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
+static int encode_png(AVCodecContext *avctx, AVPacket *pkt,
+                      const AVFrame *pict, int *got_packet)
+{
+    PNGEncContext *s = avctx->priv_data;
+    int ret;
+    uint64_t max_packet_size;
+
+    ret = get_max_packet_size(avctx, pict, &max_packet_size);
+    if (ret < 0)
+        return ret;
+
     ret = ff_alloc_packet(avctx, pkt, max_packet_size);
     if (ret < 0)
         return ret;
