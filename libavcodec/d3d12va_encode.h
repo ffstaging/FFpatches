@@ -264,6 +264,8 @@ typedef struct D3D12VAEncodeContext {
     D3D12_VIDEO_ENCODER_SEQUENCE_GOP_STRUCTURE gop;
 
     D3D12_VIDEO_ENCODER_LEVEL_SETTING level;
+
+    D3D12_VIDEO_ENCODER_PICTURE_CONTROL_SUBREGIONS_LAYOUT_DATA subregions_layout;
 } D3D12VAEncodeContext;
 
 typedef struct D3D12VAEncodeType {
@@ -307,6 +309,11 @@ typedef struct D3D12VAEncodeType {
     int (*set_level)(AVCodecContext *avctx);
 
     /**
+     * Set codec-specific tile setting.
+     */
+    int (*set_tile)(AVCodecContext *avctx);
+
+    /**
      * The size of any private data structure associated with each
      * picture (can be zero if not required).
      */
@@ -327,6 +334,17 @@ typedef struct D3D12VAEncodeType {
      */
     int (*write_sequence_header)(AVCodecContext *avctx,
                                  char *data, size_t *data_len);
+
+    int  (*write_picture_header)(AVCodecContext *avctx,
+                                 D3D12VAEncodePicture *pic,
+                                 char *data, size_t *data_len);
+
+    int  (*write_tile_group)(AVCodecContext *avctx,
+                            uint8_t* tile_group,
+                            uint32_t tile_group_size,
+                            char *data,
+                            size_t *data_len);
+
 } D3D12VAEncodeType;
 
 int ff_d3d12va_encode_receive_packet(AVCodecContext *avctx, AVPacket *pkt);
