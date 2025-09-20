@@ -128,6 +128,7 @@ static int get_curve(FFIccContext *s, enum AVColorTransferCharacteristic trc,
     case AVCOL_TRC_BT1361_ECG:
     case AVCOL_TRC_SMPTE2084:
     case AVCOL_TRC_ARIB_STD_B67:
+    case AVCOL_TRC_V_LOG:
         return AVERROR_PATCHWELCOME;
 
     default:

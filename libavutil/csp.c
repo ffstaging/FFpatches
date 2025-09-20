@@ -378,6 +378,32 @@ static double trc_arib_std_b67_inv(double E)
         (E <= 0.5 ? E * E / 3.0 : (exp((E - c) / a) + b) / 12.0);
 }
 
+#define VLOG_c1 0.01
+#define VLOG_c2 0.181
+#define VLOG_b  0.00873
+#define VLOG_c  0.241514
+#define VLOG_d  0.598206
+
+static double trc_vlog(double E)
+{
+    const double c2 = VLOG_c2;
+    const double b = VLOG_b;
+    const double c = VLOG_c;
+    const double d = VLOG_d;
+    return (E < c2) ? (E - 0.125) / 5.6 :
+        (pow(10.0, ((E - d) / c)) - b);
+}
+
+static double trc_vlog_inv(double E)
+{
+    const double c1 = VLOG_c1;
+    const double b = VLOG_b;
+    const double c = VLOG_c;
+    const double d = VLOG_d;
+    return (E < c1) ? (5.6 * E + 0.125) :
+        (c * log10(E + b) + d);
+}
+
 static const av_csp_trc_function trc_funcs[AVCOL_TRC_NB] = {
     [AVCOL_TRC_BT709] = trc_bt709,
     [AVCOL_TRC_GAMMA22] = trc_gamma22,
@@ -395,6 +421,7 @@ static const av_csp_trc_function trc_funcs[AVCOL_TRC_NB] = {
     [AVCOL_TRC_SMPTE2084] = trc_smpte_st2084,
     [AVCOL_TRC_SMPTE428] = trc_smpte_st428_1,
     [AVCOL_TRC_ARIB_STD_B67] = trc_arib_std_b67,
+    [AVCOL_TRC_V_LOG] = trc_vlog,
 };
 
 av_csp_trc_function av_csp_trc_func_from_id(enum AVColorTransferCharacteristic trc)
@@ -421,6 +448,7 @@ static const av_csp_trc_function trc_inv_funcs[AVCOL_TRC_NB] = {
     [AVCOL_TRC_SMPTE2084] = trc_smpte_st2084_inv,
     [AVCOL_TRC_SMPTE428] = trc_smpte_st428_1_inv,
     [AVCOL_TRC_ARIB_STD_B67] = trc_arib_std_b67_inv,
+    [AVCOL_TRC_V_LOG] = trc_vlog_inv,
 };
 
 av_csp_trc_function av_csp_trc_func_inv_from_id(enum AVColorTransferCharacteristic trc)

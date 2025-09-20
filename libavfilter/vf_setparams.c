@@ -101,6 +101,7 @@ static const AVOption setparams_options[] = {
     {"smpte2084",                      NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_TRC_SMPTE2084},    0, 0, FLAGS, .unit = "color_trc"},
     {"smpte428",                       NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_TRC_SMPTE428},     0, 0, FLAGS, .unit = "color_trc"},
     {"arib-std-b67",                   NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_TRC_ARIB_STD_B67}, 0, 0, FLAGS, .unit = "color_trc"},
+    {"vlog",                           NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_TRC_V_LOG},        0, 0, FLAGS, .unit = "color_trc"},
 
     {"colorspace", "select colorspace", OFFSET(colorspace), AV_OPT_TYPE_INT, {.i64=-1}, -1, AVCOL_SPC_NB-1, FLAGS, .unit = "colorspace"},
     {"auto", "keep the same colorspace",  0, AV_OPT_TYPE_CONST, {.i64=-1},                          0, 0, FLAGS, .unit = "colorspace"},
