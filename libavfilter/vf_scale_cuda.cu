@@ -40,6 +40,11 @@ static inline __device__ ushort conv_8to16(uchar in, ushort mask)
     return ((ushort)in | ((ushort)in << 8)) & mask;
 }
 
+static inline __device__ ushort conv_8to10pl(uchar in)
+{
+    return ((ushort)in << 2) | ((ushort)in >> 6);
+}
+
 static inline __device__ uchar conv_16to8(ushort in)
 {
     return in >> 8;
@@ -50,14 +55,29 @@ static inline __device__ uchar conv_10to8(ushort in)
     return in >> 8;
 }
 
+static inline __device__ uchar conv_10to8pl(ushort in)
+{
+    return in >> 2;
+}
+
 static inline __device__ ushort conv_10to16(ushort in)
 {
     return in | (in >> 10);
 }
 
+static inline __device__ ushort conv_10to16pl(ushort in)
+{
+    return (in << 6) | (in >> 4);
+}
+
 static inline __device__ ushort conv_16to10(ushort in)
 {
     return in & mask_10bit;
+}
+
+static inline __device__ ushort conv_16to10pl(ushort in)
+{
+    return in >> 6;
 }
 
 #define DEF_F(N, T) \
@@ -81,9 +101,9 @@ static inline __device__ ushort conv_16to10(ushort in)
 #define DEFAULT_DST(n) \
     dst[n][yo*FIXED_PITCH+xo]
 
-// yuv420p->X
+// planar8->X
 
-struct Convert_yuv420p_yuv420p
+struct Convert_planar8_planar8
 {
     static const int in_bit_depth = 8;
     typedef uchar in_T;
@@ -103,7 +123,47 @@ struct Convert_yuv420p_yuv420p
     }
 };
 
-struct Convert_yuv420p_nv12
+struct Convert_planar8_planar10
+{
+    static const int in_bit_depth = 8;
+    typedef uchar in_T;
+    typedef uchar in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_8to10pl(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = conv_8to10pl(SUB_F(uv, 1));
+        DEFAULT_DST(2) = conv_8to10pl(SUB_F(uv, 2));
+    }
+};
+
+struct Convert_planar8_planar16
+{
+    static const int in_bit_depth = 8;
+    typedef uchar in_T;
+    typedef uchar in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_8to16(SUB_F(y, 0), mask_16bit);
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = conv_8to16(SUB_F(uv, 1), mask_16bit);
+        DEFAULT_DST(2) = conv_8to16(SUB_F(uv, 2), mask_16bit);
+    }
+};
+
+struct Convert_planar8_semiplanar8
 {
     static const int in_bit_depth = 8;
     typedef uchar in_T;
@@ -125,27 +185,7 @@ struct Convert_yuv420p_nv12
     }
 };
 
-struct Convert_yuv420p_yuv444p
-{
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar in_T_uv;
-    typedef uchar out_T;
-    typedef uchar out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = SUB_F(y, 0);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = SUB_F(uv, 1);
-        DEFAULT_DST(2) = SUB_F(uv, 2);
-    }
-};
-
-struct Convert_yuv420p_p010le
+struct Convert_planar8_semiplanar10
 {
     static const int in_bit_depth = 8;
     typedef uchar in_T;
@@ -167,7 +207,7 @@ struct Convert_yuv420p_p010le
     }
 };
 
-struct Convert_yuv420p_p016le
+struct Convert_planar8_semiplanar16
 {
     static const int in_bit_depth = 8;
     typedef uchar in_T;
@@ -189,29 +229,267 @@ struct Convert_yuv420p_p016le
     }
 };
 
-struct Convert_yuv420p_yuv444p16le
+
+
+// planar10->X
+
+struct Convert_planar10_planar8
 {
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar in_T_uv;
+    static const int in_bit_depth = 10;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef uchar out_T;
+    typedef uchar out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_10to8pl(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = conv_10to8pl(SUB_F(uv, 1));
+        DEFAULT_DST(2) = conv_10to8pl(SUB_F(uv, 2));
+    }
+};
+
+struct Convert_planar10_planar10
+{
+    static const int in_bit_depth = 10;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
     typedef ushort out_T;
     typedef ushort out_T_uv;
 
     DEF_F(Convert, out_T)
     {
-        DEFAULT_DST(0) = conv_8to16(SUB_F(y, 0), mask_16bit);
+        DEFAULT_DST(0) = SUB_F(y, 0);
     }
 
     DEF_F(Convert_uv, out_T_uv)
     {
-        DEFAULT_DST(1) = conv_8to16(SUB_F(uv, 1), mask_16bit);
-        DEFAULT_DST(2) = conv_8to16(SUB_F(uv, 2), mask_16bit);
+        DEFAULT_DST(1) = SUB_F(uv, 1);
+        DEFAULT_DST(2) = SUB_F(uv, 2);
     }
 };
 
-// nv12->X
+struct Convert_planar10_planar16
+{
+    static const int in_bit_depth = 10;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
 
-struct Convert_nv12_yuv420p
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_10to16pl(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = conv_10to16pl(SUB_F(uv, 1));
+        DEFAULT_DST(2) = conv_10to16pl(SUB_F(uv, 2));
+    }
+};
+
+struct Convert_planar10_semiplanar8
+{
+    static const int in_bit_depth = 10;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef uchar out_T;
+    typedef uchar2 out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_10to8pl(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = make_uchar2(
+            conv_10to8pl(SUB_F(uv, 1)),
+            conv_10to8pl(SUB_F(uv, 2))
+        );
+    }
+};
+
+struct Convert_planar10_semiplanar10
+{
+    static const int in_bit_depth = 10;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef ushort out_T;
+    typedef ushort2 out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = (SUB_F(y, 0) << 6);
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = make_ushort2(
+            (SUB_F(uv, 1) << 6),
+            (SUB_F(uv, 2) << 6)
+        );
+    }
+};
+
+struct Convert_planar10_semiplanar16
+{
+    static const int in_bit_depth = 10;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef ushort out_T;
+    typedef ushort2 out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_10to16pl(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = make_ushort2(
+            conv_10to16pl(SUB_F(uv, 1)),
+            conv_10to16pl(SUB_F(uv, 2))
+        );
+    }
+};
+
+// planar16->X
+
+struct Convert_planar16_planar8
+{
+    static const int in_bit_depth = 16;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef uchar out_T;
+    typedef uchar out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_16to8(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = conv_16to8(SUB_F(uv, 1));
+        DEFAULT_DST(2) = conv_16to8(SUB_F(uv, 2));
+    }
+};
+
+struct Convert_planar16_planar10
+{
+    static const int in_bit_depth = 16;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_16to10pl(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = conv_16to10pl(SUB_F(uv, 1));
+        DEFAULT_DST(2) = conv_16to10pl(SUB_F(uv, 2));
+    }
+};
+
+struct Convert_planar16_planar16
+{
+    static const int in_bit_depth = 16;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = SUB_F(y, 0);
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = SUB_F(uv, 1);
+        DEFAULT_DST(2) = SUB_F(uv, 2);
+    }
+};
+
+struct Convert_planar16_semiplanar8
+{
+    static const int in_bit_depth = 16;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef uchar out_T;
+    typedef uchar2 out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_16to8(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = make_uchar2(
+            conv_16to8(SUB_F(uv, 1)),
+            conv_16to8(SUB_F(uv, 2))
+        );
+    }
+};
+
+struct Convert_planar16_semiplanar10
+{
+    static const int in_bit_depth = 16;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef ushort out_T;
+    typedef ushort2 out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_16to10(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = make_ushort2(
+            conv_16to10(SUB_F(uv, 1)),
+            conv_16to10(SUB_F(uv, 2))
+        );
+    }
+};
+
+struct Convert_planar16_semiplanar16
+{
+    static const int in_bit_depth = 16;
+    typedef ushort in_T;
+    typedef ushort in_T_uv;
+    typedef ushort out_T;
+    typedef ushort2 out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = SUB_F(y, 0);
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        DEFAULT_DST(1) = make_ushort2(
+            SUB_F(uv, 1),
+            SUB_F(uv, 2)
+        );
+    }
+};
+
+// semiplanar8->X
+
+struct Convert_semiplanar8_planar8
 {
     static const int in_bit_depth = 8;
     typedef uchar in_T;
@@ -232,7 +510,49 @@ struct Convert_nv12_yuv420p
     }
 };
 
-struct Convert_nv12_nv12
+struct Convert_semiplanar8_planar10
+{
+    static const int in_bit_depth = 8;
+    typedef uchar in_T;
+    typedef uchar2 in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_8to10pl(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        in_T_uv res = SUB_F(uv, 1);
+        DEFAULT_DST(1) = conv_8to10pl(res.x);
+        DEFAULT_DST(2) = conv_8to10pl(res.y);
+    }
+};
+
+struct Convert_semiplanar8_planar16
+{
+    static const int in_bit_depth = 8;
+    typedef uchar in_T;
+    typedef uchar2 in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_8to16(SUB_F(y, 0), mask_16bit);
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        in_T_uv res = SUB_F(uv, 1);
+        DEFAULT_DST(1) = conv_8to16(res.x, mask_16bit);
+        DEFAULT_DST(2) = conv_8to16(res.y, mask_16bit);
+    }
+};
+
+struct Convert_semiplanar8_semiplanar8
 {
     static const int in_bit_depth = 8;
     typedef uchar in_T;
@@ -251,28 +571,7 @@ struct Convert_nv12_nv12
     }
 };
 
-struct Convert_nv12_yuv444p
-{
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar2 in_T_uv;
-    typedef uchar out_T;
-    typedef uchar out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = SUB_F(y, 0);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        in_T_uv res = SUB_F(uv, 1);
-        DEFAULT_DST(1) = res.x;
-        DEFAULT_DST(2) = res.y;
-    }
-};
-
-struct Convert_nv12_p010le
+struct Convert_semiplanar8_semiplanar10
 {
     static const int in_bit_depth = 8;
     typedef uchar in_T;
@@ -295,7 +594,7 @@ struct Convert_nv12_p010le
     }
 };
 
-struct Convert_nv12_p016le
+struct Convert_semiplanar8_semiplanar16
 {
     static const int in_bit_depth = 8;
     typedef uchar in_T;
@@ -318,158 +617,9 @@ struct Convert_nv12_p016le
     }
 };
 
-struct Convert_nv12_yuv444p16le
-{
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar2 in_T_uv;
-    typedef ushort out_T;
-    typedef ushort out_T_uv;
+// semiplanar10->X
 
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_8to16(SUB_F(y, 0), mask_16bit);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        in_T_uv res = SUB_F(uv, 1);
-        DEFAULT_DST(1) = conv_8to16(res.x, mask_16bit);
-        DEFAULT_DST(2) = conv_8to16(res.y, mask_16bit);
-    }
-};
-
-// yuv444p->X
-
-struct Convert_yuv444p_yuv420p
-{
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar in_T_uv;
-    typedef uchar out_T;
-    typedef uchar out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = SUB_F(y, 0);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = SUB_F(uv, 1);
-        DEFAULT_DST(2) = SUB_F(uv, 2);
-    }
-};
-
-struct Convert_yuv444p_nv12
-{
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar in_T_uv;
-    typedef uchar out_T;
-    typedef uchar2 out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = SUB_F(y, 0);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = make_uchar2(
-            SUB_F(uv, 1),
-            SUB_F(uv, 2)
-        );
-    }
-};
-
-struct Convert_yuv444p_yuv444p
-{
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar in_T_uv;
-    typedef uchar out_T;
-    typedef uchar out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = SUB_F(y, 0);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = SUB_F(uv, 1);
-        DEFAULT_DST(2) = SUB_F(uv, 2);
-    }
-};
-
-struct Convert_yuv444p_p010le
-{
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar in_T_uv;
-    typedef ushort out_T;
-    typedef ushort2 out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_8to16(SUB_F(y, 0), mask_10bit);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = make_ushort2(
-            conv_8to16(SUB_F(uv, 1), mask_10bit),
-            conv_8to16(SUB_F(uv, 2), mask_10bit)
-        );
-    }
-};
-
-struct Convert_yuv444p_p016le
-{
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar in_T_uv;
-    typedef ushort out_T;
-    typedef ushort2 out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_8to16(SUB_F(y, 0), mask_16bit);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = make_ushort2(
-            conv_8to16(SUB_F(uv, 1), mask_16bit),
-            conv_8to16(SUB_F(uv, 2), mask_16bit)
-        );
-    }
-};
-
-struct Convert_yuv444p_yuv444p16le
-{
-    static const int in_bit_depth = 8;
-    typedef uchar in_T;
-    typedef uchar in_T_uv;
-    typedef ushort out_T;
-    typedef ushort out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_8to16(SUB_F(y, 0), mask_16bit);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = conv_8to16(SUB_F(uv, 1), mask_16bit);
-        DEFAULT_DST(2) = conv_8to16(SUB_F(uv, 2), mask_16bit);
-    }
-};
-
-// p010le->X
-
-struct Convert_p010le_yuv420p
+struct Convert_semiplanar10_planar8
 {
     static const int in_bit_depth = 10;
     typedef ushort in_T;
@@ -490,7 +640,49 @@ struct Convert_p010le_yuv420p
     }
 };
 
-struct Convert_p010le_nv12
+struct Convert_semiplanar10_planar10
+{
+    static const int in_bit_depth = 10;
+    typedef ushort in_T;
+    typedef ushort2 in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = SUB_F(y, 0) >> 6;
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        in_T_uv res = SUB_F(uv, 1);
+        DEFAULT_DST(1) = res.x >> 6;
+        DEFAULT_DST(2) = res.y >> 6;
+    }
+};
+
+struct Convert_semiplanar10_planar16
+{
+    static const int in_bit_depth = 10;
+    typedef ushort in_T;
+    typedef ushort2 in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_10to16(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        in_T_uv res = SUB_F(uv, 1);
+        DEFAULT_DST(1) = conv_10to16(res.x);
+        DEFAULT_DST(2) = conv_10to16(res.y);
+    }
+};
+
+struct Convert_semiplanar10_semiplanar8
 {
     static const int in_bit_depth = 10;
     typedef ushort in_T;
@@ -513,28 +705,7 @@ struct Convert_p010le_nv12
     }
 };
 
-struct Convert_p010le_yuv444p
-{
-    static const int in_bit_depth = 10;
-    typedef ushort in_T;
-    typedef ushort2 in_T_uv;
-    typedef uchar out_T;
-    typedef uchar out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_10to8(SUB_F(y, 0));
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        in_T_uv res = SUB_F(uv, 1);
-        DEFAULT_DST(1) = conv_10to8(res.x);
-        DEFAULT_DST(2) = conv_10to8(res.y);
-    }
-};
-
-struct Convert_p010le_p010le
+struct Convert_semiplanar10_semiplanar10
 {
     static const int in_bit_depth = 10;
     typedef ushort in_T;
@@ -553,7 +724,7 @@ struct Convert_p010le_p010le
     }
 };
 
-struct Convert_p010le_p016le
+struct Convert_semiplanar10_semiplanar16
 {
     static const int in_bit_depth = 10;
     typedef ushort in_T;
@@ -576,30 +747,10 @@ struct Convert_p010le_p016le
     }
 };
 
-struct Convert_p010le_yuv444p16le
-{
-    static const int in_bit_depth = 10;
-    typedef ushort in_T;
-    typedef ushort2 in_T_uv;
-    typedef ushort out_T;
-    typedef ushort out_T_uv;
 
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_10to16(SUB_F(y, 0));
-    }
+// semiplanar16->X
 
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        in_T_uv res = SUB_F(uv, 1);
-        DEFAULT_DST(1) = conv_10to16(res.x);
-        DEFAULT_DST(2) = conv_10to16(res.y);
-    }
-};
-
-// p016le->X
-
-struct Convert_p016le_yuv420p
+struct Convert_semiplanar16_planar8
 {
     static const int in_bit_depth = 16;
     typedef ushort in_T;
@@ -620,7 +771,49 @@ struct Convert_p016le_yuv420p
     }
 };
 
-struct Convert_p016le_nv12
+struct Convert_semiplanar16_planar10
+{
+    static const int in_bit_depth = 16;
+    typedef ushort in_T;
+    typedef ushort2 in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = conv_16to10pl(SUB_F(y, 0));
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        in_T_uv res = SUB_F(uv, 1);
+        DEFAULT_DST(1) = conv_16to10pl(res.x);
+        DEFAULT_DST(2) = conv_16to10pl(res.y);
+    }
+};
+
+struct Convert_semiplanar16_planar16
+{
+    static const int in_bit_depth = 16;
+    typedef ushort in_T;
+    typedef ushort2 in_T_uv;
+    typedef ushort out_T;
+    typedef ushort out_T_uv;
+
+    DEF_F(Convert, out_T)
+    {
+        DEFAULT_DST(0) = SUB_F(y, 0);
+    }
+
+    DEF_F(Convert_uv, out_T_uv)
+    {
+        in_T_uv res = SUB_F(uv, 1);
+        DEFAULT_DST(1) = res.x;
+        DEFAULT_DST(2) = res.y;
+    }
+};
+
+struct Convert_semiplanar16_semiplanar8
 {
     static const int in_bit_depth = 16;
     typedef ushort in_T;
@@ -643,28 +836,7 @@ struct Convert_p016le_nv12
     }
 };
 
-struct Convert_p016le_yuv444p
-{
-    static const int in_bit_depth = 16;
-    typedef ushort in_T;
-    typedef ushort2 in_T_uv;
-    typedef uchar out_T;
-    typedef uchar out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_16to8(SUB_F(y, 0));
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        in_T_uv res = SUB_F(uv, 1);
-        DEFAULT_DST(1) = conv_16to8(res.x);
-        DEFAULT_DST(2) = conv_16to8(res.y);
-    }
-};
-
-struct Convert_p016le_p010le
+struct Convert_semiplanar16_semiplanar10
 {
     static const int in_bit_depth = 16;
     typedef ushort in_T;
@@ -687,7 +859,7 @@ struct Convert_p016le_p010le
     }
 };
 
-struct Convert_p016le_p016le
+struct Convert_semiplanar16_semiplanar16
 {
     static const int in_bit_depth = 16;
     typedef ushort in_T;
@@ -703,155 +875,6 @@ struct Convert_p016le_p016le
     DEF_F(Convert_uv, out_T_uv)
     {
         DEFAULT_DST(1) = SUB_F(uv, 1);
-    }
-};
-
-struct Convert_p016le_yuv444p16le
-{
-    static const int in_bit_depth = 16;
-    typedef ushort in_T;
-    typedef ushort2 in_T_uv;
-    typedef ushort out_T;
-    typedef ushort out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = SUB_F(y, 0);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        in_T_uv res = SUB_F(uv, 1);
-        DEFAULT_DST(1) = res.x;
-        DEFAULT_DST(2) = res.y;
-    }
-};
-
-// yuv444p16le->X
-
-struct Convert_yuv444p16le_yuv420p
-{
-    static const int in_bit_depth = 16;
-    typedef ushort in_T;
-    typedef ushort in_T_uv;
-    typedef uchar out_T;
-    typedef uchar out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_16to8(SUB_F(y, 0));
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = conv_16to8(SUB_F(uv, 1));
-        DEFAULT_DST(2) = conv_16to8(SUB_F(uv, 2));
-    }
-};
-
-struct Convert_yuv444p16le_nv12
-{
-    static const int in_bit_depth = 16;
-    typedef ushort in_T;
-    typedef ushort in_T_uv;
-    typedef uchar out_T;
-    typedef uchar2 out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_16to8(SUB_F(y, 0));
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = make_uchar2(
-            conv_16to8(SUB_F(uv, 1)),
-            conv_16to8(SUB_F(uv, 2))
-        );
-    }
-};
-
-struct Convert_yuv444p16le_yuv444p
-{
-    static const int in_bit_depth = 16;
-    typedef ushort in_T;
-    typedef ushort in_T_uv;
-    typedef uchar out_T;
-    typedef uchar out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_16to8(SUB_F(y, 0));
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = conv_16to8(SUB_F(uv, 1));
-        DEFAULT_DST(2) = conv_16to8(SUB_F(uv, 2));
-    }
-};
-
-struct Convert_yuv444p16le_p010le
-{
-    static const int in_bit_depth = 16;
-    typedef ushort in_T;
-    typedef ushort in_T_uv;
-    typedef ushort out_T;
-    typedef ushort2 out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = conv_16to10(SUB_F(y, 0));
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = make_ushort2(
-            conv_16to10(SUB_F(uv, 1)),
-            conv_16to10(SUB_F(uv, 2))
-        );
-    }
-};
-
-struct Convert_yuv444p16le_p016le
-{
-    static const int in_bit_depth = 16;
-    typedef ushort in_T;
-    typedef ushort in_T_uv;
-    typedef ushort out_T;
-    typedef ushort2 out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = SUB_F(y, 0);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = make_ushort2(
-            SUB_F(uv, 1),
-            SUB_F(uv, 2)
-        );
-    }
-};
-
-struct Convert_yuv444p16le_yuv444p16le
-{
-    static const int in_bit_depth = 16;
-    typedef ushort in_T;
-    typedef ushort in_T_uv;
-    typedef ushort out_T;
-    typedef ushort out_T_uv;
-
-    DEF_F(Convert, out_T)
-    {
-        DEFAULT_DST(0) = SUB_F(y, 0);
-    }
-
-    DEF_F(Convert_uv, out_T_uv)
-    {
-        DEFAULT_DST(1) = SUB_F(uv, 1);
-        DEFAULT_DST(2) = SUB_F(uv, 2);
     }
 };
 
@@ -1184,12 +1207,12 @@ extern "C" {
     NEAREST_KERNEL(C,_uv)
 
 #define NEAREST_KERNELS(C) \
-    NEAREST_KERNEL_RAW(yuv420p_ ## C)     \
-    NEAREST_KERNEL_RAW(nv12_ ## C)        \
-    NEAREST_KERNEL_RAW(yuv444p_ ## C)     \
-    NEAREST_KERNEL_RAW(p010le_ ## C)      \
-    NEAREST_KERNEL_RAW(p016le_ ## C)      \
-    NEAREST_KERNEL_RAW(yuv444p16le_ ## C)
+    NEAREST_KERNEL_RAW(planar8_ ## C)      \
+    NEAREST_KERNEL_RAW(planar10_ ## C)     \
+    NEAREST_KERNEL_RAW(planar16_ ## C)     \
+    NEAREST_KERNEL_RAW(semiplanar8_ ## C)  \
+    NEAREST_KERNEL_RAW(semiplanar10_ ## C) \
+    NEAREST_KERNEL_RAW(semiplanar16_ ## C)
 
 #define NEAREST_KERNELS_RGB(C) \
     NEAREST_KERNEL_RAW(rgb0_ ## C)  \
@@ -1197,12 +1220,12 @@ extern "C" {
     NEAREST_KERNEL_RAW(rgba_ ## C)  \
     NEAREST_KERNEL_RAW(bgra_ ## C)  \
 
-NEAREST_KERNELS(yuv420p)
-NEAREST_KERNELS(nv12)
-NEAREST_KERNELS(yuv444p)
-NEAREST_KERNELS(p010le)
-NEAREST_KERNELS(p016le)
-NEAREST_KERNELS(yuv444p16le)
+NEAREST_KERNELS(planar8)
+NEAREST_KERNELS(planar10)
+NEAREST_KERNELS(planar16)
+NEAREST_KERNELS(semiplanar8)
+NEAREST_KERNELS(semiplanar10)
+NEAREST_KERNELS(semiplanar16)
 
 NEAREST_KERNELS_RGB(rgb0)
 NEAREST_KERNELS_RGB(bgr0)
@@ -1224,12 +1247,12 @@ NEAREST_KERNELS_RGB(bgra)
     BILINEAR_KERNEL(C,_uv)
 
 #define BILINEAR_KERNELS(C) \
-    BILINEAR_KERNEL_RAW(yuv420p_ ## C)     \
-    BILINEAR_KERNEL_RAW(nv12_ ## C)        \
-    BILINEAR_KERNEL_RAW(yuv444p_ ## C)     \
-    BILINEAR_KERNEL_RAW(p010le_ ## C)      \
-    BILINEAR_KERNEL_RAW(p016le_ ## C)      \
-    BILINEAR_KERNEL_RAW(yuv444p16le_ ## C)
+    BILINEAR_KERNEL_RAW(planar8_ ## C)      \
+    BILINEAR_KERNEL_RAW(planar10_ ## C)     \
+    BILINEAR_KERNEL_RAW(planar16_ ## C)     \
+    BILINEAR_KERNEL_RAW(semiplanar8_ ## C)  \
+    BILINEAR_KERNEL_RAW(semiplanar10_ ## C) \
+    BILINEAR_KERNEL_RAW(semiplanar16_ ## C)
 
 #define BILINEAR_KERNELS_RGB(C)     \
     BILINEAR_KERNEL_RAW(rgb0_ ## C) \
@@ -1237,12 +1260,12 @@ NEAREST_KERNELS_RGB(bgra)
     BILINEAR_KERNEL_RAW(rgba_ ## C) \
     BILINEAR_KERNEL_RAW(bgra_ ## C)
 
-BILINEAR_KERNELS(yuv420p)
-BILINEAR_KERNELS(nv12)
-BILINEAR_KERNELS(yuv444p)
-BILINEAR_KERNELS(p010le)
-BILINEAR_KERNELS(p016le)
-BILINEAR_KERNELS(yuv444p16le)
+BILINEAR_KERNELS(planar8)
+BILINEAR_KERNELS(planar10)
+BILINEAR_KERNELS(planar16)
+BILINEAR_KERNELS(semiplanar8)
+BILINEAR_KERNELS(semiplanar10)
+BILINEAR_KERNELS(semiplanar16)
 
 BILINEAR_KERNELS_RGB(rgb0)
 BILINEAR_KERNELS_RGB(bgr0)
@@ -1264,12 +1287,12 @@ BILINEAR_KERNELS_RGB(bgra)
     BICUBIC_KERNEL(C,_uv)
 
 #define BICUBIC_KERNELS(C) \
-    BICUBIC_KERNEL_RAW(yuv420p_ ## C)     \
-    BICUBIC_KERNEL_RAW(nv12_ ## C)        \
-    BICUBIC_KERNEL_RAW(yuv444p_ ## C)     \
-    BICUBIC_KERNEL_RAW(p010le_ ## C)      \
-    BICUBIC_KERNEL_RAW(p016le_ ## C)      \
-    BICUBIC_KERNEL_RAW(yuv444p16le_ ## C)
+    BICUBIC_KERNEL_RAW(planar8_ ## C)      \
+    BICUBIC_KERNEL_RAW(planar10_ ## C)     \
+    BICUBIC_KERNEL_RAW(planar16_ ## C)     \
+    BICUBIC_KERNEL_RAW(semiplanar8_ ## C)  \
+    BICUBIC_KERNEL_RAW(semiplanar10_ ## C) \
+    BICUBIC_KERNEL_RAW(semiplanar16_ ## C)
 
 #define BICUBIC_KERNELS_RGB(C)      \
     BICUBIC_KERNEL_RAW(rgb0_ ## C)  \
@@ -1277,12 +1300,12 @@ BILINEAR_KERNELS_RGB(bgra)
     BICUBIC_KERNEL_RAW(rgba_ ## C)  \
     BICUBIC_KERNEL_RAW(bgra_ ## C)
 
-BICUBIC_KERNELS(yuv420p)
-BICUBIC_KERNELS(nv12)
-BICUBIC_KERNELS(yuv444p)
-BICUBIC_KERNELS(p010le)
-BICUBIC_KERNELS(p016le)
-BICUBIC_KERNELS(yuv444p16le)
+BICUBIC_KERNELS(planar8)
+BICUBIC_KERNELS(planar10)
+BICUBIC_KERNELS(planar16)
+BICUBIC_KERNELS(semiplanar8)
+BICUBIC_KERNELS(semiplanar10)
+BICUBIC_KERNELS(semiplanar16)
 
 BICUBIC_KERNELS_RGB(rgb0)
 BICUBIC_KERNELS_RGB(bgr0)
@@ -1304,12 +1327,12 @@ BICUBIC_KERNELS_RGB(bgra)
     LANCZOS_KERNEL(C,_uv)
 
 #define LANCZOS_KERNELS(C) \
-    LANCZOS_KERNEL_RAW(yuv420p_ ## C)     \
-    LANCZOS_KERNEL_RAW(nv12_ ## C)        \
-    LANCZOS_KERNEL_RAW(yuv444p_ ## C)     \
-    LANCZOS_KERNEL_RAW(p010le_ ## C)      \
-    LANCZOS_KERNEL_RAW(p016le_ ## C)      \
-    LANCZOS_KERNEL_RAW(yuv444p16le_ ## C)
+    LANCZOS_KERNEL_RAW(planar8_ ## C)      \
+    LANCZOS_KERNEL_RAW(planar10_ ## C)     \
+    LANCZOS_KERNEL_RAW(planar16_ ## C)     \
+    LANCZOS_KERNEL_RAW(semiplanar8_ ## C)  \
+    LANCZOS_KERNEL_RAW(semiplanar10_ ## C) \
+    LANCZOS_KERNEL_RAW(semiplanar16_ ## C)
 
 #define LANCZOS_KERNELS_RGB(C)      \
     LANCZOS_KERNEL_RAW(rgb0_ ## C)  \
@@ -1317,12 +1340,12 @@ BICUBIC_KERNELS_RGB(bgra)
     LANCZOS_KERNEL_RAW(rgba_ ## C)  \
     LANCZOS_KERNEL_RAW(bgra_ ## C)
 
-LANCZOS_KERNELS(yuv420p)
-LANCZOS_KERNELS(nv12)
-LANCZOS_KERNELS(yuv444p)
-LANCZOS_KERNELS(p010le)
-LANCZOS_KERNELS(p016le)
-LANCZOS_KERNELS(yuv444p16le)
+LANCZOS_KERNELS(planar8)
+LANCZOS_KERNELS(planar10)
+LANCZOS_KERNELS(planar16)
+LANCZOS_KERNELS(semiplanar8)
+LANCZOS_KERNELS(semiplanar10)
+LANCZOS_KERNELS(semiplanar16)
 
 LANCZOS_KERNELS_RGB(rgb0)
 LANCZOS_KERNELS_RGB(bgr0)
