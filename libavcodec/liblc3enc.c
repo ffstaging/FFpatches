@@ -137,9 +137,29 @@ static int liblc3_encode(AVCodecContext *avctx, AVPacket *pkt,
     LibLC3EncContext *liblc3 = avctx->priv_data;
     int block_bytes = liblc3->block_bytes;
     int channels = avctx->ch_layout.nb_channels;
+    enum lc3_pcm_format lc3_format;
     void *zero_frame = NULL;
-    uint8_t *data_ptr;
+    size_t sample_size;
+    int is_planar;
     int ret;
+
+    is_planar = av_sample_fmt_is_planar(avctx->sample_fmt);
+    sample_size = av_get_bytes_per_sample(avctx->sample_fmt);
+
+    switch (avctx->sample_fmt) {
+        case AV_SAMPLE_FMT_S16P:
+        case AV_SAMPLE_FMT_S16:
+            lc3_format = LC3_PCM_FORMAT_S16;
+            break;
+        case AV_SAMPLE_FMT_FLT:
+        case AV_SAMPLE_FMT_FLTP:
+            lc3_format = LC3_PCM_FORMAT_FLOAT;
+            break;
+        default:
+            av_log(avctx, AV_LOG_ERROR, "Unsupported sample format: %s\n",
+                    av_get_sample_fmt_name(avctx->sample_fmt));
+            return AVERROR(EINVAL);
+    }
 
     if ((ret = ff_get_encode_buffer(avctx, pkt, block_bytes, 0)) < 0)
         return ret;
@@ -152,20 +172,30 @@ static int liblc3_encode(AVCodecContext *avctx, AVPacket *pkt,
             return 0;
 
         liblc3->remaining_samples = 0;
-        zero_frame = av_mallocz(avctx->frame_size * sizeof(float));
+        zero_frame = av_mallocz(avctx->frame_size * channels * sample_size);
         if (!zero_frame)
             return AVERROR(ENOMEM);
     }
 
-    data_ptr = pkt->data;
     for (int ch = 0; ch < channels; ch++) {
-        const float *pcm = zero_frame ? zero_frame : frame->data[ch];
         int nbytes = block_bytes / channels + (ch < block_bytes % channels);
+        const void *pcm;
+        int stride;
+
+        if (zero_frame) {
+            pcm = (uint8_t *)zero_frame + ch * (is_planar ? avctx->frame_size * sample_size : sample_size);
+        } else {
+            if (is_planar) {
+                pcm = frame->data[ch];
+                stride = 1;
+            } else {
+                pcm = frame->data[0] + ch * sample_size;
+                stride = channels;
+            }
+        }
 
         lc3_encode(liblc3->encoder[ch],
-                   LC3_PCM_FORMAT_FLOAT, pcm, 1, nbytes, data_ptr);
-
-        data_ptr += nbytes;
+                   lc3_format, pcm, stride, nbytes, pkt->data + ch * nbytes);
     }
 
     if (zero_frame)
@@ -204,7 +234,7 @@ const FFCodec ff_liblc3_encoder = {
     .p.priv_class   = &class,
     .p.wrapper_name = "liblc3",
     CODEC_SAMPLERATES(96000, 48000, 32000, 24000, 16000, 8000),
-    CODEC_SAMPLEFMTS(AV_SAMPLE_FMT_FLTP),
+    CODEC_SAMPLEFMTS(AV_SAMPLE_FMT_FLT, AV_SAMPLE_FMT_FLTP, AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_S16P),
     .priv_data_size = sizeof(LibLC3EncContext),
     .init           = liblc3_encode_init,
     .close          = liblc3_encode_close,

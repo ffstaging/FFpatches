@@ -82,7 +82,12 @@ static av_cold int liblc3_decode_init(AVCodecContext *avctx)
             (char *)liblc3->decoder_mem + ch * decoder_size);
     }
 
-    avctx->sample_fmt = AV_SAMPLE_FMT_FLTP;
+    if (avctx->request_sample_fmt != AV_SAMPLE_FMT_NONE) {
+        avctx->sample_fmt = avctx->request_sample_fmt;
+    } else {
+        avctx->sample_fmt = AV_SAMPLE_FMT_S16;
+    }
+
     avctx->delay = lc3_hr_delay_samples(
         liblc3->hr_mode, liblc3->frame_us, liblc3->srate_hz);
     avctx->internal->skip_samples = avctx->delay;
@@ -104,8 +109,10 @@ static int liblc3_decode(AVCodecContext *avctx, AVFrame *frame,
 {
     LibLC3DecContext *liblc3 = avctx->priv_data;
     int channels = avctx->ch_layout.nb_channels;
-    uint8_t *in = avpkt->data;
+    enum lc3_pcm_format liblc3_format;
     int block_bytes, ret;
+    size_t sample_size;
+    int is_planar;
 
     frame->nb_samples = av_rescale(
         liblc3->frame_us, liblc3->srate_hz, 1000*1000);
@@ -113,15 +120,43 @@ static int liblc3_decode(AVCodecContext *avctx, AVFrame *frame,
         return ret;
 
     block_bytes = avpkt->size;
+
+    switch (avctx->sample_fmt) {
+        case AV_SAMPLE_FMT_S16:
+        case AV_SAMPLE_FMT_S16P:
+            liblc3_format = LC3_PCM_FORMAT_S16;
+            break;
+        case AV_SAMPLE_FMT_FLT:
+        case AV_SAMPLE_FMT_FLTP:
+            liblc3_format = LC3_PCM_FORMAT_FLOAT;
+            break;
+        default:
+            av_log(NULL, AV_LOG_ERROR,
+                "Unsupported sample format %s\n",
+                av_get_sample_fmt_name(avctx->sample_fmt));
+            return AVERROR(EINVAL);
+    }
+
+    is_planar = av_sample_fmt_is_planar(avctx->sample_fmt);
+    sample_size = av_get_bytes_per_sample(avctx->sample_fmt);
+
     for (int ch = 0; ch < channels; ch++) {
         int nbytes = block_bytes / channels + (ch < block_bytes % channels);
+        void *pcm_data;
+        int stride;
 
-        ret = lc3_decode(liblc3->decoder[ch], in, nbytes,
-                         LC3_PCM_FORMAT_FLOAT, frame->data[ch], 1);
+        if (is_planar) {
+            pcm_data = frame->extended_data[ch];
+            stride = 1;
+        } else {
+            pcm_data = (uint8_t *)frame->extended_data[0] + ch * sample_size;
+            stride = channels;
+        }
+
+        ret = lc3_decode(liblc3->decoder[ch], avpkt->data + ch * nbytes, nbytes,
+                         liblc3_format, pcm_data, stride);
         if (ret < 0)
             return AVERROR_INVALIDDATA;
-
-        in += nbytes;
     }
 
     frame->nb_samples = FFMIN(frame->nb_samples, avpkt->duration);
