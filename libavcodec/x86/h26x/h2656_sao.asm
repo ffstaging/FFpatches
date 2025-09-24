@@ -23,10 +23,8 @@
 
 %include "libavutil/x86/x86util.asm"
 
-SECTION_RODATA 32
-
-pb_edge_shuffle: times 2 db 1, 2, 0, 3, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
-pb_eo:                   db -1, 0, 1, 0, 0, -1, 0, 1, -1, -1, 1, 1, 1, -1, -1, 1
+cextern pb_edge_shuffle
+cextern pb_eo
 cextern pb_1
 cextern pb_2
 

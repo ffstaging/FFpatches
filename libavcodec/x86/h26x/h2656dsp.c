@@ -22,6 +22,16 @@
  */
 
 #include "h2656dsp.h"
+#include "libavutil/mem_internal.h"
+#include "libavutil/x86/asm.h"
+
+DECLARE_ALIGNED(32, const ymm_reg,  ff_pw_m2) = { 0xFFFEFFFEFFFEFFFEULL, 0xFFFEFFFEFFFEFFFEULL,
+                                                  0xFFFEFFFEFFFEFFFEULL, 0xFFFEFFFEFFFEFFFEULL };
+
+DECLARE_ALIGNED(32, const ymm_reg,  ff_pb_edge_shuffle) = { 0xFFFFFF0403000201ULL, 0xFFFFFFFFFFFFFFFFULL,
+                                                            0xFFFFFF0403000201ULL, 0xFFFFFFFFFFFFFFFFULL };
+const uint8_t ff_pb_eo[16] = { -1, 0, 1, 0, 0, -1, 0, 1, -1, -1, 1, 1, 1, -1, -1, 1 };
+
 
 #define mc_rep_func(name, bitd, step, W, opt) \
 void ff_h2656_put_##name##W##_##bitd##_##opt(int16_t *_dst, ptrdiff_t dststride,                                \

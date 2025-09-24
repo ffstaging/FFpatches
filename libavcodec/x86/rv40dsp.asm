@@ -25,8 +25,6 @@
 
 SECTION_RODATA
 
-pw_1024:   times 8 dw 1 << (16 - 6) ; pw_1024
-
 sixtap_filter_hb_m:  times 8 db   1, -5
                      times 8 db  52, 20
                      ; multiplied by 2 to have the same shift
@@ -70,6 +68,7 @@ filter_h6_shuf3: db 5, 4, 6, 5, 7, 6, 8, 7, 9, 8, 10, 9, 11, 10, 12, 11
 cextern  pw_32
 cextern  pw_16
 cextern  pw_512
+cextern  pw_1024
 
 SECTION .text
 

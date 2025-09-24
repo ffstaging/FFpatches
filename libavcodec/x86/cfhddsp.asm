@@ -23,15 +23,16 @@
 
 SECTION_RODATA
 
-factor_p1_n1: dw 1, -1, 1, -1, 1, -1, 1, -1,
-factor_n1_p1: dw -1, 1, -1, 1, -1, 1, -1, 1,
+cextern pw_p1_m1
+cextern pw_m1_p1
 factor_p11_n4: dw 11, -4, 11, -4, 11, -4, 11, -4,
 factor_p5_p4: dw 5, 4, 5, 4, 5, 4, 5, 4,
-pd_4: times 4 dd 4
-pw_1: times 8 dw 1
-pw_0: times 8 dw 0
-pw_1023: times 8 dw 1023
-pw_4095: times 8 dw 4095
+cextern pd_4
+cextern pw_1
+cextern pb_0
+%define pw_0 pb_0
+cextern pw_1023
+cextern pw_4095
 
 SECTION .text
 
@@ -79,8 +80,8 @@ cglobal cfhd_horiz_filter, 7, 7, 8, output, x, low, y, high, temp, width, height
 %endif
 
 %if ARCH_X86_64
-    mova       m8, [factor_p1_n1]
-    mova       m9, [factor_n1_p1]
+    mova       m8, [pw_p1_m1]
+    mova       m9, [pw_m1_p1]
     mova      m10, [pw_1]
     mova      m11, [pd_4]
 %endif
@@ -158,10 +159,10 @@ cglobal cfhd_horiz_filter, 7, 7, 8, output, x, low, y, high, temp, width, height
     paddd          m6, m11
     paddd          m7, m11
 %else
-    pmaddwd        m4, [factor_p1_n1]
-    pmaddwd        m5, [factor_p1_n1]
-    pmaddwd        m6, [factor_n1_p1]
-    pmaddwd        m7, [factor_n1_p1]
+    pmaddwd        m4, [pw_p1_m1]
+    pmaddwd        m5, [pw_p1_m1]
+    pmaddwd        m6, [pw_m1_p1]
+    pmaddwd        m7, [pw_m1_p1]
 
     paddd          m4, [pd_4]
     paddd          m5, [pd_4]
@@ -192,8 +193,8 @@ cglobal cfhd_horiz_filter, 7, 7, 8, output, x, low, y, high, temp, width, height
 %else
     pmaddwd        m2, [pw_1]
     pmaddwd        m0, [pw_1]
-    pmaddwd        m1, [factor_p1_n1]
-    pmaddwd        m3, [factor_p1_n1]
+    pmaddwd        m1, [pw_p1_m1]
+    pmaddwd        m3, [pw_p1_m1]
 %endif
 
     paddd          m2, m4
@@ -312,8 +313,8 @@ cglobal cfhd_vert_filter, 8, 11, 14, output, ostride, low, lwidth, high, hwidth,
 
     dec   heightd
 
-    mova       m8, [factor_p1_n1]
-    mova       m9, [factor_n1_p1]
+    mova       m8, [pw_p1_m1]
+    mova       m9, [pw_m1_p1]
     mova      m10, [pw_1]
     mova      m11, [pd_4]
     mova      m12, [factor_p11_n4]
@@ -485,10 +486,10 @@ cglobal cfhd_vert_filter, 7, 7, 8, output, x, low, y, high, pos, width, height
     paddd      m6, m11
     paddd      m7, m11
 %else
-    pmaddwd    m4, [factor_p1_n1]
-    pmaddwd    m5, [factor_p1_n1]
-    pmaddwd    m6, [factor_n1_p1]
-    pmaddwd    m7, [factor_n1_p1]
+    pmaddwd    m4, [pw_p1_m1]
+    pmaddwd    m5, [pw_p1_m1]
+    pmaddwd    m6, [pw_m1_p1]
+    pmaddwd    m7, [pw_m1_p1]
 
     paddd      m4, [pd_4]
     paddd      m5, [pd_4]
@@ -524,8 +525,8 @@ cglobal cfhd_vert_filter, 7, 7, 8, output, x, low, y, high, pos, width, height
 %else
     pmaddwd    m0, [pw_1]
     pmaddwd    m2, [pw_1]
-    pmaddwd    m1, [factor_p1_n1]
-    pmaddwd    m3, [factor_p1_n1]
+    pmaddwd    m1, [pw_p1_m1]
+    pmaddwd    m3, [pw_p1_m1]
 %endif
 
     paddd      m0, m4

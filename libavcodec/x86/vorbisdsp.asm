@@ -21,15 +21,13 @@
 
 %include "libavutil/x86/x86util.asm"
 
-SECTION_RODATA
-
-pdw_80000000: times 4 dd 0x80000000
+cextern ps_neg
 
 SECTION .text
 
 INIT_XMM sse
 cglobal vorbis_inverse_coupling, 3, 3, 6, mag, ang, block_size
-    mova                     m5, [pdw_80000000]
+    mova                     m5, [ps_neg]
     shl             block_sized, 2
     add                    magq, block_sizeq
     add                    angq, block_sizeq

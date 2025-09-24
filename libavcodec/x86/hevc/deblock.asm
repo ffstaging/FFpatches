@@ -24,17 +24,16 @@
 
 %include "libavutil/x86/x86util.asm"
 
-SECTION_RODATA
-
 cextern pw_1023
 %define pw_pixel_max_10 pw_1023
-pw_pixel_max_12: times 8 dw ((1 << 12)-1)
-pw_m2:           times 8 dw -2
-pd_1 :           times 4 dd  1
+cextern pw_4095
+%define pw_pixel_max_12 pw_4095
+cextern pd_1
 
 cextern pw_4
 cextern pw_8
 cextern pw_m1
+cextern pw_m2
 
 SECTION .text
 INIT_XMM sse2
