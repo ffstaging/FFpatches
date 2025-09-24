@@ -35,31 +35,22 @@
 #include "libavutil/channel_layout.h"
 #include "libavutil/frame.h"
 #include "libavutil/mem.h"
-#include "libavutil/opt.h"
 
 #include "codec_internal.h"
 #include "decode.h"
 
 #define MAX_LOST_FRAMES 2
-// 32-bit int * 22.2 * max framesize * (max delay frames + 1)
-#define MAX_OUTBUF_SIZE (sizeof(int32_t) * 24 * 3072 * (MAX_LOST_FRAMES + 1))
+// max framesize * (max delay frames + 1)
+#define PER_CHANNEL_OUTBUF_SIZE (3072 * (MAX_LOST_FRAMES + 1))
 
 typedef struct MPEGH3DADecContext {
-    AVClass *av_class;
     // pointer to the decoder
     HANDLE_MPEGH_DECODER_CONTEXT decoder;
 
     // Internal values
     int32_t *decoder_buffer;
-    int decoder_buffer_size;
+    int decoder_buffer_size; ///< in samples
 } MPEGH3DADecContext;
-
-// private class definition for ffmpeg
-static const AVClass mpegh3da_class = {
-    .class_name = "MPEG-H 3D Audio Decoder",
-    .item_name = av_default_item_name,
-    .version = LIBAVUTIL_VERSION_INT,
-};
 
 static av_cold int mpegh3dadec_close(AVCodecContext *avctx)
 {
@@ -169,18 +160,15 @@ static av_cold int mpegh3dadec_init(AVCodecContext *avctx)
     avctx->sample_fmt = AV_SAMPLE_FMT_S32;
     avctx->sample_rate = 48000;
 
-    s->decoder_buffer_size = MAX_OUTBUF_SIZE;
-    s->decoder_buffer = av_malloc(s->decoder_buffer_size);
-    if (!s->decoder_buffer) {
-        mpegh3dadec_close(avctx);
+    s->decoder_buffer_size = PER_CHANNEL_OUTBUF_SIZE * avctx->ch_layout.nb_channels;
+    s->decoder_buffer = av_malloc_array(s->decoder_buffer_size, sizeof(*s->decoder_buffer));
+    if (!s->decoder_buffer)
         return AVERROR(ENOMEM);
-    }
 
     // initialize the decoder
     s->decoder = mpeghdecoder_init(cicp);
     if (s->decoder == NULL) {
         av_log(avctx, AV_LOG_ERROR, "MPEG-H decoder library init failed.\n");
-        mpegh3dadec_close(avctx);
         return AVERROR_EXTERNAL;
     }
 
@@ -188,7 +176,6 @@ static av_cold int mpegh3dadec_init(AVCodecContext *avctx)
         if (mpeghdecoder_setMhaConfig(s->decoder, avctx->extradata,
                                       avctx->extradata_size)) {
             av_log(avctx, AV_LOG_ERROR, "Unable to set MHA configuration\n");
-            mpegh3dadec_close(avctx);
             return AVERROR_INVALIDDATA;
         }
     }
@@ -227,7 +214,7 @@ static int mpegh3dadec_decode_frame(AVCodecContext *avctx, AVFrame *frame,
     }
 
     err = mpeghdecoder_getSamples(s->decoder, s->decoder_buffer,
-                                  s->decoder_buffer_size / sizeof(int32_t),
+                                  s->decoder_buffer_size,
                                   &out_info);
     if (err == MPEGH_DEC_FEED_DATA) {
         // no frames to produce at the moment
@@ -238,7 +225,7 @@ static int mpegh3dadec_decode_frame(AVCodecContext *avctx, AVFrame *frame,
         return AVERROR_UNKNOWN;
     }
 
-    frame->nb_samples = avctx->frame_size = out_info.numSamplesPerChannel;
+    frame->nb_samples  = out_info.numSamplesPerChannel;
     frame->sample_rate = avctx->sample_rate = out_info.sampleRate;
     frame->pts = out_info.ticks;
     frame->time_base.num = 1;
@@ -248,8 +235,8 @@ static int mpegh3dadec_decode_frame(AVCodecContext *avctx, AVFrame *frame,
         return ret;
 
     memcpy(frame->extended_data[0], s->decoder_buffer,
-           avctx->ch_layout.nb_channels * avctx->frame_size *
-               av_get_bytes_per_sample(avctx->sample_fmt));
+           avctx->ch_layout.nb_channels * frame->nb_samples *
+           sizeof(*s->decoder_buffer) /* only AV_SAMPLE_FMT_S32 is supported */);
 
     *got_frame_ptr = 1;
     return ret = avpkt->size;
@@ -260,9 +247,6 @@ static av_cold void mpegh3dadec_flush(AVCodecContext *avctx)
     MPEGH_DECODER_ERROR err;
     MPEGH3DADecContext *s = avctx->priv_data;
 
-    if (!s->decoder)
-        return;
-
     err = mpeghdecoder_flush(s->decoder);
 
     if (err != MPEGH_DEC_OK && err != MPEGH_DEC_FEED_DATA)
@@ -270,19 +254,17 @@ static av_cold void mpegh3dadec_flush(AVCodecContext *avctx)
 }
 
 const FFCodec ff_libmpeghdec_decoder = {
-    .p.name = "libmpeghdec",
+    .p.name         = "libmpeghdec",
     CODEC_LONG_NAME("libmpeghdec (MPEG-H 3D Audio)"),
-    .p.priv_class = &mpegh3da_class,
-    .p.type = AVMEDIA_TYPE_AUDIO,
-    .p.id = AV_CODEC_ID_MPEGH_3D_AUDIO,
-    .p.capabilities =
-        AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY | AV_CODEC_CAP_CHANNEL_CONF,
+    .p.type         = AVMEDIA_TYPE_AUDIO,
+    .p.id           = AV_CODEC_ID_MPEGH_3D_AUDIO,
+    .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY |
+                      AV_CODEC_CAP_CHANNEL_CONF,
+    .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
     .priv_data_size = sizeof(MPEGH3DADecContext),
-    .init = mpegh3dadec_init,
+    .init           = mpegh3dadec_init,
     FF_CODEC_DECODE_CB(mpegh3dadec_decode_frame),
-    .close = mpegh3dadec_close,
-    .flush = mpegh3dadec_flush,
-    CODEC_SAMPLEFMTS(AV_SAMPLE_FMT_S32),
-    .caps_internal = FF_CODEC_CAP_INIT_CLEANUP,
+    .flush          = mpegh3dadec_flush,
+    .close          = mpegh3dadec_close,
     .p.wrapper_name = "libmpeghdec",
 };
