@@ -248,7 +248,7 @@ static void framesync_inject_frame(FFFrameSync *fs, unsigned in, AVFrame *frame)
 
     av_assert0(!fs->in[in].have_next);
     av_assert0(frame);
-    pts = av_rescale_q(frame->pts, fs->in[in].time_base, fs->time_base);
+    pts = frame->pts == AV_NOPTS_VALUE ? frame->pts : av_rescale_q(frame->pts, fs->in[in].time_base, fs->time_base);
     frame->pts = pts;
     fs->in[in].frame_next = frame;
     fs->in[in].pts_next   = pts;
