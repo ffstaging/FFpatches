@@ -23,5 +23,8 @@
 
 void ff_h2656_put_pixels_8_rvv_256(int16_t *dst, const uint8_t *src, ptrdiff_t srcstride, int height, intptr_t mx, intptr_t my, int width);
 void ff_h2656_put_pixels_8_rvv_128(int16_t *dst, const uint8_t *src, ptrdiff_t srcstride, int height, intptr_t mx, intptr_t my, int width);
+void ff_hevc_sao_edge_filter_8_rvv(uint8_t *_dst, const uint8_t *_src,
+                                        ptrdiff_t stride_dst, const int16_t *sao_offset_val,
+                                        int sao_eo_class, int width, int height);
 
 #endif

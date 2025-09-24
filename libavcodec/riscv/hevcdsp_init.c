@@ -40,6 +40,20 @@ void ff_hevc_dsp_init_riscv(HEVCDSPContext *c, const int bit_depth)
     const int flags = av_get_cpu_flags();
     int vlenb;
 
+    if (flags & AV_CPU_FLAG_RVV_I32) {
+        switch (bit_depth) {
+            case 8:
+                c->sao_edge_filter[0]          =
+                c->sao_edge_filter[1]          =
+                c->sao_edge_filter[2]          =
+                c->sao_edge_filter[3]          =
+                c->sao_edge_filter[4]          = ff_hevc_sao_edge_filter_8_rvv;
+                break;
+            default:
+                break;
+        }
+    }
+
     if (!(flags & AV_CPU_FLAG_RVV_I32) || !(flags & AV_CPU_FLAG_RVB))
         return;
 
