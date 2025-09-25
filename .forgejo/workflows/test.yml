@@ -39,6 +39,8 @@ jobs:
         id: fate
         run: |
           make fate-rsync SAMPLES=$PWD/fate-suite
+          echo ${{ steps.cache.outputs.cache-matched-key }}
+          echo "hash=$(find fate-suite -type f | sort | sha256sum | cut -d' ' -f1)"
           echo "hash=$(find fate-suite -type f | sort | sha256sum | cut -d' ' -f1)" >> $FORGEJO_OUTPUT
       - name: Cache Fate-Suite
         uses: actions/cache/save@v4
