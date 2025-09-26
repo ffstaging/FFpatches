@@ -335,7 +335,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
         return ff_filter_frame(outlink, frame);
     }
 
-    s->next_pts = av_rescale_q(frame->pts, inlink->time_base, outlink->time_base);
+    s->next_pts = av_rescale_ts(frame->pts, inlink->time_base, outlink->time_base);
 
     out_frame = ff_get_audio_buffer(outlink, frame->nb_samples);
     if (!out_frame) {
@@ -387,7 +387,7 @@ static int activate(AVFilterContext *ctx)
     }
 
     if (s->next_pts == AV_NOPTS_VALUE && pts != AV_NOPTS_VALUE)
-        s->next_pts = av_rescale_q(pts, inlink->time_base, outlink->time_base);
+        s->next_pts = av_rescale_ts(pts, inlink->time_base, outlink->time_base);
 
     if (s->padding) {
         int nb_samples = FFMIN(s->padding, 2048);

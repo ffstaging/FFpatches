@@ -506,7 +506,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *picref)
         if (cur->pts != AV_NOPTS_VALUE)
             out->pts = cur->pts*2;
 
-        out->pts = av_rescale_q(out->pts, tinterlace->preout_time_base, outlink->time_base);
+        out->pts = av_rescale_ts(out->pts, tinterlace->preout_time_base, outlink->time_base);
         ff_ccfifo_inject(&tinterlace->cc_fifo, out);
         if ((ret = ff_filter_frame(outlink, out)) < 0)
             return ret;
@@ -544,7 +544,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *picref)
         av_assert0(0);
     }
 
-    out->pts = av_rescale_q(out->pts, tinterlace->preout_time_base, outlink->time_base);
+    out->pts = av_rescale_ts(out->pts, tinterlace->preout_time_base, outlink->time_base);
     out->duration = av_rescale_q(1, av_inv_q(l->frame_rate), outlink->time_base);
     ff_ccfifo_inject(&tinterlace->cc_fifo, out);
     ret = ff_filter_frame(outlink, out);

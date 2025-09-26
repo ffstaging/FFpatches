@@ -279,7 +279,7 @@ static int request_frame(AVFilterLink *link)
     AVFrame *frame;
 
     if (ctx->duration >= 0 &&
-        av_rescale_q(ctx->pts, ctx->time_base, AV_TIME_BASE_Q) >= ctx->duration) {
+        av_rescale_ts(ctx->pts, ctx->time_base, AV_TIME_BASE_Q) >= ctx->duration) {
         return AVERROR_EOF;
     }
 

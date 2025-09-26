@@ -228,7 +228,7 @@ static int interlace_vulkan_filter_frame(AVFilterLink *link, AVFrame *in)
     if (s->mode == MODE_TFF)
         out->flags |= AV_FRAME_FLAG_TOP_FIELD_FIRST;
 
-    out->pts = av_rescale_q(out->pts, inlink->time_base, outlink->time_base);
+    out->pts = av_rescale_ts(out->pts, inlink->time_base, outlink->time_base);
     out->duration = av_rescale_q(1, av_inv_q(l->frame_rate), outlink->time_base);
 
     av_frame_free(&s->cur);

@@ -539,7 +539,7 @@ static int process_frame(FFFrameSync *fs)
         out_frame = do_vif(ctx, main_frame, ref_frame);
     }
 
-    out_frame->pts = av_rescale_q(s->fs.pts, s->fs.time_base, outlink->time_base);
+    out_frame->pts = av_rescale_ts(s->fs.pts, s->fs.time_base, outlink->time_base);
 
     return ff_filter_frame(outlink, out_frame);
 }

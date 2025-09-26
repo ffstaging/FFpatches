@@ -443,7 +443,7 @@ static int config_input(AVFilterLink *inlink)
     if (s->duration)
         s->duration_pts = av_rescale_q(s->duration, AV_TIME_BASE_Q, inlink->time_base);
     if (s->start_time)
-        s->start_time_pts = av_rescale_q(s->start_time, AV_TIME_BASE_Q, inlink->time_base);
+        s->start_time_pts = av_rescale_ts(s->start_time, AV_TIME_BASE_Q, inlink->time_base);
 
     /* use CCIR601/709 black level for studio-level pixel non-alpha components */
     s->black_level =

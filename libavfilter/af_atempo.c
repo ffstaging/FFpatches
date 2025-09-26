@@ -1064,9 +1064,9 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *src_buffer)
     const uint8_t *src_end = src + n_in * atempo->stride;
 
     if (atempo->start_pts == AV_NOPTS_VALUE)
-        atempo->start_pts = av_rescale_q(src_buffer->pts,
-                                         inlink->time_base,
-                                         outlink->time_base);
+        atempo->start_pts = av_rescale_ts(src_buffer->pts,
+                                          inlink->time_base,
+                                          outlink->time_base);
 
     while (src < src_end) {
         if (!atempo->dst_buffer) {

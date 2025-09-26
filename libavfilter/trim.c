@@ -151,8 +151,8 @@ static int atrim_filter_frame(AVFilterLink *inlink, AVFrame *frame)
         return 0;
 
     if (frame->pts != AV_NOPTS_VALUE)
-        pts = av_rescale_q(frame->pts, inlink->time_base,
-                           (AVRational){ 1, inlink->sample_rate });
+        pts = av_rescale_ts(frame->pts, inlink->time_base,
+                            (AVRational){ 1, inlink->sample_rate });
     else
         pts = s->next_pts;
     s->next_pts = pts + frame->nb_samples;
@@ -264,12 +264,12 @@ static int config_input(AVFilterLink *inlink)
         s->filter_frame = atrim_filter_frame;
 #endif
     if (s->start_time != INT64_MAX) {
-        int64_t start_pts = av_rescale_q(s->start_time, AV_TIME_BASE_Q, tb);
+        int64_t start_pts = av_rescale_ts(s->start_time, AV_TIME_BASE_Q, tb);
         if (s->start_pts == AV_NOPTS_VALUE || start_pts < s->start_pts)
             s->start_pts = start_pts;
     }
     if (s->end_time != INT64_MAX) {
-        int64_t end_pts = av_rescale_q(s->end_time, AV_TIME_BASE_Q, tb);
+        int64_t end_pts = av_rescale_ts(s->end_time, AV_TIME_BASE_Q, tb);
         if (s->end_pts == AV_NOPTS_VALUE || end_pts > s->end_pts)
             s->end_pts = end_pts;
     }

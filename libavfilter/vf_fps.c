@@ -317,8 +317,8 @@ static int write_frame(AVFilterContext *ctx, FPSContext *s, AVFilterLink *outlin
 static void update_eof_pts(AVFilterContext *ctx, FPSContext *s, AVFilterLink *inlink, AVFilterLink *outlink, int64_t status_pts)
 {
     int eof_rounding = (s->eof_action == EOF_ACTION_PASS) ? AV_ROUND_UP : s->rounding;
-    s->status_pts = av_rescale_q_rnd(status_pts, inlink->time_base, outlink->time_base,
-                                     eof_rounding | AV_ROUND_PASS_MINMAX);
+    s->status_pts = av_rescale_ts_rnd(status_pts, inlink->time_base, outlink->time_base,
+                                      eof_rounding | AV_ROUND_PASS_MINMAX);
 
     av_log(ctx, AV_LOG_DEBUG, "EOF is at pts %"PRId64"\n", s->status_pts);
 }

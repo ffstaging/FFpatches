@@ -329,7 +329,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     }
 
     if (s->do_video)
-        new_pts = av_rescale_q(in->pts, inlink->time_base, outlink->time_base);
+        new_pts = av_rescale_ts(in->pts, inlink->time_base, outlink->time_base);
     if (s->do_video && new_pts != s->last_pts) {
         AVFrame *clone;
 

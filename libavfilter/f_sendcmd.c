@@ -500,7 +500,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *ref)
     if (ref->pts == AV_NOPTS_VALUE)
         goto end;
 
-    ts = av_rescale_q(ref->pts, inlink->time_base, AV_TIME_BASE_Q);
+    ts = av_rescale_ts(ref->pts, inlink->time_base, AV_TIME_BASE_Q);
 
 #define WITHIN_INTERVAL(ts, start_ts, end_ts) ((ts) >= (start_ts) && (ts) < (end_ts))
 

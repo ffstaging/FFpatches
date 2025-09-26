@@ -167,7 +167,7 @@ static int process_frame(FFFrameSync *fs)
     out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     if (!out)
         return AVERROR(ENOMEM);
-    out->pts = av_rescale_q(s->fs.pts, s->fs.time_base, outlink->time_base);
+    out->pts = av_rescale_ts(s->fs.pts, s->fs.time_base, outlink->time_base);
 
     for (i = 0; i < s->nb_planes; i++) {
         const int input = s->map[i].input;

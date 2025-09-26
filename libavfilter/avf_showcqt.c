@@ -1529,7 +1529,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *insamples)
             if (out) {
                 int64_t pts = av_rescale_q(insamples->nb_samples - remaining - s->remaining_fill_max,
                                            av_make_q(1, inlink->sample_rate), inlink->time_base);
-                out->pts = av_rescale_q(insamples->pts + pts, inlink->time_base, outlink->time_base);
+                out->pts = av_rescale_ts(insamples->pts + pts, inlink->time_base, outlink->time_base);
                 out->duration = 1;
                 got_frame = 1;
                 ret = ff_filter_frame(outlink, out);
@@ -1579,7 +1579,7 @@ static int activate(AVFilterContext *ctx)
 
     if (ff_inlink_acknowledge_status(inlink, &status, &pts)) {
         if (status == AVERROR_EOF) {
-            s->next_pts = av_rescale_q(pts, inlink->time_base, outlink->time_base);
+            s->next_pts = av_rescale_ts(pts, inlink->time_base, outlink->time_base);
             ret = filter_frame(inlink, NULL);
             ff_outlink_set_status(outlink, AVERROR_EOF, s->next_pts);
             return ret;

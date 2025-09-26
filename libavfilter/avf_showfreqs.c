@@ -400,7 +400,7 @@ static int plot_freqs(AVFilterLink *inlink, int64_t pts)
         s->tx_fn(s->fft, s->fft_data[ch], s->fft_input[ch], sizeof(AVComplexFloat));
     }
 
-    s->pts = av_rescale_q(pts, inlink->time_base, outlink->time_base);
+    s->pts = av_rescale_ts(pts, inlink->time_base, outlink->time_base);
     if (s->old_pts >= s->pts)
         return 0;
     s->old_pts = s->pts;

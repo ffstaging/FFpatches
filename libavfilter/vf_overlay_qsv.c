@@ -317,8 +317,8 @@ static int config_output(AVFilterLink *outlink)
 static int filter_callback(AVFilterLink *outlink, AVFrame *frame)
 {
     QSVOverlayContext *s = outlink->src->priv;
-    frame->pts = av_rescale_q(s->fs.pts,
-                              s->fs.time_base, outlink->time_base);
+    frame->pts = av_rescale_ts(s->fs.pts,
+                               s->fs.time_base, outlink->time_base);
     return ff_filter_frame(outlink, frame);
 }
 

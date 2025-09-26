@@ -75,7 +75,7 @@ static int process_frame(FFFrameSync *fs)
                 if (!out)
                     return AVERROR(ENOMEM);
 
-                out->pts = av_rescale_q(s->fs.pts, s->fs.time_base, ctx->outputs[i]->time_base);
+                out->pts = av_rescale_ts(s->fs.pts, s->fs.time_base, ctx->outputs[i]->time_base);
                 s->last_pts[j] = in[j]->pts;
                 ret = ff_filter_frame(ctx->outputs[i], out);
                 have_out = 1;

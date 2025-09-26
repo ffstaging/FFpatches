@@ -515,14 +515,14 @@ static int64_t guess_status_pts(AVFilterContext *ctx, int status, AVRational lin
     for (i = 0; i < ctx->nb_inputs; i++) {
         FilterLinkInternal * const li = ff_link_internal(ctx->inputs[i]);
         if (li->status_out == status)
-            r = FFMIN(r, av_rescale_q(li->l.current_pts, ctx->inputs[i]->time_base, link_time_base));
+            r = FFMIN(r, av_rescale_ts(li->l.current_pts, ctx->inputs[i]->time_base, link_time_base));
     }
     if (r < INT64_MAX)
         return r;
     av_log(ctx, AV_LOG_WARNING, "EOF timestamp not reliable\n");
     for (i = 0; i < ctx->nb_inputs; i++) {
         FilterLinkInternal * const li = ff_link_internal(ctx->inputs[i]);
-        r = FFMIN(r, av_rescale_q(li->status_in_pts, ctx->inputs[i]->time_base, link_time_base));
+        r = FFMIN(r, av_rescale_ts(li->status_in_pts, ctx->inputs[i]->time_base, link_time_base));
     }
     if (r < INT64_MAX)
         return r;

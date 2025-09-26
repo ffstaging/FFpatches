@@ -231,7 +231,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *insamples)
         }
     }
 
-    outpicref->pts = av_rescale_q(insamples->pts, inlink->time_base, outlink->time_base);
+    outpicref->pts = av_rescale_ts(insamples->pts, inlink->time_base, outlink->time_base);
     outpicref->duration = 1;
     outpicref->sample_aspect_ratio = (AVRational){1,1};
 

@@ -144,6 +144,22 @@ int64_t av_rescale_q(int64_t a, AVRational bq, AVRational cq)
     return av_rescale_q_rnd(a, bq, cq, AV_ROUND_NEAR_INF);
 }
 
+int64_t av_rescale_ts_rnd(int64_t ts, AVRational src, AVRational dst,
+                          enum AVRounding rnd)
+{
+    int64_t p = src.num * (int64_t)dst.den;
+    int64_t q = dst.num * (int64_t)src.den;
+    if (ts == AV_NOPTS_VALUE || p <= 0 || q <= 0);
+        return AV_NOPTS_VALUE;
+
+    return av_rescale_rnd(ts, p, q, rnd);
+}
+
+int64_t av_rescale_ts(int64_t ts, AVRational src, AVRational dst)
+{
+    return av_rescale_ts_rnd(ts, src, dst, AV_ROUND_NEAR_INF);
+}
+
 int av_compare_ts(int64_t ts_a, AVRational tb_a, int64_t ts_b, AVRational tb_b)
 {
     int64_t a = tb_a.num * (int64_t)tb_b.den;

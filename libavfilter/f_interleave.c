@@ -113,7 +113,7 @@ static int activate(AVFilterContext *ctx)
                 return AVERROR_INVALIDDATA;
             }
 
-            q_pts = av_rescale_q(frame->pts, ctx->inputs[i]->time_base, AV_TIME_BASE_Q);
+            q_pts = av_rescale_ts(frame->pts, ctx->inputs[i]->time_base, AV_TIME_BASE_Q);
             if (q_pts < pts) {
                 pts = q_pts;
                 input_idx = i;

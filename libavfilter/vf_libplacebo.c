@@ -1146,7 +1146,7 @@ static int handle_input(AVFilterContext *ctx, LibplaceboInput *input)
 
         if (!s->fps.num) {
             /* Internally queue an output frame for the same PTS */
-            pts = av_rescale_q(in->pts, inlink->time_base, outlink->time_base);
+            pts = av_rescale_ts(in->pts, inlink->time_base, outlink->time_base);
             av_fifo_write(input->out_pts, &pts, 1);
 
             if (s->send_fields && src.first_field != PL_FIELD_NONE) {
@@ -1161,8 +1161,8 @@ static int handle_input(AVFilterContext *ctx, LibplaceboInput *input)
         return ret;
 
     if (!input->status && ff_inlink_acknowledge_status(inlink, &status, &pts)) {
-        pts = av_rescale_q_rnd(pts, inlink->time_base, outlink->time_base,
-                               AV_ROUND_UP);
+        pts = av_rescale_ts_rnd(pts, inlink->time_base, outlink->time_base,
+                                AV_ROUND_UP);
         pl_queue_push(input->queue, NULL); /* Signal EOF to pl_queue */
         input->status = status;
         input->status_pts = pts;

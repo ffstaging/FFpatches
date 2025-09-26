@@ -214,6 +214,23 @@ int64_t av_rescale_q_rnd(int64_t a, AVRational bq, AVRational cq,
                          enum AVRounding rnd) av_const;
 
 /**
+ * Rescale a PTS/DTS value from one timebase to another. Like `av_rescale_q`,
+ * but returns AV_NOPTS_VALUE if `ts` is itself AV_NOPTS_VALUE, or if either of
+ * the two timebases are of an invalid form.
+ *
+ * @see av_rescale_q(), av_rescale_ts_rnd()
+ */
+int64_t av_rescale_ts(int64_t ts, AVRational src, AVRational dst) av_const;
+
+/**
+ * Rescale a PTS/DTS value from one timebase to another with specified rounding.
+ *
+ * @see av_rescale_q(), av_rescale_ts()
+ */
+int64_t av_rescale_ts_rnd(int64_t ts, AVRational src, AVRational dst,
+                          enum AVRounding rnd) av_const;
+
+/**
  * Compare two timestamps each in its own time base.
  *
  * @return One of the following values:

@@ -112,7 +112,7 @@ static int64_t rescale_pts(AVFilterLink *inlink, AVFilterLink *outlink, int64_t 
     int64_t new_pts = orig_pts;
 
     if (av_cmp_q(inlink->time_base, outlink->time_base)) {
-        new_pts = av_rescale_q(orig_pts, inlink->time_base, outlink->time_base);
+        new_pts = av_rescale_ts(orig_pts, inlink->time_base, outlink->time_base);
         av_log(ctx, AV_LOG_DEBUG, "tb:%d/%d pts:%"PRId64" -> tb:%d/%d pts:%"PRId64"\n",
                inlink ->time_base.num, inlink ->time_base.den, orig_pts,
                outlink->time_base.num, outlink->time_base.den, new_pts);

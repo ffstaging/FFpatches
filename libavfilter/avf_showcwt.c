@@ -1184,7 +1184,7 @@ static int output_frame(AVFilterContext *ctx)
         const int offset = (s->input_padding_size - s->hop_size) >> 1;
 
         pts_offset = av_rescale_q(pts_offset - offset, av_make_q(1, inlink->sample_rate), inlink->time_base);
-        s->outpicref->pts = av_rescale_q(s->in_pts + pts_offset, inlink->time_base, outlink->time_base);
+        s->outpicref->pts = av_rescale_ts(s->in_pts + pts_offset, inlink->time_base, outlink->time_base);
         s->outpicref->duration = 1;
     }
 
@@ -1258,7 +1258,7 @@ static int activate(AVFilterContext *ctx)
                     if (s->hop_index == 0) {
                         s->in_pts = fin->pts;
                         if (s->old_pts == AV_NOPTS_VALUE)
-                            s->old_pts = av_rescale_q(s->in_pts, inlink->time_base, outlink->time_base) - 1;
+                            s->old_pts = av_rescale_ts(s->in_pts, inlink->time_base, outlink->time_base) - 1;
                     }
                     s->hop_index += fin->nb_samples;
                     av_frame_free(&fin);
@@ -1291,7 +1291,7 @@ static int activate(AVFilterContext *ctx)
         if (status == AVERROR_EOF) {
             s->eof = 1;
             ff_filter_set_ready(ctx, 10);
-            s->eof_pts = av_rescale_q(pts, inlink->time_base, outlink->time_base);
+            s->eof_pts = av_rescale_ts(pts, inlink->time_base, outlink->time_base);
             return 0;
         }
     }

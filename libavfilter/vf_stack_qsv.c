@@ -174,8 +174,8 @@ static int filter_callback(AVFilterLink *outlink, AVFrame *frame)
 {
     StackQSVContext *sctx = outlink->src->priv;
 
-    frame->pts = av_rescale_q(sctx->base.fs.pts,
-                              sctx->base.fs.time_base, outlink->time_base);
+    frame->pts = av_rescale_ts(sctx->base.fs.pts,
+                               sctx->base.fs.time_base, outlink->time_base);
     return ff_filter_frame(outlink, frame);
 }
 

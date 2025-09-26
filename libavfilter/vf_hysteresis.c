@@ -127,7 +127,7 @@ static int process_frame(FFFrameSync *fs)
                           s->width[p], s->height[p]);
         }
     }
-    out->pts = av_rescale_q(s->fs.pts, s->fs.time_base, outlink->time_base);
+    out->pts = av_rescale_ts(s->fs.pts, s->fs.time_base, outlink->time_base);
 
     return ff_filter_frame(outlink, out);
 }

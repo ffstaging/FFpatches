@@ -230,7 +230,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
             AVFrame *frame = dm->queue[i].frame;
             dm->queue[i].frame = NULL;
             if (frame->pts != AV_NOPTS_VALUE && dm->start_pts == AV_NOPTS_VALUE)
-                dm->start_pts = av_rescale_q(frame->pts, dm->in_tb, outlink->time_base);
+                dm->start_pts = av_rescale_ts(frame->pts, dm->in_tb, outlink->time_base);
 
             if (dm->ppsrc) {
                 av_frame_free(&frame);

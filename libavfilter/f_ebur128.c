@@ -889,7 +889,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *insamples)
                 }
 
                 /* set pts and push frame */
-                pic->pts = av_rescale_q(pts, inlink->time_base, outlink->time_base);
+                pic->pts = av_rescale_ts(pts, inlink->time_base, outlink->time_base);
                 pic->duration = 1;
                 clone = av_frame_clone(pic);
                 if (!clone)

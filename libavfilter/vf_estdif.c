@@ -539,8 +539,8 @@ static int request_frame(AVFilterLink *link)
         if (!next)
             return AVERROR(ENOMEM);
 
-        next->pts = s->prev->pts + av_rescale_q(1, av_inv_q(l->frame_rate),
-                                                ctx->outputs[0]->time_base);
+        next->pts = s->prev->pts + av_rescale_ts(1, av_inv_q(l->frame_rate),
+                                                 ctx->outputs[0]->time_base);
         s->eof = 1;
         ret = filter_frame(ctx->inputs[0], next);
     } else if (ret < 0) {

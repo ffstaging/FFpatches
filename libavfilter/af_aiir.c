@@ -1410,7 +1410,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     if (s->response) {
         AVFilterLink *outlink = ctx->outputs[1];
         int64_t old_pts = s->video->pts;
-        int64_t new_pts = av_rescale_q(out->pts, ctx->inputs[0]->time_base, outlink->time_base);
+        int64_t new_pts = av_rescale_ts(out->pts, ctx->inputs[0]->time_base, outlink->time_base);
 
         if (new_pts > old_pts) {
             AVFrame *clone;

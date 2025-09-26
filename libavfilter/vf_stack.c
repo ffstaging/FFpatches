@@ -183,7 +183,7 @@ static int process_frame(FFFrameSync *fs)
     out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     if (!out)
         return AVERROR(ENOMEM);
-    out->pts = av_rescale_q(s->fs.pts, s->fs.time_base, outlink->time_base);
+    out->pts = av_rescale_ts(s->fs.pts, s->fs.time_base, outlink->time_base);
     out->sample_aspect_ratio = outlink->sample_aspect_ratio;
 
     if (s->fillcolor_enable)

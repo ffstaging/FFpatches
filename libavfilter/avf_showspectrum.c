@@ -1519,7 +1519,7 @@ static int plot_spectrum_column(AVFilterLink *inlink, AVFrame *insamples)
     }
 
     if (s->sliding != FULLFRAME || s->xpos == 0)
-        s->pts = outpicref->pts = av_rescale_q(s->in_pts, inlink->time_base, outlink->time_base);
+        s->pts = outpicref->pts = av_rescale_ts(s->in_pts, inlink->time_base, outlink->time_base);
 
     if (s->sliding == LREPLACE) {
         s->xpos--;
@@ -1640,7 +1640,7 @@ static int activate(AVFilterContext *ctx)
                     memset(s->outpicref->data[3] + i * s->outpicref->linesize[3], 0, outlink->w);
             }
         }
-        s->outpicref->pts = av_rescale_q(s->in_pts, inlink->time_base, outlink->time_base);
+        s->outpicref->pts = av_rescale_ts(s->in_pts, inlink->time_base, outlink->time_base);
         pts = s->outpicref->pts;
         ret = ff_filter_frame(outlink, s->outpicref);
         s->outpicref = NULL;

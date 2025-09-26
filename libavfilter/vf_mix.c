@@ -298,14 +298,14 @@ static int process_frame(FFFrameSync *fs)
         out = av_frame_clone(s->frames[0]);
         if (!out)
             return AVERROR(ENOMEM);
-        out->pts = av_rescale_q(s->fs.pts, s->fs.time_base, outlink->time_base);
+        out->pts = av_rescale_ts(s->fs.pts, s->fs.time_base, outlink->time_base);
         return ff_filter_frame(outlink, out);
     }
 
     out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     if (!out)
         return AVERROR(ENOMEM);
-    out->pts = av_rescale_q(s->fs.pts, s->fs.time_base, outlink->time_base);
+    out->pts = av_rescale_ts(s->fs.pts, s->fs.time_base, outlink->time_base);
 
     td.in = in;
     td.out = out;

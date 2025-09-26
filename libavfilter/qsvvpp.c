@@ -453,7 +453,7 @@ static QSVFrame *submit_frame(QSVVPPContext *s, AVFilterLink *inlink, AVFrame *p
     }
 
     qsv_frame->surface.Info           = s->frame_infos[FF_INLINK_IDX(inlink)];
-    qsv_frame->surface.Data.TimeStamp = av_rescale_q(qsv_frame->frame->pts,
+    qsv_frame->surface.Data.TimeStamp = av_rescale_ts(qsv_frame->frame->pts,
                                                       inlink->time_base, default_tb);
 
     qsv_frame->surface.Info.PicStruct =
@@ -1014,8 +1014,8 @@ int ff_qsvvpp_filter_frame(QSVVPPContext *s, AVFilterLink *inlink, AVFrame *picr
             break;
         }
 
-        out_frame->frame->pts = av_rescale_q(out_frame->surface.Data.TimeStamp,
-                                             default_tb, outlink->time_base);
+        out_frame->frame->pts = av_rescale_ts(out_frame->surface.Data.TimeStamp,
+                                              default_tb, outlink->time_base);
 
         out_frame->queued++;
         aframe = (QSVAsyncFrame){ sync, out_frame };

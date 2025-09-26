@@ -350,7 +350,7 @@ static void select_frame(AVFilterContext *ctx, AVFrame *frame)
     select->var_values[VAR_PTS] = TS2D(frame->pts);
     select->var_values[VAR_T  ] = TS2D(frame->pts) * av_q2d(inlink->time_base);
     select->var_values[VAR_KEY] = !!(frame->flags & AV_FRAME_FLAG_KEY);
-    select->var_values[VAR_CONCATDEC_SELECT] = get_concatdec_select(frame, av_rescale_q(frame->pts, inlink->time_base, AV_TIME_BASE_Q));
+    select->var_values[VAR_CONCATDEC_SELECT] = get_concatdec_select(frame, av_rescale_ts(frame->pts, inlink->time_base, AV_TIME_BASE_Q));
 
     switch (inlink->type) {
     case AVMEDIA_TYPE_AUDIO:

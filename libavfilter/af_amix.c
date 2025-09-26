@@ -447,8 +447,8 @@ static int activate(AVFilterContext *ctx)
 
         if ((ret = ff_inlink_consume_frame(ctx->inputs[i], &buf)) > 0) {
             if (i == 0) {
-                int64_t pts = av_rescale_q(buf->pts, inlink->time_base,
-                                           outlink->time_base);
+                int64_t pts = av_rescale_ts(buf->pts, inlink->time_base,
+                                            outlink->time_base);
                 ret = frame_list_add_frame(s->frame_list, buf->nb_samples, pts);
                 if (ret < 0) {
                     av_frame_free(&buf);

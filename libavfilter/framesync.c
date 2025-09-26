@@ -248,7 +248,7 @@ static void framesync_inject_frame(FFFrameSync *fs, unsigned in, AVFrame *frame)
 
     av_assert0(!fs->in[in].have_next);
     av_assert0(frame);
-    pts = av_rescale_q(frame->pts, fs->in[in].time_base, fs->time_base);
+    pts = av_rescale_ts(frame->pts, fs->in[in].time_base, fs->time_base);
     frame->pts = pts;
     fs->in[in].frame_next = frame;
     fs->in[in].pts_next   = pts;
@@ -399,7 +399,7 @@ int ff_framesync_dualinput_get(FFFrameSync *fs, AVFrame **f0, AVFrame **f1)
         return ret;
     }
     av_assert0(mainpic);
-    mainpic->pts = av_rescale_q(fs->pts, fs->time_base, ctx->outputs[0]->time_base);
+    mainpic->pts = av_rescale_ts(fs->pts, fs->time_base, ctx->outputs[0]->time_base);
     if (ctx->is_disabled)
         secondpic = NULL;
     *f0 = mainpic;

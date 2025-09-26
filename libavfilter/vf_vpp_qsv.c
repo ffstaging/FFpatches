@@ -771,7 +771,7 @@ static int activate(AVFilterContext *ctx)
         if (in) {
             FilterLink *ol = ff_filter_link(outlink);
             if (in->pts != AV_NOPTS_VALUE)
-                in->pts = av_rescale_q(in->pts, inlink->time_base, outlink->time_base);
+                in->pts = av_rescale_ts(in->pts, inlink->time_base, outlink->time_base);
 
             if (ol->frame_rate.num && ol->frame_rate.den)
                 in->duration = av_rescale_q(1, av_inv_q(ol->frame_rate), outlink->time_base);
@@ -798,7 +798,7 @@ not_ready:
     return FFERROR_NOT_READY;
 
 eof:
-    pts = av_rescale_q(pts, inlink->time_base, outlink->time_base);
+    pts = av_rescale_ts(pts, inlink->time_base, outlink->time_base);
     ff_outlink_set_status(outlink, status, pts);
     return 0;
 }

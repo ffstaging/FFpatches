@@ -313,7 +313,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *insamples)
         for (int i = 0; i < outlink->h; i++)
             memset(s->outpicref->data[0] + i * s->outpicref->linesize[0], 0, outlink->w * 4);
     }
-    s->outpicref->pts = av_rescale_q(insamples->pts, inlink->time_base, outlink->time_base);
+    s->outpicref->pts = av_rescale_ts(insamples->pts, inlink->time_base, outlink->time_base);
     s->outpicref->duration = 1;
 
     ret = ff_inlink_make_frame_writable(outlink, &s->outpicref);

@@ -223,7 +223,7 @@ static int process_frame(FFFrameSync *fs)
     }
     if (!out)
         return AVERROR(ENOMEM);
-    out->pts = av_rescale_q(s->fs.pts, s->fs.time_base, outlink->time_base);
+    out->pts = av_rescale_ts(s->fs.pts, s->fs.time_base, outlink->time_base);
 
     if (!ctx->is_disabled) {
         td.in = in;

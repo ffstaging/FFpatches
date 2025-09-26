@@ -112,7 +112,7 @@ static int process_frame(FFFrameSync *fs)
                                                  sctx->base.fillcolor[2]);
     }
 
-    oframe->pts = av_rescale_q(sctx->base.fs.pts, sctx->base.fs.time_base, outlink->time_base);
+    oframe->pts = av_rescale_ts(sctx->base.fs.pts, sctx->base.fs.time_base, outlink->time_base);
     oframe->sample_aspect_ratio = outlink->sample_aspect_ratio;
 
     ret = ff_vaapi_vpp_render_pictures(avctx, params, avctx->nb_inputs, oframe);

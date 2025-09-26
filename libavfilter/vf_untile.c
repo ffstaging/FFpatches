@@ -120,7 +120,7 @@ static int activate(AVFilterContext *ctx)
         if (ret < 0)
             return ret;
         if (ret)
-            s->pts = av_rescale_q(s->frame->pts, inlink->time_base, outlink->time_base);
+            s->pts = av_rescale_ts(s->frame->pts, inlink->time_base, outlink->time_base);
     }
     if (s->frame) {
         if (s->current == s->nb_frames - 1) {

@@ -525,7 +525,7 @@ static av_cold int init_subtitles(AVFilterContext *ctx)
                 av_log(ctx, AV_LOG_WARNING, "Error decoding: %s (ignored)\n",
                        av_err2str(ret));
             } else if (got_subtitle) {
-                const int64_t start_time = av_rescale_q(sub.pts, AV_TIME_BASE_Q, av_make_q(1, 1000));
+                const int64_t start_time = av_rescale_ts(sub.pts, AV_TIME_BASE_Q, av_make_q(1, 1000));
                 const int64_t duration   = sub.end_display_time;
                 for (i = 0; i < sub.num_rects; i++) {
                     char *ass_line = sub.rects[i]->ass;

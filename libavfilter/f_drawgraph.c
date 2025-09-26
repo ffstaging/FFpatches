@@ -327,7 +327,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     if (s->slide == 4)
         return 0;
 
-    out_pts = av_rescale_q(in_pts, inlink->time_base, outlink->time_base);
+    out_pts = av_rescale_ts(in_pts, inlink->time_base, outlink->time_base);
 
     if (out_pts == s->prev_pts)
         return 0;

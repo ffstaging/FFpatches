@@ -989,7 +989,7 @@ static int do_morpho(FFFrameSync *fs)
     }
 
     av_frame_free(&in);
-    out->pts = av_rescale_q(s->fs.pts, s->fs.time_base, outlink->time_base);
+    out->pts = av_rescale_ts(s->fs.pts, s->fs.time_base, outlink->time_base);
     return ff_filter_frame(outlink, out);
 fail:
     av_frame_free(&out);

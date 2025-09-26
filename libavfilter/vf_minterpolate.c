@@ -1170,7 +1170,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *avf_in)
 
     if (!mi_ctx->frames[NB_FRAMES - 1].avf || avf_in->pts < mi_ctx->frames[NB_FRAMES - 1].avf->pts) {
         av_log(ctx, AV_LOG_VERBOSE, "Initializing out pts from input pts %"PRId64"\n", avf_in->pts);
-        mi_ctx->out_pts = av_rescale_q(avf_in->pts, inlink->time_base, outlink->time_base);
+        mi_ctx->out_pts = av_rescale_ts(avf_in->pts, inlink->time_base, outlink->time_base);
     }
 
     if (!mi_ctx->frames[NB_FRAMES - 1].avf)

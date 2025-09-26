@@ -503,7 +503,7 @@ static int activate(AVFilterContext *ctx)
     }
 
     if (pts != AV_NOPTS_VALUE) {
-        pts = av_rescale_q(pts, inlink->time_base, outlink->time_base);
+        pts = av_rescale_ts(pts, inlink->time_base, outlink->time_base);
         if (s->pts == AV_NOPTS_VALUE)
             s->pts = pts;
         s->next_pts = pts;

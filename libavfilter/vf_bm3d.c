@@ -891,7 +891,7 @@ static int process_frame(FFFrameSync *fs)
     if ((ret = filter_frame(ctx, &out, src, ref)) < 0)
         return ret;
 
-    out->pts = av_rescale_q(src->pts, s->fs.time_base, outlink->time_base);
+    out->pts = av_rescale_ts(src->pts, s->fs.time_base, outlink->time_base);
 
     return ff_filter_frame(outlink, out);
 }

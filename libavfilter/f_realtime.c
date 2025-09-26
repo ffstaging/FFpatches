@@ -42,7 +42,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
     RealtimeContext *s = ctx->priv;
 
     if (frame->pts != AV_NOPTS_VALUE) {
-        int64_t pts = av_rescale_q(frame->pts, inlink->time_base, AV_TIME_BASE_Q) / s->speed;
+        int64_t pts = av_rescale_ts(frame->pts, inlink->time_base, AV_TIME_BASE_Q) / s->speed;
         int64_t now = av_gettime_relative();
         int64_t sleep = pts - now + s->delta;
         if (!s->inited) {

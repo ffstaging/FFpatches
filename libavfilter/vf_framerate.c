@@ -326,7 +326,7 @@ retry:
     }
 
     if (inpicref) {
-        pts = av_rescale_q(inpicref->pts, s->srce_time_base, s->dest_time_base);
+        pts = av_rescale_ts(inpicref->pts, s->srce_time_base, s->dest_time_base);
 
         if (s->f1 && pts == s->pts1) {
             av_log(ctx, AV_LOG_WARNING, "Ignoring frame with same PTS.\n");

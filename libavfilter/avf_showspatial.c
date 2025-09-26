@@ -208,7 +208,7 @@ static int draw_spatial(AVFilterLink *inlink, AVFrame *insamples)
     int h = s->h - 2;
     int w = s->w - 2;
     int z = s->win_size / 2;
-    int64_t pts = av_rescale_q(insamples->pts, inlink->time_base, outlink->time_base);
+    int64_t pts = av_rescale_ts(insamples->pts, inlink->time_base, outlink->time_base);
 
     outpicref = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     if (!outpicref)
