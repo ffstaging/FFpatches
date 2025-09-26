@@ -1649,7 +1649,7 @@ static int dec_open(DecoderPriv *dp, AVDictionary **dec_opts,
     return 0;
 }
 
-int dec_init(Decoder **pdec, Scheduler *sch,
+int ff_dec_init(Decoder **pdec, Scheduler *sch,
              AVDictionary **dec_opts, const DecoderOpts *o,
              AVFrame *param_out)
 {
