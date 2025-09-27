@@ -87,8 +87,8 @@ static av_cold void x8_vlc_init(void)
 
 static void x8_reset_vlc_tables(IntraX8Context *w)
 {
-    memset(w->j_dc_vlc_table, 0, sizeof(w->j_dc_vlc_table));
-    memset(w->j_ac_vlc_table, 0, sizeof(w->j_ac_vlc_table));
+    memset((void *)w->j_dc_vlc_table, 0, sizeof(w->j_dc_vlc_table));
+    memset((void *)w->j_ac_vlc_table, 0, sizeof(w->j_ac_vlc_table));
     w->j_orient_vlc_table = NULL;
 }
 
