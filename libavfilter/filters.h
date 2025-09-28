@@ -446,6 +446,16 @@ typedef struct FFFilter {
     int (*process_command)(AVFilterContext *, const char *cmd, const char *arg, char *res, int res_len, int flags);
 
     /**
+     * Forward command to neighbor links.
+     *
+     * @param pad_idx   indicates the pad index that command is from.
+     * @return >=0 on successfully forwarding to some filters.
+     *         AVERROR(ENOSYS) on unsupported commands, or didn't forward.
+     */
+    int (*forward_command)(AVFilterContext *, int pad_idx, const char *target, const char *cmd,
+                           const char *arg, char *res, int res_len, int flags);
+
+    /**
      * Filter activation function.
      *
      * Called when any processing is needed from the filter, instead of any

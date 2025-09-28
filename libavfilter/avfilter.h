@@ -468,12 +468,27 @@ int avfilter_link(AVFilterContext *src, unsigned srcpad,
 
 #define AVFILTER_CMD_FLAG_ONE   1 ///< Stop once a filter understood the command (for target=all for example), fast filters are favored automatically
 #define AVFILTER_CMD_FLAG_FAST  2 ///< Only execute command when its fast (like a video out that supports contrast adjustment in hw)
+#define AVFILTER_CMD_FLAG_REVERSE 4 ///< Reverse forward command to source filter (default to sink filter)
 
 /**
  * Make the filter instance process a command.
  * It is recommended to use avfilter_graph_send_command().
  */
 int avfilter_process_command(AVFilterContext *filter, const char *cmd, const char *arg, char *res, int res_len, int flags);
+
+/**
+ * Recursively make the filter instance process a command.
+ * @see avfilter_process_command
+ *
+ * @param filter    the filter to forward command.
+ * @param pad_id    the pad index that filter forward command to.
+ * @param flags         @see AVFILTER_CMD_FLAG_REVERSE.
+ *
+ * @return the number of filters that successfully processed the command.
+ */
+int avfilter_forward_command(AVFilterContext *filter, int pad_idx, const char *target, const char *cmd,
+                             const char *arg, char *res, int res_len, int flags);
+
 
 /**
  * Iterate over all registered filters.
