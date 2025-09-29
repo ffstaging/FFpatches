@@ -36,6 +36,7 @@
 
 #include "avcodec.h"
 #include "blockdsp.h"
+#include "bytestream.h"
 #include "exif.h"
 #include "get_bits.h"
 #include "hpeldsp.h"
@@ -56,9 +57,9 @@ typedef struct MJpegDecodeContext {
     AVClass *class;
     AVCodecContext *avctx;
     GetBitContext gb;
+    GetByteContext gB;
     int buf_size;
 
-    int start_code; /* current start code */
     int buffer_size;
     uint8_t *buffer;
 
@@ -184,8 +185,6 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s);
 int ff_mjpeg_decode_sos(MJpegDecodeContext *s,
                         const uint8_t *mb_bitmask,int mb_bitmask_size,
                         const AVFrame *reference);
-int ff_mjpeg_find_marker(MJpegDecodeContext *s,
-                         const uint8_t **buf_ptr, const uint8_t *buf_end,
-                         const uint8_t **unescaped_buf_ptr, int *unescaped_buf_size);
+int ff_mjpeg_find_marker(const uint8_t **buf_ptr, const uint8_t *buf_end);
 
 #endif /* AVCODEC_MJPEGDEC_H */

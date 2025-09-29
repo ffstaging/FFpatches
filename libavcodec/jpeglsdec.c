@@ -34,6 +34,7 @@
 #include "mjpegdec.h"
 #include "jpegls.h"
 #include "jpeglsdec.h"
+#include "put_bits.h"
 
 /*
  * Uncomment this to significantly speed up decoding of broken JPEG-LS
@@ -53,19 +54,19 @@ int ff_jpegls_decode_lse(MJpegDecodeContext *s)
     int id;
     int tid, wt, maxtab, i, j;
 
-    int len = get_bits(&s->gb, 16);
-    id = get_bits(&s->gb, 8);
+    int len = bytestream2_get_be16(&s->gB);
+    id = bytestream2_get_byte(&s->gB);
 
     switch (id) {
     case 1:
         if (len < 13)
             return AVERROR_INVALIDDATA;
 
-        s->maxval = get_bits(&s->gb, 16);
-        s->t1     = get_bits(&s->gb, 16);
-        s->t2     = get_bits(&s->gb, 16);
-        s->t3     = get_bits(&s->gb, 16);
-        s->reset  = get_bits(&s->gb, 16);
+        s->maxval = bytestream2_get_be16u(&s->gB);
+        s->t1     = bytestream2_get_be16u(&s->gB);
+        s->t2     = bytestream2_get_be16u(&s->gB);
+        s->t3     = bytestream2_get_be16u(&s->gB);
+        s->reset  = bytestream2_get_be16u(&s->gB);
 
         if (s->avctx->debug & FF_DEBUG_PICT_INFO) {
             av_log(s->avctx, AV_LOG_DEBUG, "Coding parameters maxval:%d T1:%d T2:%d T3:%d reset:%d\n",
@@ -78,8 +79,8 @@ int ff_jpegls_decode_lse(MJpegDecodeContext *s)
     case 2:
         s->palette_index = 0;
     case 3:
-        tid= get_bits(&s->gb, 8);
-        wt = get_bits(&s->gb, 8);
+        tid= bytestream2_get_byte(&s->gB);
+        wt = bytestream2_get_byte(&s->gB);
 
         if (len < 5)
             return AVERROR_INVALIDDATA;
@@ -129,7 +130,7 @@ int ff_jpegls_decode_lse(MJpegDecodeContext *s)
                 uint8_t k = i << shift;
                 pal[k] = wt < 4 ? 0xFF000000 : 0;
                 for (j=0; j<wt; j++) {
-                    pal[k] |= get_bits(&s->gb, 8) << (8*(wt-j-1));
+                    pal[k] |= bytestream2_get_byte(&s->gB) << (8*(wt-j-1));
                 }
             }
             s->palette_index = i;
@@ -352,6 +353,62 @@ static inline int ls_decode_line(JLSState *state, MJpegDecodeContext *s,
     return 0;
 }
 
+static int jpegls_unescape_sos(MJpegDecodeContext *s)
+{
+    const uint8_t *buf_ptr = s->gB.buffer;
+    const uint8_t *buf_end = buf_ptr + bytestream2_get_bytes_left(&s->gB);
+    const uint8_t *unescaped_buf_ptr;
+    int unescaped_buf_size;
+
+    av_fast_padded_malloc(&s->buffer, &s->buffer_size, buf_end - buf_ptr);
+    if (!s->buffer)
+        return AVERROR(ENOMEM);
+
+    /* unescape buffer of SOS, use special treatment for JPEG-LS */
+    const uint8_t *src = buf_ptr;
+    const uint8_t *ptr = src;
+    uint8_t *dst  = s->buffer;
+    PutBitContext pb;
+
+    init_put_bits(&pb, dst, (buf_end - src) * 8);
+
+    while (ptr < buf_end) {
+        if (*ptr++ == 0xff && ptr < buf_end) {
+            /* Copy verbatim data. */
+            while ((ptr - 1) > src)
+                put_bits(&pb, 8, *src++);
+
+            uint8_t x = *ptr++;
+            /* Discard multiple optional 0xFF fill bytes. */
+            while (x == 0xff && ptr < buf_end)
+                x = *ptr++;
+
+            src = ptr;
+            if (!(x & 0x80)) {
+                /* Stuffed zero bit */
+                put_bits(&pb, 15, 0x7f80 | x);
+            } else {
+                ptr -= 2;
+                break;
+            }
+        }
+    }
+    /* Copy remaining verbatim data. */
+    while (ptr > src)
+        put_bits(&pb, 8, *src++);
+
+    flush_put_bits(&pb);
+
+    unescaped_buf_ptr  = dst;
+    unescaped_buf_size = put_bits_count(&pb) >> 3;
+    memset(s->buffer + unescaped_buf_size, 0,
+           AV_INPUT_BUFFER_PADDING_SIZE);
+
+    bytestream2_skipu(&s->gB, ptr - buf_ptr);
+
+    return init_get_bits8(&s->gb, unescaped_buf_ptr, unescaped_buf_size);
+}
+
 int ff_jpegls_decode_picture(MJpegDecodeContext *s, int near,
                              int point_transform, int ilv)
 {
@@ -418,6 +475,11 @@ int ff_jpegls_decode_picture(MJpegDecodeContext *s, int near,
         av_log(s->avctx, AV_LOG_DEBUG, "JPEG params: ILV=%i Pt=%i BPP=%i, scan = %i\n",
                 ilv, point_transform, s->bits, s->cur_scan);
     }
+
+    ret = jpegls_unescape_sos(s);
+    if (ret < 0)
+        return ret;
+
     if (get_bits_left(&s->gb) < s->height) {
         ret = AVERROR_INVALIDDATA;
         goto end;
