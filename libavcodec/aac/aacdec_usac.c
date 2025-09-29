@@ -670,10 +670,8 @@ static int decode_spectrum_ac(AACDecContext *s, float coef[1024],
 
     ff_aac_ac_finish(state, i, N);
 
-    for (; i < N/2; i++) {
-        coef[2*i + 0] = 0;
-        coef[2*i + 1] = 0;
-    }
+    /* Zero out uncoded coeffs */
+    memset(coef + 2*i, 0, N*sizeof(*coef)));
 
     /* Signs */
     for (i = 0; i < len; i++) {
@@ -1154,8 +1152,8 @@ static void complex_stereo_interpolate_imag(float *im, float *re, const float f[
     s = f[6]*re[0] + f[5]*re[0] + f[4]*re[1] +
         f[3]*re[2] +
         f[2]*re[3] + f[1]*re[4] + f[0]*re[5];
-
     im[i] += s*factor_even;
+
     for (i = 3; i < len - 4; i += 2) {
         s = f[6]*re[i-3] + f[5]*re[i-2] + f[4]*re[i-1] +
             f[3]*re[i] +
@@ -1449,11 +1447,10 @@ static int decode_usac_core_coder(AACDecContext *ac, AACUSACConfig *usac,
         memset(&sce->coeffs[0], 0, 1024*sizeof(float));
         for (int win = 0; win < ics->num_windows; win++) {
             int lg = ics->swb_offset[ics->max_sfb];
-            int N;
+
+            int N = usac->core_frame_len;
             if (ics->window_sequence[0] == EIGHT_SHORT_SEQUENCE)
-                N = usac->core_frame_len / 8;
-            else
-                N = usac->core_frame_len;
+                N >>= 3;
 
             ret = decode_spectrum_ac(ac, sce->coeffs + win*128, gb, &ue->ac,
                                      arith_reset_flag && (win == 0), lg, N);
