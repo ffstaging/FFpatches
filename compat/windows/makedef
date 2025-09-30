@@ -108,7 +108,12 @@ if [ -n "$NM" ]; then
               cut -d' ' -f3 |
               sed -e "s/^${prefix}//")
 else
-    dump=$(dumpbin.exe -linkermember:1 ${libname} |
+    member=1
+    arch=$VSCMD_ARG_TGT_ARCH
+    if [ "${arch^^}" = "ARM64EC" ]; then
+        member=32
+    fi
+        dump=$(dumpbin.exe -linkermember:${member} ${libname} |
               sed -e '/public symbols/,$!d' -e '/^ \{1,\}Summary/,$d' -e "s/ \{1,\}${prefix}/ /" -e 's/ \{1,\}/ /g' |
               tail -n +2 |
               cut -d' ' -f3)
@@ -121,7 +126,7 @@ list=""
 for exp in ${regex}; do
     list="${list}"'
 '$(echo "${dump}" |
-          grep "^${exp}" |
+          grep "^${exp}" | awk '!/\$exit_thunk/{print}' |
           sed -e 's/^/    /')
 done
 
