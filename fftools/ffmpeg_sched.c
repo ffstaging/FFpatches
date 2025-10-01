@@ -2445,18 +2445,15 @@ int sch_filter_receive(Scheduler *sch, unsigned fg_idx,
 
     av_assert0(*in_idx <= fg->nb_inputs);
 
-    // update scheduling to account for desired input stream, if it changed
-    //
-    // this check needs no locking because only the filtering thread
-    // updates this value
-    if (*in_idx != fg->best_input) {
-        pthread_mutex_lock(&sch->schedule_lock);
+    pthread_mutex_lock(&sch->schedule_lock);
 
+    // update scheduling to account for desired input stream, if it changed
+    if (*in_idx != fg->best_input) {
         fg->best_input = *in_idx;
         schedule_update_locked(sch);
-
-        pthread_mutex_unlock(&sch->schedule_lock);
     }
+
+    pthread_mutex_unlock(&sch->schedule_lock);
 
     if (*in_idx == fg->nb_inputs) {
         int terminate = waiter_wait(sch, &fg->waiter);
