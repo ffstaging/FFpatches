@@ -235,8 +235,6 @@ static int ogg_replace_stream(AVFormatContext *s, uint32_t serial, char *magic, 
     os->serial  = serial;
     os->codec   = codec;
     os->serial  = serial;
-    os->lastpts = 0;
-    os->lastdts = 0;
     os->start_trimming = 0;
     os->end_trimming = 0;
 
@@ -880,7 +878,7 @@ retry:
     }
 
     if (os->new_metadata) {
-        ret = av_packet_add_side_data(pkt, AV_PKT_DATA_METADATA_UPDATE,
+        ret = av_packet_add_side_data(pkt, AV_PKT_DATA_STRINGS_METADATA,
                                       os->new_metadata, os->new_metadata_size);
         if (ret < 0)
             return ret;
