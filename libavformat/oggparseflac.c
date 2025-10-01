@@ -31,7 +31,7 @@
 #define OGG_FLAC_MAGIC_SIZE sizeof(OGG_FLAC_MAGIC)-1
 
 static int
-flac_header (AVFormatContext * s, int idx)
+flac_header (AVFormatContext * s, int idx, int is_first)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -81,7 +81,7 @@ flac_header (AVFormatContext * s, int idx)
 }
 
 static int
-flac_packet (AVFormatContext * s, int idx)
+flac_packet (AVFormatContext * s, int idx, int is_last)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -109,7 +109,7 @@ flac_packet (AVFormatContext * s, int idx)
 }
 
 static int
-old_flac_header (AVFormatContext * s, int idx)
+old_flac_header (AVFormatContext * s, int idx, int is_first)
 {
     struct ogg *ogg = s->priv_data;
     AVStream *st = s->streams[idx];

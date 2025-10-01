@@ -567,7 +567,8 @@ static int ogg_packet(AVFormatContext *s, int *sid, int *dstart, int *dsize,
     os->incomplete = 0;
 
     if (os->header) {
-        if ((ret = os->codec->header(s, idx)) < 0) {
+        int is_first = os->flags & OGG_FLAG_BOS && !os->nb_header;
+        if ((ret = os->codec->header(s, idx, is_first)) < 0) {
             av_log(s, AV_LOG_ERROR, "Header processing failed: %s\n", av_err2str(ret));
             return ret;
         }
@@ -605,7 +606,8 @@ static int ogg_packet(AVFormatContext *s, int *sid, int *dstart, int *dsize,
 
         ret = 0;
         if (os->codec && os->codec->packet) {
-            if ((ret = os->codec->packet(s, idx)) < 0) {
+            int is_last_packet = os->flags & OGG_FLAG_EOS && os->page_end;
+            if ((ret = os->codec->packet(s, idx, is_last_packet)) < 0) {
                 av_log(s, AV_LOG_ERROR, "Packet processing failed: %s\n", av_err2str(ret));
                 return ret;
             }

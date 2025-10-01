@@ -31,7 +31,7 @@ struct oggcelt_private {
     int extra_headers_left;
 };
 
-static int celt_header(AVFormatContext *s, int idx)
+static int celt_header(AVFormatContext *s, int idx, int is_first)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;

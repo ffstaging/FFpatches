@@ -27,7 +27,7 @@
 
 #define VP8_HEADER_SIZE 26
 
-static int vp8_header(AVFormatContext *s, int idx)
+static int vp8_header(AVFormatContext *s, int idx, int flags)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -98,14 +98,14 @@ static uint64_t vp8_gptopts(AVFormatContext *s, int idx,
     return pts;
 }
 
-static int vp8_packet(AVFormatContext *s, int idx)
+static int vp8_packet(AVFormatContext *s, int idx, int flags)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
     uint8_t *p = os->buf + os->pstart;
 
     if ((!os->lastpts || os->lastpts == AV_NOPTS_VALUE) &&
-        !(os->flags & OGG_FLAG_EOS)) {
+        !(flags & OGG_FLAG_EOS)) {
         int seg;
         int duration;
         uint8_t *last_pkt = p;

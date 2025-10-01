@@ -23,7 +23,7 @@
 #include "internal.h"
 #include "oggdec.h"
 
-static int skeleton_header(AVFormatContext *s, int idx)
+static int skeleton_header(AVFormatContext *s, int idx, int flags)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -36,7 +36,7 @@ static int skeleton_header(AVFormatContext *s, int idx)
 
     st->codecpar->codec_type = AVMEDIA_TYPE_DATA;
 
-    if ((os->flags & OGG_FLAG_EOS) && os->psize == 0)
+    if ((flags & OGG_FLAG_EOS) && os->psize == 0)
         return 1;
 
     if (os->psize < 8)

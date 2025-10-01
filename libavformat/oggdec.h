@@ -37,7 +37,7 @@ struct ogg_codec {
      *         0 if the packet was not a header (was a data packet)
      *         -1 if an error occurred or for unsupported stream
      */
-    int (*header)(AVFormatContext *, int);
+    int (*header)(AVFormatContext *, int, int);
     /**
      * Attempt to process a packet as a data packet
      * @return < 0 (AVERROR) code or -1 on error
@@ -45,7 +45,7 @@ struct ogg_codec {
      *         == 1 if the packet was a header from a chained bitstream.
      *            This will cause the packet to be skipped in calling code (ogg_packet()
      */
-    int (*packet)(AVFormatContext *, int);
+    int (*packet)(AVFormatContext *, int, int);
     /**
      * Translate a granule into a timestamp.
      * Will set dts if non-null and known.

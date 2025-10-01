@@ -34,7 +34,7 @@
 #include "riff.h"
 
 static int
-ogm_header(AVFormatContext *s, int idx)
+ogm_header(AVFormatContext *s, int idx, int is_first)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -128,7 +128,7 @@ ogm_header(AVFormatContext *s, int idx)
 }
 
 static int
-ogm_dshow_header(AVFormatContext *s, int idx)
+ogm_dshow_header(AVFormatContext *s, int idx, int is_first)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -169,7 +169,7 @@ ogm_dshow_header(AVFormatContext *s, int idx)
 }
 
 static int
-ogm_packet(AVFormatContext *s, int idx)
+ogm_packet(AVFormatContext *s, int idx, int is_last)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;

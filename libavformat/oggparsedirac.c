@@ -26,7 +26,7 @@
 #include "internal.h"
 #include "oggdec.h"
 
-static int dirac_header(AVFormatContext *s, int idx)
+static int dirac_header(AVFormatContext *s, int idx, int is_first)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -84,7 +84,7 @@ static uint64_t dirac_gptopts(AVFormatContext *s, int idx, uint64_t granule,
     return pts;
 }
 
-static int old_dirac_header(AVFormatContext *s, int idx)
+static int old_dirac_header(AVFormatContext *s, int idx, int is_first)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;

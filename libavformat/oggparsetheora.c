@@ -35,7 +35,7 @@ typedef struct TheoraParams {
     unsigned version;
 } TheoraParams;
 
-static int theora_header(AVFormatContext *s, int idx)
+static int theora_header(AVFormatContext *s, int idx, int flags)
 {
     struct ogg *ogg       = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -168,7 +168,7 @@ static uint64_t theora_gptopts(AVFormatContext *ctx, int idx, uint64_t gp,
     return iframe + pframe;
 }
 
-static int theora_packet(AVFormatContext *s, int idx)
+static int theora_packet(AVFormatContext *s, int idx, int flags)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -179,7 +179,7 @@ static int theora_packet(AVFormatContext *s, int idx)
        the total duration to the page granule to find the encoder delay and
        set the first timestamp */
 
-    if ((!os->lastpts || os->lastpts == AV_NOPTS_VALUE) && !(os->flags & OGG_FLAG_EOS)) {
+    if ((!os->lastpts || os->lastpts == AV_NOPTS_VALUE) && !(flags & OGG_FLAG_EOS)) {
         int seg;
         int64_t pts;
 

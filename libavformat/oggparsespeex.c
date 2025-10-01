@@ -36,7 +36,7 @@ struct speex_params {
     int seq;
 };
 
-static int speex_header(AVFormatContext *s, int idx) {
+static int speex_header(AVFormatContext *s, int idx, int flags) {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
     struct speex_params *spxp = os->private;
@@ -111,14 +111,14 @@ static int ogg_page_packets(struct ogg_stream *os)
     return packets;
 }
 
-static int speex_packet(AVFormatContext *s, int idx)
+static int speex_packet(AVFormatContext *s, int idx, int flags)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
     struct speex_params *spxp = os->private;
     int packet_size = spxp->packet_size;
 
-    if (os->flags & OGG_FLAG_EOS && os->lastpts != AV_NOPTS_VALUE &&
+    if (flags & OGG_FLAG_EOS && os->lastpts != AV_NOPTS_VALUE &&
         os->granule > 0) {
         /* first packet of final page. we have to calculate the final packet
            duration here because it is the only place we know the next-to-last

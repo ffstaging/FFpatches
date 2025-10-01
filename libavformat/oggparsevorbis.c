@@ -368,7 +368,7 @@ static int vorbis_update_metadata(AVFormatContext *s, int idx)
                                      os->psize - 8);
 }
 
-static int vorbis_header(AVFormatContext *s, int idx)
+static int vorbis_header(AVFormatContext *s, int idx, int is_first)
 {
     struct ogg *ogg = s->priv_data;
     AVStream *st    = s->streams[idx];
@@ -447,7 +447,7 @@ static int vorbis_header(AVFormatContext *s, int idx)
     return 1;
 }
 
-static int vorbis_packet(AVFormatContext *s, int idx)
+static int vorbis_packet(AVFormatContext *s, int idx, int is_last)
 {
     struct ogg *ogg = s->priv_data;
     struct ogg_stream *os = ogg->streams + idx;
@@ -459,58 +459,6 @@ static int vorbis_packet(AVFormatContext *s, int idx)
 
     if (!priv->vp)
         return AVERROR_INVALIDDATA;
-
-    /* first packet handling
-     * here we parse the duration of each packet in the first page and compare
-     * the total duration to the page granule to find the encoder delay and
-     * set the first timestamp */
-    if ((!os->lastpts || os->lastpts == AV_NOPTS_VALUE) && !(os->flags & OGG_FLAG_EOS) && (int64_t)os->granule>=0) {
-        int seg, d;
-        uint8_t *last_pkt  = os->buf + os->pstart;
-        uint8_t *next_pkt  = last_pkt;
-
-        av_vorbis_parse_reset(priv->vp);
-        duration = 0;
-        seg = os->segp;
-        d = av_vorbis_parse_frame_flags(priv->vp, last_pkt, 1, &flags);
-        if (d < 0) {
-            os->pflags |= AV_PKT_FLAG_CORRUPT;
-            return 0;
-        } else if (flags & VORBIS_FLAG_COMMENT) {
-            vorbis_update_metadata(s, idx);
-            flags = 0;
-        }
-        duration += d;
-        last_pkt = next_pkt =  next_pkt + os->psize;
-        for (; seg < os->nsegs; seg++) {
-            if (os->segments[seg] < 255) {
-                int d = av_vorbis_parse_frame_flags(priv->vp, last_pkt, 1, &flags);
-                if (d < 0) {
-                    duration = os->granule;
-                    break;
-                } else if (flags & VORBIS_FLAG_COMMENT) {
-                    vorbis_update_metadata(s, idx);
-                    flags = 0;
-                }
-                duration += d;
-                last_pkt  = next_pkt + os->segments[seg];
-            }
-            next_pkt += os->segments[seg];
-        }
-        os->lastpts                 =
-        os->lastdts                 = os->granule - duration;
-
-        if (!os->granule && duration) //hack to deal with broken files (Ticket3710)
-            os->lastpts = os->lastdts = AV_NOPTS_VALUE;
-
-        if (s->streams[idx]->start_time == AV_NOPTS_VALUE) {
-            s->streams[idx]->start_time = FFMAX(os->lastpts, 0);
-            if (s->streams[idx]->duration != AV_NOPTS_VALUE)
-                s->streams[idx]->duration -= s->streams[idx]->start_time;
-        }
-        priv->final_pts          = AV_NOPTS_VALUE;
-        av_vorbis_parse_reset(priv->vp);
-    }
 
     /* parse packet duration */
     if (os->psize > 0) {
@@ -569,7 +517,7 @@ static int vorbis_packet(AVFormatContext *s, int idx)
      * here we save the pts of the first packet in the final page, sum up all
      * packet durations in the final page except for the last one, and compare
      * to the page granule to find the duration of the final packet */
-    if (os->flags & OGG_FLAG_EOS) {
+    if (is_last) {
         if (os->lastpts != AV_NOPTS_VALUE) {
             priv->final_pts      = os->lastpts;
             priv->final_duration = 0;
