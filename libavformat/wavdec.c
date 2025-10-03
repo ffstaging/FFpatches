@@ -32,6 +32,7 @@
 #include "libavutil/dict.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/log.h"
+#include "libavutil/macros.h"
 #include "libavutil/mathematics.h"
 #include "libavutil/mem.h"
 #include "libavutil/opt.h"
@@ -322,15 +323,20 @@ static int wav_parse_bext_tag(AVFormatContext *s, int64_t size)
         /* CodingHistory present */
         size -= 602;
 
-        if (!(coding_history = av_malloc(size + 1)))
+        int read_len = FFMIN3(size, s->max_metadata_length, INT_MAX - 1);
+
+        if (!(coding_history = av_malloc(read_len + 1)))
             return AVERROR(ENOMEM);
 
-        if ((ret = ffio_read_size(s->pb, coding_history, size)) < 0) {
+        if ((ret = ffio_read_size(s->pb, coding_history, read_len)) < 0) {
             av_free(coding_history);
             return ret;
         }
 
-        coding_history[size] = 0;
+        if (read_len < size)
+            avio_skip(s->pb, size - read_len);
+
+        coding_history[read_len] = 0;
         if ((ret = av_dict_set(&s->metadata, "coding_history", coding_history,
                                AV_DICT_DONT_STRDUP_VAL)) < 0)
             return ret;

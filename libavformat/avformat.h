@@ -1884,6 +1884,14 @@ typedef struct AVFormatContext {
      * @see skip_estimate_duration_from_pts
      */
     int64_t duration_probesize;
+
+    /**
+     * The maximum length of metadata fields.
+     * This gives demuxers a guideline of what is "too large"
+     * - encoding: unused
+     * - decoding: set by user
+     */
+    int max_metadata_length;
 } AVFormatContext;
 
 /**
