@@ -31,6 +31,7 @@
 #include "libavutil/mem.h"
 #include "libavutil/opt.h"
 #include "libavutil/thread.h"
+#include "libavutil/tree.h"
 #include "avfilter.h"
 #include "filters.h"
 #include "audio.h"
@@ -39,6 +40,7 @@
 typedef struct FliteContext {
     const AVClass *class;
     char *voice_str;
+    char *voice_file;
     char *textfile;
     char *text;
     char *text_p;
@@ -65,6 +67,7 @@ static const AVOption flite_options[] = {
     { "textfile",    "set filename of the text to speak", OFFSET(textfile),  AV_OPT_TYPE_STRING, {.str=NULL}, 0, 0, FLAGS },
     { "v",           "set voice",                         OFFSET(voice_str), AV_OPT_TYPE_STRING, {.str="kal"}, 0, 0, FLAGS },
     { "voice",       "set voice",                         OFFSET(voice_str), AV_OPT_TYPE_STRING, {.str="kal"}, 0, 0, FLAGS },
+    { "voicefile",   "set flitevox voice file",           OFFSET(voice_file), AV_OPT_TYPE_STRING, {.str=NULL}, 0, 0, FLAGS },
     { NULL }
 };
 
@@ -74,7 +77,7 @@ static AVMutex flite_mutex = AV_MUTEX_INITIALIZER;
 
 static int flite_inited = 0;
 
-/* declare functions for all the supported voices */
+/* declare functions for all the built-in voices */
 #define DECLARE_REGISTER_VOICE_FN(name) \
     cst_voice *register_cmu_us_## name(const char *); \
     void     unregister_cmu_us_## name(cst_voice *)
@@ -84,8 +87,12 @@ DECLARE_REGISTER_VOICE_FN(kal16);
 DECLARE_REGISTER_VOICE_FN(rms);
 DECLARE_REGISTER_VOICE_FN(slt);
 
+void usenglish_init(cst_voice *);
+cst_lexicon *cmulex_init(void);
+
 struct voice_entry {
     const char *name;
+    char *voice_file;
     cst_voice * (*register_fn)(const char *);
     void (*unregister_fn)(cst_voice *);
     cst_voice *voice;
@@ -145,6 +152,106 @@ static int select_voice(struct voice_entry **entry_ret, const char *voice_name, 
     return AVERROR(EINVAL);
 }
 
+static int loaded_voice_entry_count = 0;
+static int loaded_voice_entry_capacity = 0;
+static struct voice_entry **loaded_voice_entries = NULL;
+
+static int add_loaded_entry(struct voice_entry *entry) {
+    if (loaded_voice_entry_count == loaded_voice_entry_capacity) {
+        if (av_dynarray_add_nofree(&loaded_voice_entries, &loaded_voice_entry_capacity, entry) < 0)
+            return AVERROR(ENOMEM);
+        loaded_voice_entry_count++;
+    } else {
+        for (int i = 0; i < loaded_voice_entry_capacity; i++) {
+            if (!loaded_voice_entries[i]) {
+                loaded_voice_entries[i] = entry;
+                loaded_voice_entry_count++;
+                break;
+            }
+        }
+    }
+    return 0;
+}
+
+static struct voice_entry *get_loaded_entry(void *key, int (predicate)(const void *key, const struct voice_entry *entry)) {
+    for (int i = 0; i < loaded_voice_entry_capacity; i++) {
+        struct voice_entry *entry = loaded_voice_entries[i];
+        if (entry && predicate(key, entry))
+            return entry;
+    }
+    return NULL;
+}
+
+static int path_predicate(const void *key, const struct voice_entry *entry) {
+    return !strcmp((const char *)key, entry->voice_file);
+}
+
+static int voice_predicate(const void *key, const struct voice_entry *entry) {
+    return (const cst_voice *)key == entry->voice;
+}
+
+static void remove_loaded_entry(const struct voice_entry *removing_entry) {
+    for (int i = 0; i < loaded_voice_entry_capacity; i++) {
+        const struct voice_entry *entry = loaded_voice_entries[i];
+        if (entry == removing_entry) {
+            loaded_voice_entries[i] = NULL;
+            loaded_voice_entry_count--;
+        }
+    }
+}
+
+static void unregister_loaded_voice(cst_voice *voice) {
+    struct voice_entry *entry = get_loaded_entry(voice, voice_predicate);
+    if (!entry) {
+        av_log(NULL, AV_LOG_ERROR, "unregister_loaded_voice failed: no voice entry\n");
+        return;
+    }
+    if (entry->voice != voice) {
+        av_log(NULL, AV_LOG_ERROR, "unregister_loaded_voice failed: voice mismatch\n");
+        return;
+    }
+    remove_loaded_entry(entry);
+    delete_voice(entry->voice);
+    av_free((char *)entry->name);
+    av_free(entry->voice_file);
+    av_free(entry);
+    return;
+}
+
+static int load_voice(struct voice_entry **entry_ret, char *voice_path, void *log_ctx) {
+    pthread_mutex_lock(&flite_mutex);
+    struct voice_entry *entry = get_loaded_entry(voice_path, path_predicate);
+    if (!entry) {
+        cst_voice *voice;
+        if (!(voice = flite_voice_load(voice_path))) {
+            pthread_mutex_unlock(&flite_mutex);
+            av_log(log_ctx, AV_LOG_ERROR, "the voice file '%s' can not be read\n", voice_path);
+            return AVERROR_EXTERNAL;
+        }
+
+        entry = av_mallocz(sizeof(struct voice_entry));
+        entry->name = av_strdup(voice->name);
+        entry->voice_file = av_strdup(voice_path);
+        entry->unregister_fn = unregister_loaded_voice;
+        entry->voice = voice;
+
+        int ret;
+        if ((ret = add_loaded_entry(entry)) < 0) {
+            pthread_mutex_unlock(&flite_mutex);
+            delete_voice(voice);
+            av_free((char *)entry->name);
+            av_free(entry->voice_file);
+            av_free(entry);
+            return ret;
+        }
+    }
+    entry->usage_count++;
+    pthread_mutex_unlock(&flite_mutex);
+    *entry_ret = entry;
+    return 0;
+
+}
+
 static int audio_stream_chunk_by_word(const cst_wave *wave, int start, int size,
                                       int last, cst_audio_streaming_info *asi)
 {
@@ -164,6 +271,17 @@ static int audio_stream_chunk_by_word(const cst_wave *wave, int start, int size,
     return CST_AUDIO_STREAM_CONT;
 }
 
+static int perform_flite_initializations(void) {
+    int ret = 0;
+    if ((ret = flite_init()) < 0)
+        return ret;
+    if ((ret = flite_add_lang("eng", usenglish_init, cmulex_init)) < 0)
+        return ret;
+    if ((ret = flite_add_lang("usenglish", usenglish_init, cmulex_init)) < 0)
+        return ret;
+    return 0;
+}
+
 static av_cold int init(AVFilterContext *ctx)
 {
     FliteContext *flite = ctx->priv;
@@ -177,7 +295,7 @@ static av_cold int init(AVFilterContext *ctx)
 
     pthread_mutex_lock(&flite_mutex);
     if (!flite_inited) {
-        if ((ret = flite_init()) >= 0)
+        if ((ret = perform_flite_initializations()) >= 0)
             flite_inited = 1;
     }
     pthread_mutex_unlock(&flite_mutex);
@@ -186,8 +304,14 @@ static av_cold int init(AVFilterContext *ctx)
         return AVERROR_EXTERNAL;
     }
 
-    if ((ret = select_voice(&flite->voice_entry, flite->voice_str, ctx)) < 0)
-        return ret;
+    if (flite->voice_file) {
+        if ((ret = load_voice(&flite->voice_entry, flite->voice_file, ctx)) < 0)
+            return ret;
+    } else {
+        if ((ret = select_voice(&flite->voice_entry, flite->voice_str, ctx)) < 0)
+            return ret;
+    }
+
     flite->voice = flite->voice_entry->voice;
 
     if (flite->textfile && flite->text) {
@@ -297,8 +421,15 @@ static int config_props(AVFilterLink *outlink)
     outlink->sample_rate = flite->sample_rate;
     outlink->time_base = (AVRational){1, flite->sample_rate};
 
+    const char *voice_name;
+    if (flite->voice_file) {
+        voice_name = av_asprintf("%s (%s)", flite->voice->name, flite->voice_file);
+    } else {
+        voice_name = flite->voice_str;
+    }
+
     av_log(ctx, AV_LOG_VERBOSE, "voice:%s fmt:%s sample_rate:%d\n",
-           flite->voice_str,
+           voice_name,
            av_get_sample_fmt_name(outlink->format), outlink->sample_rate);
 
     return 0;
