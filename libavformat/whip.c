@@ -617,11 +617,13 @@ static int generate_sdp_offer(AVFormatContext *s)
         "o=FFmpeg %s 2 IN IP4 %s\r\n"
         "s=FFmpegPublishSession\r\n"
         "t=0 0\r\n"
-        "a=group:BUNDLE 0 1\r\n"
         "a=extmap-allow-mixed\r\n"
         "a=msid-semantic: WMS\r\n",
         WHIP_SDP_SESSION_ID,
         WHIP_SDP_CREATOR_IP);
+
+    if (whip->audio_par && whip->video_par)
+        av_bprintf(&bp, "a=group:BUNDLE 0 1\r\n");
 
     if (whip->audio_par) {
         if (whip->audio_par->codec_id == AV_CODEC_ID_OPUS)
