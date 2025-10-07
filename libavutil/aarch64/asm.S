@@ -40,6 +40,14 @@
         .arch           AS_ARCH_LEVEL
 #endif
 
+#if HAVE_AS_ARCHEXT_CRC_DIRECTIVE
+#define ENABLE_CRC  .arch_extension crc
+#define DISABLE_CRC .arch_extension nocrc
+#else
+#define ENABLE_CRC
+#define DISABLE_CRC
+#endif
+
 #if HAVE_AS_ARCHEXT_DOTPROD_DIRECTIVE
 #define ENABLE_DOTPROD  .arch_extension dotprod
 #define DISABLE_DOTPROD .arch_extension nodotprod
@@ -72,6 +80,7 @@
 #define DISABLE_SVE2
 #endif
 
+DISABLE_CRC
 DISABLE_DOTPROD
 DISABLE_I8MM
 DISABLE_SVE
