@@ -853,10 +853,10 @@ static int decode_block(MJpegDecodeContext *s, int16_t *block, int component,
 
         i += ((unsigned)code) >> 4;
             code &= 0xf;
+        // GET_VLC updates the cache if parsing doesn't finish in the first stage.
+        // So we always have at least MIN_CACHE_BITS - 9 > 15 bits left here
+        // and don't need to refill the cache.
         if (code) {
-            if (code > MIN_CACHE_BITS - 16)
-                UPDATE_CACHE(re, &s->gb);
-
             {
                 int cache = GET_CACHE(re, &s->gb);
                 int sign  = (~cache) >> 31;
