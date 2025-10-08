@@ -1680,6 +1680,14 @@ void AAC_RENAME(ff_aac_sbr_apply)(AACDecContext *ac, ChannelElement *che,
 {
     INTFLOAT *L = L_, *R = R_;
     SpectralBandReplication *sbr = get_sbr(che);
+    if (!sbr->sample_rate) {
+        if (!ac->warned_sbr_signaled_but_missing) {
+            av_log(ac->avctx, AV_LOG_WARNING, "Stream has explictly signaled "
+                "SBR but contains no EXT_SBR_DATA\n");
+            ac->warned_sbr_signaled_but_missing = 1;
+        }
+        return;
+    }
     int downsampled = ac->oc[1].m4ac.ext_sample_rate < sbr->sample_rate;
     int ch;
     int nch = (id_aac == TYPE_CPE) ? 2 : 1;

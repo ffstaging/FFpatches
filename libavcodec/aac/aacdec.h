@@ -530,6 +530,7 @@ struct AACDecContext {
     unsigned warned_71_wide;
     int warned_gain_control;
     int warned_he_aac_mono;
+    int warned_sbr_signaled_but_missing;
 
     int is_fixed;
 };
