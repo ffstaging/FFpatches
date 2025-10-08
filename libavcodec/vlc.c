@@ -499,6 +499,7 @@ static int vlc_multi_gen(VLC_MULTI_ELEM *table, const VLC *single,
     for (int j = 0; j < 1<<numbits; j++) {
         table[j].len = single->table[j].len;
         table[j].num = single->table[j].len > 0 ? 1 : 0;
+        AV_ZERO64(table[j].val8);
         if (is16bit)
             table[j].val16[0] = single->table[j].sym;
         else
