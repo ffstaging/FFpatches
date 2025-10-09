@@ -25,6 +25,10 @@
 #include "error.h"
 #include "macros.h"
 
+#if defined(_WIN32) && defined(_MSC_VER)
+#define HAVE_STRERROR_S
+#endif
+
 struct error_entry {
     int num;
     const char *tag;
@@ -64,7 +68,7 @@ static const struct error_entry error_entries[] = {
     { ERROR_TAG(HTTP_TOO_MANY_REQUESTS), "Server returned 429 Too Many Requests"      },
     { ERROR_TAG(HTTP_OTHER_4XX),     "Server returned 4XX Client Error, but not one of 40{0,1,3,4}" },
     { ERROR_TAG(HTTP_SERVER_ERROR),  "Server returned 5XX Server Error reply" },
-#if !HAVE_STRERROR_R
+#if !HAVE_STRERROR_R && !defined(HAVE_STRERROR_S)
     { EERROR_TAG(E2BIG),             "Argument list too long" },
     { EERROR_TAG(EACCES),            "Permission denied" },
     { EERROR_TAG(EAGAIN),            "Resource temporarily unavailable" },
@@ -103,7 +107,130 @@ static const struct error_entry error_entries[] = {
     { EERROR_TAG(ESPIPE),            "Illegal seek" },
     { EERROR_TAG(ESRCH),             "No such process" },
     { EERROR_TAG(EXDEV),             "Cross-device link" },
+#ifdef EADDRINUSE
+    { EERROR_TAG(EADDRINUSE),        "Address in use" },
 #endif
+#ifdef EADDRNOTAVAIL
+    { EERROR_TAG(EADDRNOTAVAIL),     "Address not available" },
+#endif
+#ifdef EAFNOSUPPORT
+    { EERROR_TAG(EAFNOSUPPORT),      "Address family not supported" },
+#endif
+#ifdef EALREADY
+    { EERROR_TAG(EALREADY),          "Connection already in progress" },
+#endif
+#ifdef EBADMSG
+    { EERROR_TAG(EBADMSG),           "Bad message" },
+#endif
+#ifdef ECANCELED
+    { EERROR_TAG(ECANCELED),         "Operation canceled" },
+#endif
+#ifdef ECONNABORTED
+    { EERROR_TAG(ECONNABORTED),      "Connection aborted" },
+#endif
+#ifdef ECONNREFUSED
+    { EERROR_TAG(ECONNREFUSED),      "Connection refused" },
+#endif
+#ifdef ECONNRESET
+    { EERROR_TAG(ECONNRESET),        "Connection reset" },
+#endif
+#ifdef EDESTADDRREQ
+    { EERROR_TAG(EDESTADDRREQ),      "Destination address required" },
+#endif
+#ifdef EHOSTUNREACH
+    { EERROR_TAG(EHOSTUNREACH),      "Host unreachable" },
+#endif
+#ifdef EIDRM
+    { EERROR_TAG(EIDRM),             "Identifier removed" },
+#endif
+#ifdef EINPROGRESS
+    { EERROR_TAG(EINPROGRESS),       "Operation in progress" },
+#endif
+#ifdef EISCONN
+    { EERROR_TAG(EISCONN),           "Already connected" },
+#endif
+#ifdef ELOOP
+    { EERROR_TAG(ELOOP),             "Too many symbolic link levels" },
+#endif
+#ifdef EMSGSIZE
+    { EERROR_TAG(EMSGSIZE),          "Message size" },
+#endif
+#ifdef ENETDOWN
+    { EERROR_TAG(ENETDOWN),          "Network down" },
+#endif
+#ifdef ENETRESET
+    { EERROR_TAG(ENETRESET),         "Network reset" },
+#endif
+#ifdef ENETUNREACH
+    { EERROR_TAG(ENETUNREACH),       "Network unreachable" },
+#endif
+#ifdef ENOBUFS
+    { EERROR_TAG(ENOBUFS),           "No buffer space" },
+#endif
+#ifdef ENODATA
+    { EERROR_TAG(ENODATA),           "No message available" },
+#endif
+#ifdef ENOLINK
+    { EERROR_TAG(ENOLINK),           "No link" },
+#endif
+#ifdef ENOMSG
+    { EERROR_TAG(ENOMSG),            "No message" },
+#endif
+#ifdef ENOPROTOOPT
+    { EERROR_TAG(ENOPROTOOPT),       "No protocol option" },
+#endif
+#ifdef ENOSR
+    { EERROR_TAG(ENOSR),             "No stream resources" },
+#endif
+#ifdef ENOSTR
+    { EERROR_TAG(ENOSTR),            "Not a stream" },
+#endif
+#ifdef ENOTCONN
+    { EERROR_TAG(ENOTCONN),          "Not connected" },
+#endif
+#ifdef ENOTRECOVERABLE
+    { EERROR_TAG(ENOTRECOVERABLE),   "State not recoverable" },
+#endif
+#ifdef ENOTSOCK
+    { EERROR_TAG(ENOTSOCK),          "Not a socket" },
+#endif
+#ifdef ENOTSUP
+    { EERROR_TAG(ENOTSUP),           "Not supported" },
+#endif
+#ifdef EOPNOTSUPP
+    { EERROR_TAG(EOPNOTSUPP),        "Operation not supported" },
+#endif
+#ifdef EOTHER
+    { EERROR_TAG(EOTHER),            "Other" },
+#endif
+#ifdef EOVERFLOW
+    { EERROR_TAG(EOVERFLOW),         "Value too large" },
+#endif
+#ifdef EOWNERDEAD
+    { EERROR_TAG(EOWNERDEAD),        "Owner dead" },
+#endif
+#ifdef EPROTO
+    { EERROR_TAG(EPROTO),            "Protocol error" },
+#endif
+#ifdef EPROTONOSUPPORT
+    { EERROR_TAG(EPROTONOSUPPORT),   "Protocol not supported" },
+#endif
+#ifdef EPROTOTYPE
+    { EERROR_TAG(EPROTOTYPE),        "Wrong protocol type" },
+#endif
+#ifdef ETIME
+    { EERROR_TAG(ETIME),             "Stream timeout" },
+#endif
+#ifdef ETIMEDOUT
+    { EERROR_TAG(ETIMEDOUT),         "Timed out" },
+#endif
+#ifdef ETXTBSY
+    { EERROR_TAG(ETXTBSY),           "Text file busy" },
+#endif
+#ifdef EWOULDBLOCK
+    { EERROR_TAG(EWOULDBLOCK),       "Operation would block" },
+#endif
+#endif // !HAVE_STRERROR_R && !defined(HAVE_STRERROR_S)
 };
 
 int av_strerror(int errnum, char *errbuf, size_t errbuf_size)
@@ -122,6 +249,8 @@ int av_strerror(int errnum, char *errbuf, size_t errbuf_size)
     } else {
 #if HAVE_STRERROR_R
         ret = AVERROR(strerror_r(AVUNERROR(errnum), errbuf, errbuf_size));
+#elif defined(HAVE_STRERROR_S)
+        ret = AVERROR(strerror_s(errbuf, errbuf_size, AVUNERROR(errnum)));
 #else
         ret = -1;
 #endif
