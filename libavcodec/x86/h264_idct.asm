@@ -757,7 +757,7 @@ INIT_MMX cpuname
     RET
 
 %ifdef __NASM_VER__
-%if __NASM_MAJOR__ >= 2 && __NASM_MINOR__ >= 4
+%if __NASM_MAJOR__ >= 3 || (__NASM_MAJOR__ >= 2 && __NASM_MINOR__ >= 4)
 %unmacro STORE_DIFFx2 8 ; remove macro from x86util.asm but yasm doesn't have this yet
 %endif
 %endif
