@@ -167,18 +167,21 @@ static int decode_nal_sei_timecode(HEVCSEITimeCode *s, GetBitContext *gb)
 
 static int decode_nal_sei_3d_reference_displays_info(HEVCSEITDRDI *s, GetBitContext *gb)
 {
+    HEVCSEITDRDI bak = *s;
+
     s->prec_ref_display_width = get_ue_golomb(gb);
     if (s->prec_ref_display_width > 31)
-        return AVERROR_INVALIDDATA;
+        goto fail;
     s->ref_viewing_distance_flag = get_bits1(gb);
     if (s->ref_viewing_distance_flag) {
         s->prec_ref_viewing_dist = get_ue_golomb(gb);
         if (s->prec_ref_viewing_dist > 31)
-            return AVERROR_INVALIDDATA;
+            goto fail;
     }
     s->num_ref_displays = get_ue_golomb(gb);
+
     if (s->num_ref_displays > 31)
-        return AVERROR_INVALIDDATA;
+        goto fail;
     s->num_ref_displays += 1;
 
     for (int i = 0; i < s->num_ref_displays; i++) {
@@ -187,7 +190,7 @@ static int decode_nal_sei_3d_reference_displays_info(HEVCSEITDRDI *s, GetBitCont
         s->right_view_id[i] = get_ue_golomb(gb);
         s->exponent_ref_display_width[i] = get_bits(gb, 6);
         if (s->exponent_ref_display_width[i] > 62)
-            return AVERROR_INVALIDDATA;
+            goto fail;
         else if (!s->exponent_ref_display_width[i])
             length = FFMAX(0, (int)s->prec_ref_display_width - 30);
         else
@@ -197,7 +200,7 @@ static int decode_nal_sei_3d_reference_displays_info(HEVCSEITDRDI *s, GetBitCont
         if (s->ref_viewing_distance_flag) {
             s->exponent_ref_viewing_distance[i] = get_bits(gb, 6);
             if (s->exponent_ref_viewing_distance[i] > 62)
-                return AVERROR_INVALIDDATA;
+                goto fail;
             else if (!s->exponent_ref_viewing_distance[i])
                 length = FFMAX(0, (int)s->prec_ref_viewing_dist - 30);
             else
@@ -209,13 +212,18 @@ static int decode_nal_sei_3d_reference_displays_info(HEVCSEITDRDI *s, GetBitCont
         if (s->additional_shift_present_flag[i]) {
             s->num_sample_shift[i] = get_bits(gb, 10);
             if (s->num_sample_shift[i] > 1023)
-                return AVERROR_INVALIDDATA;
+                goto fail;
             s->num_sample_shift[i] -= 512;
         }
     }
     s->three_dimensional_reference_displays_extension_flag = get_bits1(gb);
 
     return 0;
+fail:
+
+    *s = bak;
+
+    return AVERROR_INVALIDDATA;
 }
 
 static int decode_nal_sei_prefix(GetBitContext *gb, GetByteContext *gbyte,
