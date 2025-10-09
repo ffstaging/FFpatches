@@ -63,6 +63,8 @@ typedef struct ASFStream {
 
     int64_t packet_pos;
 
+    int64_t avg_time_dur;                ///< the average time duration
+
     uint16_t stream_language_index;
 
     int      palette_changed;
@@ -481,6 +483,7 @@ static int asf_read_ext_stream_properties(AVFormatContext *s)
     int ext_len, payload_ext_ct, stream_ct, i;
     uint32_t leak_rate, stream_num;
     unsigned int stream_languageid_index;
+    uint64_t stream_avg_time_dur;
 
     avio_rl64(pb); // starttime
     avio_rl64(pb); // endtime
@@ -498,7 +501,10 @@ static int asf_read_ext_stream_properties(AVFormatContext *s)
     if (stream_num < 128)
         asf->streams[stream_num].stream_language_index = stream_languageid_index;
 
-    avio_rl64(pb); // avg frametime in 100ns units
+    stream_avg_time_dur = avio_rl64(pb); // avg frametime in 100ns units
+    if (stream_num < 128)
+        asf->streams[stream_num].avg_time_dur = stream_avg_time_dur;
+
     stream_ct      = avio_rl16(pb); // stream-name-count
     payload_ext_ct = avio_rl16(pb); // payload-extension-system-count
 
@@ -838,6 +844,10 @@ static int asf_read_header(AVFormatContext *s)
                     i, st->codecpar->codec_type, asf->dar[i].num, asf->dar[i].den,
                     st->sample_aspect_ratio.num, st->sample_aspect_ratio.den);
 
+            //this field set for video
+            if (asf->streams[i].avg_time_dur && st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
+                av_reduce(&st->avg_frame_rate.num, &st->avg_frame_rate.den, 10000000, asf->streams[i].avg_time_dur, INT_MAX);
+            
             // copy and convert language codes to the frontend
             if (asf->streams[i].stream_language_index < 128) {
                 const char *rfc1766 = asf->stream_languages[asf->streams[i].stream_language_index];
