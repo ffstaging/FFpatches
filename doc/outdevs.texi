@@ -272,6 +272,47 @@ ffmpeg -i test.avi -f decklink -pix_fmt uyvy422 -s 720x486 -r 24000/1001 'DeckLi
 
 @end itemize
 
+@section libomt
+
+The libomt output device provides playback capabilities for using OMT (OpenMediaTransport).
+
+Output filename is an OMT name.
+
+To enable this output device, you need the OMT SDK libraries libomt and libvpx and header libomt.h and you
+need to configure with the appropriate @code{--extra-cflags}
+and @code{--extra-ldflags}.
+
+OMT uses uyvy422 pixel format natively, but also supports bgra
+
+@subsection Options
+
+@table @option
+
+@item reference_level
+Set this to a value, typically 1.0 to set the float value for audio which represents 
+full scale deflection when converted from an integer.
+Defaults to @option{1.0}.
+
+@item clock_output
+These specify whether OMT "clocks" itself.
+Defaults to @option{false}.
+
+
+@end table
+
+@subsection Examples
+
+@itemize
+
+@item
+Play video clip:
+@example
+ffmpeg -i "udp://@@239.1.1.1:10480?fifo_size=1000000&overrun_nonfatal=1" -vf "scale=720:576,fps=fps=25,setdar=dar=16/9,format=pix_fmts=uyvy422" -f libomt NEW_OMT1
+@end example
+
+@end itemize
+
+
 @section fbdev
 
 Linux framebuffer output device.

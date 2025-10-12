@@ -458,6 +458,48 @@ ffmpeg -channels 16 -format_code Hi50 -f decklink -i 'UltraStudio Mini Recorder'
 
 @end itemize
 
+
+@section libomt
+
+The libomt input device provides capture capabilities for using OMT (OpenMediaTransport).
+
+Input filename is a full OMT source name  in the form : HOST (sourcename)
+To enable this input device, you need the OMT SDK libraries libomt and libvpx and header libomt.h and you
+need to configure with the appropriate @code{--extra-cflags}
+and @code{--extra-ldflags}.
+
+@subsection Options
+
+@table @option
+
+@item reference_level
+Set this to a value, typically 1.0 to set the float value for audio which represents 
+full scale deflection when converted to an integer.
+Defaults to @option{1.0}.
+
+
+@end table
+
+@subsection Examples
+
+@itemize
+
+@item
+Restream to OMT:
+@example
+ffmpeg -f libomt -i "DEV-5.INTERNAL.M1STEREO.TV (OMT_SOURCE_NAME_1)" -f libomt OMT_SOURCE_NAME_2
+@end example
+
+@item
+Restream remote OMT to local OMT:
+@example
+ffmpeg -f libomt -i "MYOMTDEVICE (OMT_SOURCE_NAME_1)" -f libomt OMT_SOURCE_NAME_2
+@end example
+
+
+@end itemize
+
+
 @section dshow
 
 Windows DirectShow input device.
