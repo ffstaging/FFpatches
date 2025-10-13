@@ -220,6 +220,8 @@ External library support:
                            needed for subtitles and ass filter [no]
   --enable-libbluray       enable BluRay reading using libbluray [no]
   --enable-libbs2b         enable bs2b DSP library [no]
+  --enable-libbungee       enable enable Bungee audio stretch [no]
+  --enable-libbungeepro    enable enable Bungee Pro audio stretch [no]
   --enable-libcaca         enable textual display using libcaca [no]
   --enable-libcelt         enable CELT decoding via libcelt [no]
   --enable-libcdio         enable audio CD grabbing with libcdio [no]
@@ -1962,6 +1964,8 @@ EXTERNAL_LIBRARY_LIST="
     libass
     libbluray
     libbs2b
+    libbungee
+    libbungeepro
     libcaca
     libcelt
     libcodec2
@@ -3978,6 +3982,8 @@ blend_vulkan_filter_deps="vulkan spirv_compiler"
 boxblur_filter_deps="gpl"
 boxblur_opencl_filter_deps="opencl gpl"
 bs2b_filter_deps="libbs2b"
+bungee_filter_deps="libbungee"
+bungeepro_filter_deps="libbungeepro"
 bwdif_cuda_filter_deps="ffnvcodec"
 bwdif_cuda_filter_deps_any="cuda_nvcc cuda_llvm"
 bwdif_vulkan_filter_deps="vulkan spirv_compiler"
@@ -7107,6 +7113,8 @@ enabled libiec61883       && require libiec61883 libiec61883/iec61883.h iec61883
 enabled libass            && require_pkg_config libass "libass >= 0.11.0" ass/ass.h ass_library_init
 enabled libbluray         && require_pkg_config libbluray libbluray libbluray/bluray.h bd_open
 enabled libbs2b           && require_pkg_config libbs2b libbs2b bs2b.h bs2b_open
+enabled libbungee         && require_pkg_config libbungee "libbungee >= 2.4.0 libbungee < 3.0.0" bungee/Bungee.h getFunctionsBungeeBasic
+enabled libbungeepro      && require_pkg_config libbungeepro "libbungeepro >= 0.0.0" bungee/Bungee.h getFunctionsBungeePro
 enabled libcelt           && require libcelt celt/celt.h celt_decode -lcelt0 &&
                              { check_lib libcelt celt/celt.h celt_decoder_create_custom -lcelt0 ||
                                die "ERROR: libcelt must be installed and version must be >= 0.11.0."; }

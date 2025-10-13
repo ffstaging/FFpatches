@@ -112,6 +112,8 @@ extern const FFFilter ff_af_bandreject;
 extern const FFFilter ff_af_bass;
 extern const FFFilter ff_af_biquad;
 extern const FFFilter ff_af_bs2b;
+extern const FFFilter ff_af_bungee;
+extern const FFFilter ff_af_bungeepro;
 extern const FFFilter ff_af_channelmap;
 extern const FFFilter ff_af_channelsplit;
 extern const FFFilter ff_af_chorus;

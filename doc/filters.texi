@@ -4292,6 +4292,32 @@ Feed level (in Hz).
 
 @end table
 
+@section bungee
+
+Stretch audio timescale and/or modify pitch using Bungee.
+
+This filter accepts the following parameters:
+@table @option
+@item speed
+Controls the speed or tempo of the output audio. The default value 1 will not change speed.
+@item pitch
+Sets a pitch adjustment as a frequency multiplier. The default value 1 will have no effect on pitch.
+@item resample
+Controls whether Bungee should apply any resampling necessary to change pitch on the input or output of the filter.
+@end table
+
+
+To enable compilation of this filter, you need to configure FFmpeg with
+@code{--enable-libbungee}.
+
+@section bungeepro
+
+Stretch audio timescale and/or modify pitch using Bungee Pro. This filter accepts 
+the same options as @ref{bungee}.
+
+To enable compilation of this filter, you need to configure FFmpeg with
+@code{--enable-libbungeepron }.
+
 @section channelmap
 
 Remap input channels to new locations.
