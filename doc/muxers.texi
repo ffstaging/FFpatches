@@ -3959,6 +3959,10 @@ Default value is 1200.
 Set the buffer size, in bytes, of underlying protocol.
 Default value is -1(auto). The UDP auto selects a reasonable value.
 
+@item rtp_history @var{integer}
+Set the number of RTP history items to store.
+Default value is 512.
+
 @item authorization @var{string}
 The optional Bearer token for WHIP Authorization.
 
