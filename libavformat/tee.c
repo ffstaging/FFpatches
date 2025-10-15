@@ -152,6 +152,11 @@ static void close_slaves(AVFormatContext *avf)
     av_freep(&tee->slaves);
 }
 
+static void set_slave_defaults(TeeSlave *tee_slave)
+{
+    tee_slave->on_fail = DEFAULT_SLAVE_FAILURE_POLICY;
+}
+
 static int open_slave(AVFormatContext *avf, char *slave, TeeSlave *tee_slave)
 {
     int ret;
@@ -166,6 +171,8 @@ static int open_slave(AVFormatContext *avf, char *slave, TeeSlave *tee_slave)
 
     if ((ret = ff_tee_parse_slave_options(avf, slave, &options, &filename)) < 0)
         return ret;
+
+    set_slave_defaults(tee_slave);
 
 #define CONSUME_OPTION(option, field, action) do {                      \
         AVDictionaryEntry *en = av_dict_get(options, option, NULL, 0);  \
