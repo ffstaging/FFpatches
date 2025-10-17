@@ -300,6 +300,9 @@ static const struct {
     #if CONFIG_GBLUR_FILTER
         { "vf_gblur", checkasm_check_vf_gblur },
     #endif
+    #if CONFIG_BOXBLUR_FILTER
+        { "vf_boxblur", checkasm_check_boxblur },
+    #endif
     #if CONFIG_HFLIP_FILTER
         { "vf_hflip", checkasm_check_vf_hflip },
     #endif
