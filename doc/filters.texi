@@ -30915,6 +30915,42 @@ Draw a graph using input audio metadata.
 
 See @ref{drawgraph}
 
+@section adumppcm
+
+Dump raw PCM audio data for debugging between filters.
+
+This filter allows writing raw audio data to disk from any audio link
+in the filtergraph for inspection. It supports planar and packed formats,
+automatically interleaving planar data for writing.
+
+@subsection Syntax
+
+@example
+dump_raw_start=file=/your/dump/directory/
+@end example
+
+@subsection Usage
+
+To enable dumping, use the @code{dump_raw_start} command:
+
+@example
+ffmpeg -i input.wav -af "volume,asendcmd='0.0 dump_raw_start file=/tmp/pcm/'" -f null -
+@end example
+
+To stop dumping:
+
+@example
+asendcmd='5.0 dump_raw_stop'
+@end example
+
+@subsection Options
+
+@table @option
+@item file
+Specify a directory path (not a filename) where PCM data will be dumped.
+The dumped file is named @code{<src>-<dst>.pcm} and will be overwritten if it already exists.
+@end table
+
 @section agraphmonitor
 
 See @ref{graphmonitor}.
