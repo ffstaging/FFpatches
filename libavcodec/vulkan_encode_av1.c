@@ -80,6 +80,7 @@ typedef struct VulkanEncodeAV1Context {
     AV1RawOBU seq_hdr_obu;
     AV1RawOBU meta_cll_obu;
     AV1RawOBU meta_mastering_obu;
+    AV1RawOBU show_existing_obu;
 
     VkVideoEncodeAV1ProfileInfoKHR profile;
 
@@ -172,6 +173,12 @@ static void set_name_slot(int slot, int *slot_indices, uint32_t allowed_idx, int
     av_assert0(0);
 }
 
+static int vulkan_encode_av1_add_obu(AVCodecContext *, CodedBitstreamFragment *,
+                                     uint8_t, void *);
+
+static int vulkan_encode_av1_write_obu(AVCodecContext *,
+                                       uint8_t *, size_t *,
+                                       CodedBitstreamFragment *);
 
 static int init_pic_params(AVCodecContext *avctx, FFHWBaseEncodePicture *pic,
                            VkVideoEncodeInfoKHR *encode_info)
@@ -540,6 +547,41 @@ static int init_pic_params(AVCodecContext *avctx, FFHWBaseEncodePicture *pic,
 
             ap->units_needed |= UNIT_CONTENT_LIGHT_LEVEL;
         }
+    }
+
+    FFVulkanEncodePicture *vp = pic->priv;
+    vp->tail_size = 0;
+    vp->non_independent_frame = pic->encode_order < pic->display_order;
+    int ret = 0;
+
+    if (vp->non_independent_frame) {
+        CodedBitstreamFragment *current_obu = &enc->current_access_unit;
+        AV1RawOBU *fh_obu = &enc->show_existing_obu;
+        AV1RawFrameHeader *fh = &fh_obu->obu.frame_header;
+
+        memset(fh_obu, 0, sizeof(*fh_obu));
+        fh_obu->header.obu_type = AV1_OBU_FRAME_HEADER;
+        fh_obu->header.obu_has_size_field = 1;
+
+        fh->show_existing_frame   = 1;
+        fh->frame_to_show_map_idx = ap->slot != 0;
+        fh->frame_type            = AV1_FRAME_INTER;
+        fh->frame_width_minus_1   = avctx->width - 1;
+        fh->frame_height_minus_1  = avctx->height - 1;
+        fh->render_width_minus_1  = fh->frame_width_minus_1;
+        fh->render_height_minus_1 = fh->frame_height_minus_1;
+
+        ((CodedBitstreamAV1Context *)enc->cbs->priv_data)->seen_frame_header = 0;
+
+        ret = vulkan_encode_av1_add_obu(avctx, current_obu, AV1_OBU_FRAME_HEADER, fh_obu);
+        if (ret < 0)
+            goto end;
+
+        ret = vulkan_encode_av1_write_obu(avctx, vp->tail_data, &vp->tail_size, current_obu);
+
+end:
+        ff_cbs_fragment_reset(current_obu);
+        return ret;
     }
 
     return 0;

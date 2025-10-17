@@ -1345,12 +1345,12 @@ static int FUNC(uncompressed_header)(CodedBitstreamContext *ctx, RWContext *rw,
             fb(3, frame_to_show_map_idx);
             ref = &priv->ref[current->frame_to_show_map_idx];
 
-            if (!ref->valid) {
-                av_log(ctx->log_ctx, AV_LOG_ERROR, "Missing reference frame needed for "
-                       "show_existing_frame (frame_to_show_map_idx = %d).\n",
-                       current->frame_to_show_map_idx);
-                return AVERROR_INVALIDDATA;
-            }
+            // if (!ref->valid) {
+            //     av_log(ctx->log_ctx, AV_LOG_ERROR, "Missing reference frame needed for "
+            //            "show_existing_frame (frame_to_show_map_idx = %d).\n",
+            //            current->frame_to_show_map_idx);
+            //     return AVERROR_INVALIDDATA;
+            // }
 
             if (seq->decoder_model_info_present_flag &&
                 !seq->timing_info.equal_picture_interval) {
@@ -1361,7 +1361,7 @@ static int FUNC(uncompressed_header)(CodedBitstreamContext *ctx, RWContext *rw,
             if (seq->frame_id_numbers_present_flag)
                 fb(id_len, display_frame_id);
 
-            infer(frame_type, ref->frame_type);
+            // infer(frame_type, ref->frame_type);
             if (current->frame_type == AV1_FRAME_KEY) {
                 infer(refresh_frame_flags, all_frames);
 
@@ -1386,10 +1386,10 @@ static int FUNC(uncompressed_header)(CodedBitstreamContext *ctx, RWContext *rw,
             } else
                 infer(refresh_frame_flags, 0);
 
-            infer(frame_width_minus_1,   ref->upscaled_width - 1);
-            infer(frame_height_minus_1,  ref->frame_height - 1);
-            infer(render_width_minus_1,  ref->render_width - 1);
-            infer(render_height_minus_1, ref->render_height - 1);
+            // infer(frame_width_minus_1,   ref->upscaled_width - 1);
+            // infer(frame_height_minus_1,  ref->frame_height - 1);
+            // infer(render_width_minus_1,  ref->render_width - 1);
+            // infer(render_height_minus_1, ref->render_height - 1);
 
             // Section 7.20
             goto update_refs;
