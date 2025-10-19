@@ -7229,6 +7229,8 @@ out:
     return ret;
 }
 
+static int mov_read_senc(MOVContext *c, AVIOContext *pb, MOVAtom atom);
+
 static int mov_read_uuid(MOVContext *c, AVIOContext *pb, MOVAtom atom)
 {
     AVStream *st;
@@ -7246,6 +7248,10 @@ static int mov_read_uuid(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     static const AVUUID uuid_spherical = {
         0xff, 0xcc, 0x82, 0x63, 0xf8, 0x55, 0x4a, 0x93,
         0x88, 0x14, 0x58, 0x7a, 0x02, 0x52, 0x1f, 0xdd,
+    };
+    static const AVUUID uuid_piff_senc = {
+        0xa2, 0x39, 0x4f, 0x52, 0x5a, 0x9b, 0x4f, 0x14,
+        0xa2, 0x44, 0x6c, 0x42, 0x7c, 0x64, 0x8d, 0xf4
     };
 
     if (atom.size < AV_UUID_LEN || atom.size >= FFMIN(INT_MAX, SIZE_MAX))
@@ -7329,6 +7335,8 @@ static int mov_read_uuid(MOVContext *c, AVIOContext *pb, MOVAtom atom)
             return ret;
         if (!sc->spherical)
             av_log(c->fc, AV_LOG_WARNING, "Invalid spherical metadata found\n");
+    } else if (av_uuid_equal(uuid, uuid_piff_senc)) {
+        mov_read_senc(c, pb, atom);
     }
 
     return 0;
