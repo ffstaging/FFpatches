@@ -2949,6 +2949,33 @@ void av_fast_padded_mallocz(void *ptr, unsigned int *size, size_t min_size);
 int avcodec_is_open(AVCodecContext *s);
 
 /**
+ * Add a new packet side data entry to an array based on existing frame
+ * side data, if a matching type exists for packet side data.
+ *
+ * @param flags              Currently unused. Must be 0.
+ * @retval >= 0              Success
+ * @retval AVERROR(EINVAL)   The frame side data type does not have a matching
+ *                           packet side data type.
+ * @retval AVERROR(ENOMEM)   Failed to add a side data entry to the array, or
+ *                           similar.
+ */
+int av_packet_side_data_from_frame(AVPacketSideData **sd, int *nb_sd,
+                                   const AVFrameSideData *src, unsigned int flags);
+/**
+ * Add a new frame side data entry to an array based on existing packet
+ * side data, if a matching type exists for frame side data.
+ *
+ * @param flags              Some combination of AV_FRAME_SIDE_DATA_FLAG_* flags,
+ *                           or 0.
+ * @retval >= 0              Success
+ * @retval AVERROR(EINVAL)   The packet side data type does not have a matching
+ *                           frame side data type.
+ * @retval AVERROR(ENOMEM)   Failed to add a side data entry to the array, or
+ *                           similar.
+ */
+int av_packet_side_data_to_frame(AVFrameSideData ***sd, int *nb_sd,
+                                 const AVPacketSideData *src, unsigned int flags);
+/**
  * @}
  */
 
