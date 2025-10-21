@@ -53,13 +53,17 @@ static const uint32_t sao_size[5] = {8, 16, 32, 48, 64};
         int k;                                              \
         if (bit_depth == 8) {                               \
             for (k = 0; k < size; k++) {                    \
-                uint8_t r = rnd() % max_offset;             \
-                buf[k] = r;                                 \
+                uint8_t r = rnd();                          \
+                uint8_t sign = r & max_offset;              \
+                uint8_t val =  r % max_offset;              \
+                buf[k] = sign ? val : -val;                 \
             }                                               \
         } else {                                            \
             for (k = 0; k < size; k++) {                    \
-                uint16_t r = rnd() % max_offset;            \
-                buf[k] = r;                                 \
+                uint16_t r = rnd();                         \
+                uint16_t sign = r & max_offset;             \
+                uint16_t val =  r % max_offset;             \
+                buf[k] = sign ? val : -val;                 \
             }                                               \
         }                                                   \
     } while (0)
