@@ -607,25 +607,68 @@ static int set_enable_expr(FFFilterContext *ctxi, const char *expr)
     return 0;
 }
 
-int avfilter_process_command(AVFilterContext *filter, const char *cmd, const char *arg, char *res, int res_len, int flags)
+int avfilter_process_command(AVFilterContext *filter, const char *cmd, const char *arg,
+                            char *res, int res_len, int flags)
 {
-    if(!strcmp(cmd, "ping")){
-        char local_res[256] = {0};
+    int direction = flags & AVFILTER_CMD_FLAG_REVERSE;
+    int ret = AVERROR(ENOSYS);
+    int processed = 0;
 
-        if (!res) {
-            res = local_res;
-            res_len = sizeof(local_res);
-        }
-        av_strlcatf(res, res_len, "pong from:%s %s\n", filter->filter->name, filter->name);
-        if (res == local_res)
-            av_log(filter, AV_LOG_INFO, "%s", res);
-        return 0;
-    }else if(!strcmp(cmd, "enable")) {
-        return set_enable_expr(fffilterctx(filter), arg);
-    }else if (fffilter(filter->filter)->process_command) {
-        return fffilter(filter->filter)->process_command(filter, cmd, arg, res, res_len, flags);
+    int process_flags = flags & ~AVFILTER_CMD_FLAG_CHAIN;
+    if (!strcmp(cmd, "ping")) {
+        char local_res[256] = {0};
+        char *res_buf = res ? res : local_res;
+        size_t buf_len = res ? res_len : sizeof(local_res);
+        av_strlcatf(res_buf, buf_len, "pong from:%s %s\n",
+                   filter->filter->name, filter->name ? filter->name : "unknown");
+        if (!res)
+            av_log(filter, AV_LOG_INFO, "%s", res_buf);
+        ret = 0;
+    } else if (!strcmp(cmd, "enable")) {
+        ret = set_enable_expr(fffilterctx(filter), arg);
+    } else if (fffilter(filter->filter)->process_command) {
+        ret = fffilter(filter->filter)->process_command(filter, cmd, arg, res, res_len, process_flags);
+    } else {
+        ret = AVERROR(ENOSYS);
     }
-    return AVERROR(ENOSYS);
+
+    if (ret != AVERROR(ENOSYS)) {
+        processed = 1;
+        if ((flags & AVFILTER_CMD_FLAG_ONE) || ret < 0) {
+            return ret;
+        }
+    }
+
+    if (!(flags & AVFILTER_CMD_FLAG_CHAIN)) {
+        return processed ? 0 : AVERROR(ENOSYS);
+    }
+
+    av_log(filter, AV_LOG_DEBUG,
+           "cmd_chain: [%s] dir:%s -> '%s' '%s' (forwarding)\n",
+           filter->name ? filter->name : "unknown",
+           direction ? "reverse" : "forward",
+           cmd, arg ? arg : "");
+
+    unsigned nb_links = direction ? filter->nb_inputs : filter->nb_outputs;
+    for (int i = 0; i < nb_links; i++) {
+        AVFilterLink *link = direction ? filter->inputs[i] : filter->outputs[i];
+        AVFilterContext *next_filter = direction ? (link ? link->src : NULL) : (link ? link->dst : NULL);
+
+        if (!link || !next_filter) {
+            av_log(filter, AV_LOG_DEBUG, "Invalid %s link at pad %d\n",
+                   direction ? "input" : "output", i);
+            continue;
+        }
+
+        ret = avfilter_process_command(next_filter, cmd, arg, res, res_len, flags);
+        if (ret >= 0) {
+            processed = 1;
+        } else if (ret != AVERROR(ENOSYS)) {
+            return ret;
+        }
+    }
+
+    return processed ? 0 : AVERROR(ENOSYS);
 }
 
 unsigned avfilter_filter_pad_count(const AVFilter *filter, int is_output)

@@ -466,8 +466,14 @@ struct AVFilterLink {
 int avfilter_link(AVFilterContext *src, unsigned srcpad,
                   AVFilterContext *dst, unsigned dstpad);
 
-#define AVFILTER_CMD_FLAG_ONE   1 ///< Stop once a filter understood the command (for target=all for example), fast filters are favored automatically
-#define AVFILTER_CMD_FLAG_FAST  2 ///< Only execute command when its fast (like a video out that supports contrast adjustment in hw)
+#define AVFILTER_CMD_FLAG_ONE     1 ///< Stop once a filter understood the command (for target=all for example), fast filters are favored automatically
+#define AVFILTER_CMD_FLAG_FAST    2 ///< Only execute command when its fast (like a video out that supports contrast adjustment in hw)
+#define AVFILTER_CMD_FLAG_CHAIN   4 ///< Propagate the command through the entire filter chain. After processing the current filter,
+                                    /// traverse all its associated links (inputs or outputs, based on direction) and recursively
+                                    /// forward the command to subsequent filters, covering the full filter topology.
+#define AVFILTER_CMD_FLAG_REVERSE 8 ///< Only effective when paired with AVFILTER_CMD_FLAG_CHAIN. Changes the command's traversal
+                                    /// direction in the chain: default (forward) follows data flow (source → destination filters),
+                                    /// while reverse traversal opposes data flow (destination → source filters).
 
 /**
  * Make the filter instance process a command.
