@@ -81,6 +81,7 @@ const AVCodecTag ff_codec_movsubtitle_tags[] = {
 
 const AVCodecTag ff_codec_movdata_tags[] = {
     { AV_CODEC_ID_BIN_DATA, MKTAG('g', 'p', 'm', 'd') },
+    { AV_CODEC_ID_MEBX, MKTAG('m', 'e', 'b', 'x') },
     { AV_CODEC_ID_NONE, 0 },
 };
 
