@@ -356,7 +356,7 @@ static void write_codec_attr(AVStream *st, VariantStream *vs)
     if (vs->attr_status == CODEC_ATTRIBUTE_WILL_NOT_BE_WRITTEN)
         return;
 
-    if (ff_make_codec_str(vs->avf, st->codecpar, &st->avg_frame_rate,
+    if (av_make_codec_str(vs->avf, st->codecpar, &st->avg_frame_rate,
                           attr, sizeof(attr)) < 0)
         goto fail;
 

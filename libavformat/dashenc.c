@@ -1574,7 +1574,7 @@ static int dash_init(AVFormatContext *s)
             c->has_video = 1;
         }
 
-        ff_make_codec_str(s, st->codecpar, &st->avg_frame_rate, os->codec_str,
+        av_make_codec_str(s, st->codecpar, &st->avg_frame_rate, os->codec_str,
                           sizeof(os->codec_str));
         os->first_pts = AV_NOPTS_VALUE;
         os->max_pts = AV_NOPTS_VALUE;
@@ -1711,7 +1711,7 @@ static int update_stream_extradata(AVFormatContext *s, OutputStream *os,
 
     memcpy(par->extradata, extradata, extradata_size);
 
-    ff_make_codec_str(s, par, frame_rate, os->codec_str, sizeof(os->codec_str));
+    av_make_codec_str(s, par, frame_rate, os->codec_str, sizeof(os->codec_str));
 
     return 0;
 }

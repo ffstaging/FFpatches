@@ -2891,6 +2891,20 @@ int avformat_query_codec(const AVOutputFormat *ofmt, enum AVCodecID codec_id,
                          int std_compliance);
 
 /**
+ * Make a RFC 6381 like string describing a codec.
+ *
+ * @param logctx a context for potential log messages
+ * @param par pointer to an AVCodecParameters struct describing the codec
+ * @param frame_rate an optional pointer to AVRational for the frame rate,
+ *                   for deciding the right profile for video codecs
+ * @param str the output string buffer
+ * @param size the size of the string pointed to by str
+ * @return <0 on error
+ */
+int av_make_codec_str(void *logctx, AVCodecParameters *par,
+                      AVRational *frame_rate, char *str, int size);
+
+/**
  * @defgroup riff_fourcc RIFF FourCCs
  * @{
  * Get the tables mapping RIFF FourCCs to libavcodec AVCodecIDs. The tables are
