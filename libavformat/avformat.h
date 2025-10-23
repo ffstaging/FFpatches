@@ -2890,6 +2890,21 @@ int av_match_ext(const char *filename, const char *extensions);
 int avformat_query_codec(const AVOutputFormat *ofmt, enum AVCodecID codec_id,
                          int std_compliance);
 
+struct AVBPrint;
+/**
+ * Make a RFC 4281/6381 like string describing a codec.
+ *
+ * @param logctx a context for potential log messages
+ * @param par pointer to an AVCodecParameters struct describing the codec
+ * @param frame_rate an optional pointer to AVRational for the frame rate,
+ *                   for deciding the right profile for video codecs
+ * @param str the output string buffer
+ * @param size the size of the string pointed to by str
+ * @return <0 on error
+ */
+int av_make_codec_str(void *logctx, const AVCodecParameters *par,
+                      const AVRational *frame_rate, struct AVBPrint *out);
+
 /**
  * @defgroup riff_fourcc RIFF FourCCs
  * @{

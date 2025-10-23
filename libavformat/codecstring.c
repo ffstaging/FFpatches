@@ -59,7 +59,7 @@ static void set_vp9_codec_str(void *logctx, const AVCodecParameters *par,
     }
 }
 
-int ff_make_codec_str(void *logctx, const AVCodecParameters *par,
+int av_make_codec_str(void *logctx, const AVCodecParameters *par,
                       const AVRational *frame_rate, struct AVBPrint *out)
 {
     int i;

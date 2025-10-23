@@ -358,7 +358,7 @@ static void write_codec_attr(AVStream *st, VariantStream *vs)
         return;
 
     av_bprint_init_for_buffer(&buffer, attr, sizeof(attr));
-    if (ff_make_codec_str(vs->avf, st->codecpar, &st->avg_frame_rate,
+    if (av_make_codec_str(vs->avf, st->codecpar, &st->avg_frame_rate,
                           &buffer) < 0)
         goto fail;
 
