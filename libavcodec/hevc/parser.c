@@ -341,6 +341,17 @@ static int hevc_parse(AVCodecParserContext *s, AVCodecContext *avctx,
     return next;
 }
 
+static void hevc_parser_flush(AVCodecParserContext *s)
+{
+    HEVCParserContext *ctx = s->priv_data;
+
+    ctx->parsed_extradata = 0;
+
+    ff_hevc_ps_uninit(&ctx->ps);
+    ff_hevc_reset_sei(&ctx->sei);
+    ff_parse_flush(s);
+}
+
 static void hevc_parser_close(AVCodecParserContext *s)
 {
     HEVCParserContext *ctx = s->priv_data;
@@ -357,4 +368,5 @@ const AVCodecParser ff_hevc_parser = {
     .priv_data_size = sizeof(HEVCParserContext),
     .parser_parse   = hevc_parse,
     .parser_close   = hevc_parser_close,
+    .parser_flush   = hevc_parser_flush,
 };

@@ -2743,6 +2743,7 @@ typedef struct AVCodecParser {
                         const uint8_t *buf, int buf_size);
     void (*parser_close)(AVCodecParserContext *s);
     int (*split)(AVCodecContext *avctx, const uint8_t *buf, int buf_size);
+    void (*parser_flush)(AVCodecParserContext *s);
 } AVCodecParser;
 
 /**
@@ -2795,6 +2796,8 @@ int av_parser_parse2(AVCodecParserContext *s,
                      const uint8_t *buf, int buf_size,
                      int64_t pts, int64_t dts,
                      int64_t pos);
+
+void av_parser_flush(AVCodecParserContext *s);
 
 void av_parser_close(AVCodecParserContext *s);
 

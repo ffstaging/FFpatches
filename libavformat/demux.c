@@ -1167,7 +1167,10 @@ static int parse_packet(AVFormatContext *s, AVPacket *pkt,
     AVPacket *out_pkt = si->parse_pkt;
     AVStream *st = s->streams[stream_index];
     FFStream *const sti = ffstream(st);
+    AVPacketSideData *sd = NULL;
     const uint8_t *data = pkt->data;
+    const uint8_t *extradata = sti->avctx->extradata;
+    int extradata_size = sti->avctx->extradata_size;
     int size = pkt->size;
     int ret = 0, got_output = flush;
 
@@ -1182,6 +1185,17 @@ static int parse_packet(AVFormatContext *s, AVPacket *pkt,
             if (ret < 0)
                 goto fail;
         }
+    }
+
+    if (pkt->side_data_elems)
+        sd = av_packet_side_data_get(pkt->side_data, pkt->side_data_elems,
+                                     AV_PKT_DATA_NEW_EXTRADATA);
+    if (sd) {
+        av_assert1(size && !flush);
+
+        av_parser_flush(sti->parser);
+        sti->avctx->extradata      = sd->data;
+        sti->avctx->extradata_size = sd->size;
     }
 
     while (size > 0 || (flush && got_output)) {
@@ -1277,6 +1291,11 @@ static int parse_packet(AVFormatContext *s, AVPacket *pkt,
     }
 
 fail:
+    if (sd) {
+        sti->avctx->extradata      = extradata;
+        sti->avctx->extradata_size = extradata_size;
+    }
+
     if (ret < 0)
         av_packet_unref(out_pkt);
     av_packet_unref(pkt);

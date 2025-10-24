@@ -201,6 +201,16 @@ static av_cold int av1_parser_init(AVCodecParserContext *ctx)
     return 0;
 }
 
+static av_cold void av1_parser_flush(AVCodecParserContext *ctx)
+{
+    AV1ParseContext *s = ctx->priv_data;
+
+    s->parsed_extradata = 0;
+
+    ff_cbs_fragment_reset(&s->temporal_unit);
+    ff_parse_flush(s);
+}
+
 static av_cold void av1_parser_close(AVCodecParserContext *ctx)
 {
     AV1ParseContext *s = ctx->priv_data;
@@ -214,5 +224,6 @@ const AVCodecParser ff_av1_parser = {
     .priv_data_size = sizeof(AV1ParseContext),
     .parser_init    = av1_parser_init,
     .parser_close   = av1_parser_close,
+    .parser_flush   = av1_parser_flush,
     .parser_parse   = av1_parser_parse,
 };

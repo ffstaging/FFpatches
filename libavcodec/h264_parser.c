@@ -661,6 +661,16 @@ static int h264_parse(AVCodecParserContext *s,
     return next;
 }
 
+static av_cold void h264_flush(AVCodecParserContext *s)
+{
+    H264ParseContext *p = s->priv_data;
+
+    p->got_first = 0;
+    ff_h264_sei_uninit(&p->sei);
+    ff_h264_ps_uninit(&p->ps);
+    ff_parse_flush(s);
+}
+
 static av_cold void h264_close(AVCodecParserContext *s)
 {
     H264ParseContext *p = s->priv_data;
@@ -687,5 +697,6 @@ const AVCodecParser ff_h264_parser = {
     .priv_data_size = sizeof(H264ParseContext),
     .parser_init    = init,
     .parser_parse   = h264_parse,
+    .parser_flush   = h264_flush,
     .parser_close   = h264_close,
 };

@@ -45,6 +45,7 @@ typedef struct ParseContext{
  *         AVERROR(ENOMEM) if there was a memory allocation error
  */
 int ff_combine_frame(ParseContext *pc, int next, const uint8_t **buf, int *buf_size);
+void ff_parse_flush(AVCodecParserContext *s);
 void ff_parse_close(AVCodecParserContext *s);
 
 /**

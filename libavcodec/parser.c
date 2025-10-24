@@ -191,6 +191,28 @@ int av_parser_parse2(AVCodecParserContext *s, AVCodecContext *avctx,
     return index;
 }
 
+av_cold void av_parser_flush(AVCodecParserContext *s)
+{
+    if (s->parser->parser_flush)
+        s->parser->parser_flush(s);
+
+    s->pict_type             = AV_PICTURE_TYPE_I;
+    s->fetch_timestamp       = 1;
+    s->key_frame             = -1;
+    s->dts_sync_point        = INT_MIN;
+    s->dts_ref_dts_delta     = INT_MIN;
+    s->pts_dts_delta         = INT_MIN;
+    s->format                = -1;
+
+    s->flags                &= ~PARSER_FLAG_FETCHED_OFFSET;
+
+    memset(s->cur_frame_end, 0, sizeof(s->cur_frame_end));
+    memset(s->cur_frame_pts, 0, sizeof(s->cur_frame_pts));
+    memset(s->cur_frame_pos, 0, sizeof(s->cur_frame_pos));
+    s->cur_offset            = 0;
+    s->cur_frame_start_index = 0;
+}
+
 av_cold void av_parser_close(AVCodecParserContext *s)
 {
     if (s) {
@@ -286,6 +308,19 @@ int ff_combine_frame(ParseContext *pc, int next,
     }
 
     return 0;
+}
+
+av_cold void ff_parse_flush(AVCodecParserContext *s)
+{
+    ParseContext *pc = s->priv_data;
+
+    pc->index = 0;
+    pc->last_index = 0;
+    pc->overread_index = 0;
+    pc->state = 0;
+    pc->frame_start_found = 0;
+    pc->overread = 0;
+    pc->state64 = 0;
 }
 
 av_cold void ff_parse_close(AVCodecParserContext *s)
