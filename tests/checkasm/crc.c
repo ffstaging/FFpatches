@@ -1,34 +1,31 @@
 /*
- * copyright (c) 2006 Michael Niedermayer <michaelni@gmx.at>
+ * Copyright (c) 2025 Shreesh Adiga <16567adigashreesh@gmail.com>
  *
  * This file is part of FFmpeg.
  *
- * FFmpeg is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
+ * FFmpeg is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
  * FFmpeg is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with FFmpeg; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * You should have received a copy of the GNU General Public License along
+ * with FFmpeg; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
+#include "checkasm.h"
+#include "libavutil/crc.h"
+#include "libavutil/mem_internal.h"
+#include "libavutil/x86/crc.h"
 
-#include "thread.h"
-#include "avassert.h"
-#include "bswap.h"
-#include "crc.h"
-#include "error.h"
-#include "x86/crc.h"
+#define BUF_SIZE (8192 + 11)
 
-#if CONFIG_HARDCODED_TABLES
-static const AVCRC av_crc_table[AV_CRC_MAX][257] = {
+static const AVCRC av_crc_table_ref[AV_CRC_MAX][257] = {
     [AV_CRC_8_ATM] = {
         0x00, 0x07, 0x0E, 0x09, 0x1C, 0x1B, 0x12, 0x15, 0x38, 0x3F, 0x36, 0x31,
         0x24, 0x23, 0x2A, 0x2D, 0x70, 0x77, 0x7E, 0x79, 0x6C, 0x6B, 0x62, 0x65,
@@ -312,163 +309,78 @@ static const AVCRC av_crc_table[AV_CRC_MAX][257] = {
         0x0001
     },
 };
-#else
-#if CONFIG_SMALL
-#define CRC_TABLE_SIZE 257
-#else
-#define CRC_TABLE_SIZE 1024
-#endif
-static AVCRC av_crc_table[AV_CRC_MAX][CRC_TABLE_SIZE];
 
-static int av_crc_init_c(AVCRC *ctx, int le, int bits, uint32_t poly, int ctx_size);
-
-#define DECLARE_CRC_INIT_TABLE_ONCE(id, le, bits, poly)                                         \
-static AVOnce id ## _once_control = AV_ONCE_INIT;                                               \
-static void id ## _init_table_once(void)                                                        \
-{                                                                                               \
-    av_assert0(av_crc_init_c(av_crc_table[id], le, bits, poly, sizeof(av_crc_table[id])) >= 0); \
-}
-
-#define CRC_INIT_TABLE_ONCE(id) ff_thread_once(&id ## _once_control, id ## _init_table_once)
-
-DECLARE_CRC_INIT_TABLE_ONCE(AV_CRC_8_ATM,      0,  8,       0x07)
-DECLARE_CRC_INIT_TABLE_ONCE(AV_CRC_8_EBU,      0,  8,       0x1D)
-DECLARE_CRC_INIT_TABLE_ONCE(AV_CRC_16_ANSI,    0, 16,     0x8005)
-DECLARE_CRC_INIT_TABLE_ONCE(AV_CRC_16_CCITT,   0, 16,     0x1021)
-DECLARE_CRC_INIT_TABLE_ONCE(AV_CRC_24_IEEE,    0, 24,   0x864CFB)
-DECLARE_CRC_INIT_TABLE_ONCE(AV_CRC_32_IEEE,    0, 32, 0x04C11DB7)
-DECLARE_CRC_INIT_TABLE_ONCE(AV_CRC_32_IEEE_LE, 1, 32, 0xEDB88320)
-DECLARE_CRC_INIT_TABLE_ONCE(AV_CRC_16_ANSI_LE, 1, 16,     0xA001)
-#endif
-
-static int av_crc_init_c(AVCRC *ctx, int le, int bits, uint32_t poly, int ctx_size)
+static const AVCRC *av_crc_get_table_ref(AVCRCId crc_id)
 {
-    unsigned i, j;
-    uint32_t c;
-
-    if (bits < 8 || bits > 32 || poly >= (1LL << bits))
-        return AVERROR(EINVAL);
-    if (ctx_size != sizeof(AVCRC) * 257 && ctx_size != sizeof(AVCRC) * 1024)
-        return AVERROR(EINVAL);
-
-    for (i = 0; i < 256; i++) {
-        if (le) {
-            for (c = i, j = 0; j < 8; j++)
-                c = (c >> 1) ^ (poly & (-(c & 1)));
-            ctx[i] = c;
-        } else {
-            for (c = i << 24, j = 0; j < 8; j++)
-                c = (c << 1) ^ ((poly << (32 - bits)) & (((int32_t) c) >> 31));
-            ctx[i] = av_bswap32(c);
-        }
-    }
-    ctx[256] = 1;
-#if !CONFIG_SMALL
-    if (ctx_size >= sizeof(AVCRC) * 1024)
-        for (i = 0; i < 256; i++)
-            for (j = 0; j < 3; j++)
-                ctx[256 * (j + 1) + i] =
-                    (ctx[256 * j + i] >> 8) ^ ctx[ctx[256 * j + i] & 0xFF];
-#endif
-
-    return 0;
+    return av_crc_table_ref[crc_id];
 }
 
-static const AVCRC *av_crc_get_table_c(AVCRCId crc_id)
-{
-#if !CONFIG_HARDCODED_TABLES
-    switch (crc_id) {
-    case AV_CRC_8_ATM:      CRC_INIT_TABLE_ONCE(AV_CRC_8_ATM); break;
-    case AV_CRC_8_EBU:      CRC_INIT_TABLE_ONCE(AV_CRC_8_EBU); break;
-    case AV_CRC_16_ANSI:    CRC_INIT_TABLE_ONCE(AV_CRC_16_ANSI); break;
-    case AV_CRC_16_CCITT:   CRC_INIT_TABLE_ONCE(AV_CRC_16_CCITT); break;
-    case AV_CRC_24_IEEE:    CRC_INIT_TABLE_ONCE(AV_CRC_24_IEEE); break;
-    case AV_CRC_32_IEEE:    CRC_INIT_TABLE_ONCE(AV_CRC_32_IEEE); break;
-    case AV_CRC_32_IEEE_LE: CRC_INIT_TABLE_ONCE(AV_CRC_32_IEEE_LE); break;
-    case AV_CRC_16_ANSI_LE: CRC_INIT_TABLE_ONCE(AV_CRC_16_ANSI_LE); break;
-    default: av_assert0(0);
-    }
-#endif
-    return av_crc_table[crc_id];
-}
-
-static uint32_t av_crc_c(const AVCRC *ctx, uint32_t crc,
-                         const uint8_t *buffer, size_t length)
+static uint32_t av_crc_ref(const AVCRC *ctx, uint32_t crc, const uint8_t *buffer, size_t length)
 {
     const uint8_t *end = buffer + length;
 
-#if !CONFIG_SMALL
-    if (!ctx[256]) {
-        while (((intptr_t) buffer & 3) && buffer < end)
-            crc = ctx[((uint8_t) crc) ^ *buffer++] ^ (crc >> 8);
-
-        while (buffer < end - 3) {
-            crc ^= av_le2ne32(*(const uint32_t *) buffer); buffer += 4;
-            crc = ctx[3 * 256 + ( crc        & 0xFF)] ^
-                  ctx[2 * 256 + ((crc >> 8 ) & 0xFF)] ^
-                  ctx[1 * 256 + ((crc >> 16) & 0xFF)] ^
-                  ctx[0 * 256 + ((crc >> 24)       )];
-        }
-    }
-#endif
     while (buffer < end)
         crc = ctx[((uint8_t) crc) ^ *buffer++] ^ (crc >> 8);
 
     return crc;
 }
 
-static const AVCRC *av_crc_get_table_dispatch(AVCRCId crc_id);
-static uint32_t av_crc_dispatch(const AVCRC *ctx, uint32_t crc,
-                                const uint8_t *buffer, size_t length);
-static int av_crc_init_dispatch(AVCRC *ctx, int le, int bits,
-                                uint32_t poly, int ctx_size);
-
-const AVCRC *(*av_crc_get_table_func)(AVCRCId crc_id) = av_crc_get_table_dispatch;
-uint32_t (*av_crc_func)(const AVCRC *ctx, uint32_t crc,
-                        const uint8_t *buffer, size_t length) = av_crc_dispatch;
-int (*av_crc_init_func)(AVCRC *ctx, int le, int bits,
-                        uint32_t poly, int ctx_size) = av_crc_init_dispatch;
-
-void av_crc_init_fn(void) {
-    av_crc_get_table_func = av_crc_get_table_c;
-    av_crc_func = av_crc_c;
-    av_crc_init_func = av_crc_init_c;
-#if ARCH_X86
-    av_crc_init_x86();
-#endif
-}
-
-static const AVCRC *av_crc_get_table_dispatch(AVCRCId crc_id)
+static void check_crc(void)
 {
+    LOCAL_ALIGNED_32(uint8_t, buf, [BUF_SIZE]);
+
+    for (int i = 0; i < BUF_SIZE; i++)
+        buf[i] = rnd();
+
     av_crc_init_fn();
-    return av_crc_get_table_func(crc_id);
+    declare_func(uint32_t, const AVCRC *crctab, uint32_t crc,
+                 const uint8_t *buffer, size_t length);
+
+    func_type *fn = av_crc_func;
+    uint32_t crc_arr[] = {
+        0,
+        0x12,
+        0x1234,
+        0x123456,
+        0x12345678,
+        0x12000000,
+        0x12340000,
+        0x12345600,
+        UINT32_MAX
+    };
+    AVCRCId crc_id_arr[] = {
+        AV_CRC_8_ATM,
+        AV_CRC_16_ANSI,
+        AV_CRC_16_CCITT,
+        AV_CRC_32_IEEE,
+        AV_CRC_32_IEEE_LE,
+        AV_CRC_16_ANSI_LE,
+        AV_CRC_24_IEEE,
+        AV_CRC_8_EBU,
+    };
+
+    if (check_func(fn, "av_crc")) {
+        for (uint32_t crc_id_idx = 0; crc_id_idx < FF_ARRAY_ELEMS(crc_id_arr); crc_id_idx++) {
+            AVCRCId crc_id = crc_id_arr[crc_id_idx];
+            for (uint32_t crc_idx = 0; crc_idx < FF_ARRAY_ELEMS(crc_arr); crc_idx++) {
+                for (int i = 0; i < 200; i++) {
+                    uint32_t crc0 = crc_arr[crc_idx];
+                    uint32_t crc1 = crc_arr[crc_idx];
+
+                    crc0 = call_new(av_crc_get_table(crc_id), crc0, buf, i);
+                    crc1 = av_crc_ref(av_crc_get_table_ref(crc_id), crc1, buf, i);
+                    if (crc0 != crc1)
+                        fail();
+                }
+            }
+        }
+
+        bench_new(av_crc_get_table(AV_CRC_32_IEEE_LE), UINT32_MAX, buf, BUF_SIZE);
+    }
 }
 
-static uint32_t av_crc_dispatch(const AVCRC *ctx, uint32_t crc,
-                const uint8_t *buffer, size_t length)
+void checkasm_check_crc(void)
 {
-    av_crc_init_fn();
-    return av_crc_func(ctx, crc, buffer, length);
-}
-
-static int av_crc_init_dispatch(AVCRC *ctx, int le, int bits, uint32_t poly, int ctx_size)
-{
-    av_crc_init_fn();
-    return av_crc_init_func(ctx, le, bits, poly, ctx_size);
-}
-
-uint32_t av_crc(const AVCRC *ctx, uint32_t crc,
-                const uint8_t *buffer, size_t length)
-{
-    return av_crc_func(ctx, crc, buffer, length);
-}
-
-const AVCRC *av_crc_get_table(AVCRCId crc_id)
-{
-    return av_crc_get_table_func(crc_id);
-}
-
-int av_crc_init(AVCRC *ctx, int le, int bits, uint32_t poly, int ctx_size)
-{
-    return av_crc_init_func(ctx, le, bits, poly, ctx_size);
+    check_crc();
+    report("crc");
 }
