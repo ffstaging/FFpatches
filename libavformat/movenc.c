@@ -6536,7 +6536,8 @@ static int mov_flush_fragment(AVFormatContext *s, int force)
             mov->tracks[i].data_offset = pos + moov_size + 8;
 
         avio_write_marker(s->pb, AV_NOPTS_VALUE, AVIO_DATA_MARKER_HEADER);
-        if (mov->flags & FF_MOV_FLAG_DELAY_MOOV)
+        if (mov->flags & FF_MOV_FLAG_DELAY_MOOV
+            && !(mov->flags & FF_MOV_FLAG_HYBRID_FRAGMENTED))
             mov_write_identification(s->pb, s);
         if ((ret = mov_write_moov_tag(s->pb, mov, s)) < 0)
             return ret;
@@ -8432,6 +8433,9 @@ static int mov_write_header(AVFormatContext *s)
             !mov->max_fragment_duration && !mov->max_fragment_size)
             mov->flags |= FF_MOV_FLAG_FRAG_KEYFRAME;
         if (mov->flags & FF_MOV_FLAG_HYBRID_FRAGMENTED) {
+            if (mov->flags & FF_MOV_FLAG_DELAY_MOOV) {
+                mov_write_identification(pb, s);
+            }
             avio_wb32(pb, 8); // placeholder for extended size field (64 bit)
             ffio_wfourcc(pb, mov->mode == MODE_MOV ? "wide" : "free");
             mov->mdat_pos = avio_tell(pb);
