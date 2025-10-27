@@ -453,15 +453,13 @@ static int read_major_sync(MLPDecodeContext *m, GetBitContext *gb)
         }
         m->substream[1].mask = mh.channel_layout_thd_stream1;
         if (mh.channels_thd_stream1 == 2 &&
-            mh.channels_thd_stream2 == 2 &&
-            m->avctx->ch_layout.nb_channels == 2)
+            mh.channels_thd_stream2 == 2)
             m->substream[0].mask = AV_CH_LAYOUT_STEREO;
         if ((substr = (mh.num_substreams > 1)))
             m->substream[0].mask = AV_CH_LAYOUT_STEREO;
         if (mh.num_substreams == 1 &&
             mh.channels_thd_stream1 == 1 &&
-            mh.channels_thd_stream2 == 1 &&
-            m->avctx->ch_layout.nb_channels == 1)
+            mh.channels_thd_stream2 == 1)
             m->substream[0].mask = AV_CH_LAYOUT_MONO;
         if (mh.num_substreams > 2)
             if (mh.channel_layout_thd_stream2)
