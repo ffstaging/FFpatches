@@ -5,6 +5,7 @@ profile=1798
 codec_type=video
 codec_tag_string=[0][0][0][0]
 codec_tag=0x0000
+codec_string=
 width=640
 height=360
 coded_width=640

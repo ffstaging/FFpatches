@@ -19,6 +19,7 @@ profile=unknown
 codec_type=video
 codec_tag_string=HapY
 codec_tag=0x59706148
+codec_string=
 width=127
 height=71
 coded_width=128
