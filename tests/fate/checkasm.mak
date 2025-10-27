@@ -63,6 +63,7 @@ FATE_CHECKASM = fate-checkasm-aacencdsp                                 \
                 fate-checkasm-vc1dsp                                    \
                 fate-checkasm-vf_blackdetect                            \
                 fate-checkasm-vf_blend                                  \
+                fate-checkasm-vf_boxblur                                 \
                 fate-checkasm-vf_bwdif                                  \
                 fate-checkasm-vf_colordetect                            \
                 fate-checkasm-vf_colorspace                             \

@@ -89,6 +89,7 @@ void checkasm_check_av_tx(void);
 void checkasm_check_blackdetect(void);
 void checkasm_check_blend(void);
 void checkasm_check_blockdsp(void);
+void checkasm_check_boxblur(void);
 void checkasm_check_bswapdsp(void);
 void checkasm_check_cavsdsp(void);
 void checkasm_check_colordetect(void);

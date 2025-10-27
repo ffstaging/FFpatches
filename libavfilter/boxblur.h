@@ -44,4 +44,13 @@ int ff_boxblur_eval_filter_params(AVFilterLink *inlink,
                                   FilterParam *chroma_param,
                                   FilterParam *alpha_param);
 
+/* Forward declaration */
+typedef struct FFBoxblurDSPContext FFBoxblurDSPContext;
+
+/* Blur functions - used for testing and internally */
+void ff_boxblur_blur8(uint8_t *dst, int dst_step, const uint8_t *src,
+                      int src_step, int len, int radius, FFBoxblurDSPContext *dsp);
+void ff_boxblur_blur16(uint16_t *dst, int dst_step, const uint16_t *src,
+                       int src_step, int len, int radius, FFBoxblurDSPContext *dsp);
+
 #endif // AVFILTER_BOXBLUR_H

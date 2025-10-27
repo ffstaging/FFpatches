@@ -285,6 +285,9 @@ static const struct {
     #if CONFIG_BLEND_FILTER
         { "vf_blend", checkasm_check_blend },
     #endif
+    #if CONFIG_BOXBLUR_FILTER
+        { "vf_boxblur", checkasm_check_boxblur },
+    #endif
     #if CONFIG_BWDIF_FILTER
         { "vf_bwdif", checkasm_check_vf_bwdif },
     #endif
