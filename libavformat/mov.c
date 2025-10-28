@@ -6667,7 +6667,8 @@ static int mov_read_pack(MOVContext *c, AVIOContext *pb, MOVAtom atom)
                 // This means value will be set in another layer
                 break;
             default:
-                av_log(c->fc, AV_LOG_WARNING, "Unknown tag in pkin: 0x%08X\n", tag);
+                av_log(c->fc, AV_LOG_WARNING, "Unknown tag in pkin: %s\n",
+                       av_fourcc2str(tag));
                 avio_skip(pb, size - 8);
                 break;
             }
@@ -6675,7 +6676,8 @@ static int mov_read_pack(MOVContext *c, AVIOContext *pb, MOVAtom atom)
             break;
         }
         default:
-            av_log(c->fc, AV_LOG_WARNING, "Unknown tag in pack: 0x%08X\n", tag);
+            av_log(c->fc, AV_LOG_WARNING, "Unknown tag in pack: %s\n",
+                   av_fourcc2str(tag));
             avio_skip(pb, size - 8);
             break;
         }
@@ -6852,13 +6854,13 @@ static int mov_read_vexu_proj(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     st = c->fc->streams[c->fc->nb_streams - 1];
     sc = st->priv_data;
 
-    if (atom.size != 16) {
+    if (atom.size < 16) {
         av_log(c->fc, AV_LOG_ERROR, "Invalid size for proj box: %"PRIu64"\n", atom.size);
         return AVERROR_INVALIDDATA;
     }
 
     size = avio_rb32(pb);
-    if (size != 16) {
+    if (size < 16) {
         av_log(c->fc, AV_LOG_ERROR, "Invalid size for prji box: %d\n", size);
         return AVERROR_INVALIDDATA;
     }
@@ -6869,8 +6871,13 @@ static int mov_read_vexu_proj(MOVContext *c, AVIOContext *pb, MOVAtom atom)
         return AVERROR_INVALIDDATA;
     }
 
-    avio_skip(pb, 1); // version
-    avio_skip(pb, 3); // flags
+     // version and flags, only support (0, 0)
+    unsigned n = avio_rl32(pb);
+    if (n != 0) {
+        av_log(c->fc, AV_LOG_ERROR, "prji version %u, flag %u are not supported\n",
+               n & 0xFF, n >> 8);
+        return AVERROR_PATCHWELCOME;
+    }
 
     tag = avio_rl32(pb);
     switch (tag) {
@@ -7046,7 +7053,8 @@ static int mov_read_eyes(MOVContext *c, AVIOContext *pb, MOVAtom atom)
             break;
         }
         default:
-            av_log(c->fc, AV_LOG_WARNING, "Unknown tag in eyes: 0x%08X\n", tag);
+            av_log(c->fc, AV_LOG_WARNING, "Unknown tag in eyes: %s\n",
+                   av_fourcc2str(tag));
             avio_skip(pb, size - 8);
             break;
         }
@@ -7123,7 +7131,8 @@ static int mov_read_vexu(MOVContext *c, AVIOContext *pb, MOVAtom atom)
             break;
         }
         default:
-            av_log(c->fc, AV_LOG_WARNING, "Unknown tag in vexu: 0x%08X\n", tag);
+            av_log(c->fc, AV_LOG_WARNING, "Unknown tag in vexu: %s\n",
+                   av_fourcc2str(tag));
             avio_skip(pb, size - 8);
             break;
         }
