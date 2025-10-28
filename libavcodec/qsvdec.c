@@ -412,7 +412,7 @@ static int qsv_decode_init_context(AVCodecContext *avctx, QSVContext *q, mfxVide
 
     q->frame_info = param->mfx.FrameInfo;
 
-    if (!avctx->hw_frames_ctx) {
+    if (!avctx->hw_frames_ctx && !q->pool) {
         ret = av_image_get_buffer_size(avctx->pix_fmt, FFALIGN(avctx->coded_width, 128), FFALIGN(avctx->coded_height, 64), 1);
         if (ret < 0)
             return ret;
