@@ -2895,6 +2895,13 @@ static int mov_parse_stsd_data(MOVContext *c, AVIOContext *pb,
                 }
             }
         }
+    } else if (st->codecpar->codec_tag == MKTAG('m','e','b','x')) {
+        if ((int)size != size)
+            return AVERROR(ENOMEM);
+
+        ret = ff_get_extradata(c->fc, st->codecpar, pb, size);
+        if (ret < 0)
+            return ret;
     } else {
         /* other codec type, just skip (rtp, mp4s ...) */
         avio_skip(pb, size);

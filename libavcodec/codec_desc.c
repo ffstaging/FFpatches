@@ -3840,6 +3840,12 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .long_name = NULL_IF_CONFIG_SMALL("MXF SMPTE-436M ANC"),
     },
     {
+        .id        = AV_CODEC_ID_MEBX,
+        .type      = AVMEDIA_TYPE_DATA,
+        .name      = "mebx",
+        .long_name = NULL_IF_CONFIG_SMALL("Metadata Boxed"),
+    },
+    {
         .id        = AV_CODEC_ID_MPEG2TS,
         .type      = AVMEDIA_TYPE_DATA,
         .name      = "mpegts",

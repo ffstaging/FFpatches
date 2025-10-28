@@ -260,6 +260,12 @@ enum AVFrameSideDataType {
      * EXIF metadata, starting with either 49 49 2a 00, or 4d 4d 00 2a.
      */
      AV_FRAME_DATA_EXIF,
+
+    /**
+     * Metadata Boxed (MEBX) packet data for preserving original packet bytes during transcoding.
+     * Used by the MEBX codec to store the original packet data so the output can remain unchanged.
+     */
+    AV_FRAME_DATA_MEBX_PACKET,
 };
 
 enum AVActiveFormatDescription {

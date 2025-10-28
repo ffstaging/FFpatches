@@ -450,6 +450,8 @@ static inline int decode_simple_internal(AVCodecContext *avctx, AVFrame *frame, 
     } else if (avctx->codec->type == AVMEDIA_TYPE_AUDIO) {
         ret =  !got_frame ? AVERROR(EAGAIN)
                           : discard_samples(avctx, frame, discarded_samples);
+    } else if (avctx->codec->type == AVMEDIA_TYPE_DATA) {
+        ret = !got_frame ? AVERROR(EAGAIN) : 0;
     } else
         av_assert0(0);
 
@@ -464,7 +466,7 @@ static inline int decode_simple_internal(AVCodecContext *avctx, AVFrame *frame, 
     if (consumed >= 0 && avctx->codec->type == AVMEDIA_TYPE_VIDEO)
         consumed = pkt->size;
 
-    if (!ret)
+    if (!ret && avctx->codec->type != AVMEDIA_TYPE_DATA)
         av_assert0(frame->buf[0]);
     if (ret == AVERROR(EAGAIN))
         ret = 0;
@@ -764,7 +766,15 @@ static int apply_cropping(AVCodecContext *avctx, AVFrame *frame)
 // make sure frames returned to the caller are valid
 static int frame_validate(AVCodecContext *avctx, AVFrame *frame)
 {
-    if (!frame->buf[0] || frame->format < 0)
+    // Data codec frames can have metadata/side-data without a buffer
+    if (avctx->codec_type != AVMEDIA_TYPE_DATA && !frame->buf[0])
+        goto fail;
+    if (avctx->codec_type == AVMEDIA_TYPE_DATA && !frame->buf[0] &&
+        !frame->metadata && frame->nb_side_data == 0)
+        goto fail;
+
+    // Data codec frames don't have format requirements
+    if (avctx->codec_type != AVMEDIA_TYPE_DATA && frame->format < 0)
         goto fail;
 
     switch (avctx->codec_type) {
@@ -777,6 +787,10 @@ static int frame_validate(AVCodecContext *avctx, AVFrame *frame)
             frame->sample_rate <= 0)
             goto fail;
 
+        break;
+    case AVMEDIA_TYPE_DATA:
+        // Data codec frames don't need pixel/sample format or dimensions
+        // Just need a valid buffer which is checked above
         break;
     default: av_assert0(0);
     }

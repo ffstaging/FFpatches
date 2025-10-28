@@ -2100,6 +2100,8 @@ static unsigned int mov_get_codec_tag(AVFormatContext *s, MOVTrack *track)
             }
         } else if (track->par->codec_type == AVMEDIA_TYPE_SUBTITLE)
             tag = ff_codec_get_tag(ff_codec_movsubtitle_tags, track->par->codec_id);
+        else if (track->par->codec_type == AVMEDIA_TYPE_DATA)
+            tag = ff_codec_get_tag(ff_codec_movdata_tags, track->par->codec_id);
     }
 
     return tag;
@@ -3090,6 +3092,36 @@ static int mov_write_gpmd_tag(AVIOContext *pb, const MOVTrack *track)
     return update_size(pb, pos);
 }
 
+static int mov_write_mebx_keys_tag(AVIOContext *pb, const MOVTrack *track)
+{
+    int64_t pos = avio_tell(pb);
+    avio_wb32(pb, 0); /* size */
+    ffio_wfourcc(pb, "keys");
+    avio_wb32(pb, 0); /* version and flags */
+    
+    return update_size(pb, pos);
+}
+
+static int mov_write_mebx_tag(AVIOContext *pb, const MOVTrack *track)
+{
+    int64_t pos = avio_tell(pb);
+    avio_wb32(pb, 0); /* size */
+    ffio_wfourcc(pb, "mebx");
+    avio_wb32(pb, 0); /* Reserved */
+    avio_wb16(pb, 0); /* Reserved */
+    avio_wb16(pb, 1); /* Data-reference index */
+
+    // Write the keys box (and any other boxes) from extradata
+    if (track->par->extradata_size > 0) {
+        avio_write(pb, track->par->extradata, track->par->extradata_size);
+    } else {
+        // No extradata, write minimal empty keys box
+        mov_write_mebx_keys_tag(pb, track);
+    }
+
+    return update_size(pb, pos);
+}
+
 static int mov_write_stsd_tag(AVFormatContext *s, AVIOContext *pb, MOVMuxContext *mov, MOVTrack *track)
 {
     int64_t pos = avio_tell(pb);
@@ -3115,7 +3147,8 @@ static int mov_write_stsd_tag(AVFormatContext *s, AVIOContext *pb, MOVMuxContext
         ret = mov_write_tmcd_tag(pb, track);
     else if (track->par->codec_tag == MKTAG('g','p','m','d'))
         ret = mov_write_gpmd_tag(pb, track);
-
+    else if (track->par->codec_tag == MKTAG('m','e','b','x'))
+        ret = mov_write_mebx_tag(pb, track);
     if (ret < 0)
         return ret;
     }
@@ -3537,6 +3570,9 @@ static int mov_write_hdlr_tag(AVFormatContext *s, AVIOContext *pb, MOVTrack *tra
         } else if (track->par->codec_tag == MKTAG('g','p','m','d')) {
             hdlr_type = "meta";
             descr = "GoPro MET"; // GoPro Metadata
+        } else if (track->par->codec_tag == MKTAG('m','e','b','x')) {
+            hdlr_type = "meta";
+            descr = "Metadata Boxed";
         } else {
             av_log(s, AV_LOG_WARNING,
                    "Unknown hdlr_type for %s, writing dummy values\n",
@@ -3772,6 +3808,8 @@ static int mov_write_minf_tag(AVFormatContext *s, AVIOContext *pb, MOVMuxContext
             mov_write_gmhd_tag(pb, track);
     } else if (track->tag == MKTAG('g','p','m','d')) {
         mov_write_gmhd_tag(pb, track);
+    } else if (track->tag == MKTAG('m','e','b','x')) {
+        mov_write_mebx_tag(pb, track);
     }
     if (track->mode == MODE_MOV) /* ISO 14496-12 8.4.3.1 specifies hdlr only within mdia or meta boxes */
         mov_write_hdlr_tag(s, pb, NULL);
@@ -8860,6 +8898,7 @@ static const AVCodecTag codec_mp4_tags[] = {
     { AV_CODEC_ID_DVD_SUBTITLE,    MKTAG('m', 'p', '4', 's') },
     { AV_CODEC_ID_MOV_TEXT,        MKTAG('t', 'x', '3', 'g') },
     { AV_CODEC_ID_BIN_DATA,        MKTAG('g', 'p', 'm', 'd') },
+    { AV_CODEC_ID_MEBX,            MKTAG('m', 'e', 'b', 'x') },
     { AV_CODEC_ID_MPEGH_3D_AUDIO,  MKTAG('m', 'h', 'm', '1') },
     { AV_CODEC_ID_TTML,            MOV_MP4_TTML_TAG          },
     { AV_CODEC_ID_TTML,            MOV_ISMV_TTML_TAG         },
@@ -8942,6 +8981,7 @@ const FFOutputFormat ff_mov_muxer = {
     .p.audio_codec     = AV_CODEC_ID_AAC,
     .p.video_codec     = CONFIG_LIBX264_ENCODER ?
                          AV_CODEC_ID_H264 : AV_CODEC_ID_MPEG4,
+    .p.data_codec      = AV_CODEC_ID_MEBX,
     .init              = mov_init,
     .write_header      = mov_write_header,
     .write_packet      = mov_write_packet,
@@ -8949,7 +8989,7 @@ const FFOutputFormat ff_mov_muxer = {
     .deinit            = mov_free,
     .p.flags           = AVFMT_GLOBALHEADER | AVFMT_TS_NEGATIVE | AVFMT_VARIABLE_FPS,
     .p.codec_tag       = (const AVCodecTag* const []){
-        ff_codec_movvideo_tags, ff_codec_movaudio_tags, ff_codec_movsubtitle_tags, 0
+        ff_codec_movvideo_tags, ff_codec_movaudio_tags, ff_codec_movsubtitle_tags, ff_codec_movdata_tags, 0
     },
     .check_bitstream   = mov_check_bitstream,
     .p.priv_class      = &mov_isobmff_muxer_class,

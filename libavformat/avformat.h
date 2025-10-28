@@ -516,6 +516,7 @@ typedef struct AVOutputFormat {
     enum AVCodecID audio_codec;    /**< default audio codec */
     enum AVCodecID video_codec;    /**< default video codec */
     enum AVCodecID subtitle_codec; /**< default subtitle codec */
+    enum AVCodecID data_codec;     /**< default data codec */
     /**
      * can use flags: AVFMT_NOFILE, AVFMT_NEEDNUMBER,
      * AVFMT_GLOBALHEADER, AVFMT_NOTIMESTAMPS, AVFMT_VARIABLE_FPS,

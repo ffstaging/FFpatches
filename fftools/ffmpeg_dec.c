@@ -791,6 +791,8 @@ static int packet_decode(DecoderPriv *dp, AVPacket *pkt, AVFrame *frame)
             dp->dec.samples_decoded += frame->nb_samples;
 
             audio_ts_process(dp, frame);
+        } else if (dec->codec_type == AVMEDIA_TYPE_DATA) {
+            // metadata needs to be processed, no changes needed
         } else {
             ret = video_frame_process(dp, frame, &outputs_mask);
             if (ret < 0) {

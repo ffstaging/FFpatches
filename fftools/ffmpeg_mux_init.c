@@ -79,7 +79,8 @@ static int choose_encoder(const OptionsContext *o, AVFormatContext *s,
 
     if (type != AVMEDIA_TYPE_VIDEO      &&
         type != AVMEDIA_TYPE_AUDIO      &&
-        type != AVMEDIA_TYPE_SUBTITLE) {
+        type != AVMEDIA_TYPE_SUBTITLE   &&
+        type != AVMEDIA_TYPE_DATA) {
         if (codec_name && strcmp(codec_name, "copy")) {
             const char *type_str = av_get_media_type_string(type);
             av_log(ost, AV_LOG_FATAL,

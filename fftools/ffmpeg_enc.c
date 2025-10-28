@@ -227,6 +227,12 @@ int enc_open(void *opaque, const AVFrame *frame)
     if (ost->type == AVMEDIA_TYPE_AUDIO || ost->type == AVMEDIA_TYPE_VIDEO) {
         enc_ctx->time_base      = frame->time_base;
         enc_ctx->framerate      = fd->frame_rate_filter;
+    } else if (ost->type == AVMEDIA_TYPE_DATA) {
+        // use frame timebase if available, otherwise use a default
+        if (frame && frame->time_base.num > 0)
+            enc_ctx->time_base = frame->time_base;
+        else
+            enc_ctx->time_base = AV_TIME_BASE_Q;
     }
 
     switch (enc_ctx->codec_type) {
@@ -329,6 +335,10 @@ int enc_open(void *opaque, const AVFrame *frame)
             enc_ctx->subtitle_header_size = dec->subtitle_header_size;
         }
 
+        break;
+    case AVMEDIA_TYPE_DATA:
+        // Data streams have minimal encoding requirements
+        // No special frame properties to set
         break;
     default:
         av_assert0(0);

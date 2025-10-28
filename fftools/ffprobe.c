@@ -1465,6 +1465,7 @@ static av_always_inline int process_frame(AVTextFormatContext *tfc,
         switch (par->codec_type) {
         case AVMEDIA_TYPE_VIDEO:
         case AVMEDIA_TYPE_AUDIO:
+        case AVMEDIA_TYPE_DATA:
             if (*packet_new) {
                 ret = avcodec_send_packet(dec_ctx, pkt);
                 if (ret == AVERROR(EAGAIN)) {
