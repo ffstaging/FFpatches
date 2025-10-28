@@ -147,6 +147,10 @@ static int vc1_parse(AVCodecParserContext *s,
         vc1_extract_header(s, avctx, unesc_buffer, unesc_index);
         next = 0;
     }
+
+    if (buf_size == 4 && AV_RB32(buf) == VC1_CODE_ENDOFSEQ)
+        s->discard = 1;
+
     while (i < buf_size) {
         uint8_t b;
         start_code_found = 0;

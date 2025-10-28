@@ -2729,6 +2729,12 @@ typedef struct AVCodecParserContext {
      * one returned by a decoder.
      */
     int format;
+
+    /**
+     * Set to 1 for packets that will be dropped after decoding,
+     * see AV_PKT_FLAG_DISCARD.
+     */
+    int discard;
 } AVCodecParserContext;
 
 typedef struct AVCodecParser {
