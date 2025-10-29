@@ -359,6 +359,33 @@ static int v4l2_buffer_buf_to_swframe(AVFrame *frame, V4L2Buffer *avbuf)
     return 0;
 }
 
+static int v4l2_plane_to_plane_align(V4L2Buffer *out, int plane, const uint8_t* data, int size, int offset, int width, int height, int stride)
+{
+    unsigned int bytesused, length;
+
+    if (plane >= out->num_planes)
+        return AVERROR(EINVAL);
+
+    length = out->plane_info[plane].length;
+    bytesused = FFMIN(size+offset, length);
+
+    for (int i = 0; i < height; i++) {
+        memcpy((uint8_t*)out->plane_info[plane].mm_addr + offset, data, width);
+        offset += stride;
+        data += width;
+    }
+
+    if (V4L2_TYPE_IS_MULTIPLANAR(out->buf.type)) {
+        out->planes[plane].bytesused = bytesused;
+        out->planes[plane].length = length;
+    } else {
+        out->buf.bytesused = bytesused;
+        out->buf.length = length;
+    }
+
+    return 0;
+}
+
 static int v4l2_buffer_swframe_to_buf(const AVFrame *frame, V4L2Buffer *out)
 {
     int i, ret;
@@ -367,7 +394,11 @@ static int v4l2_buffer_swframe_to_buf(const AVFrame *frame, V4L2Buffer *out)
                        fmt.fmt.pix_mp.pixelformat : fmt.fmt.pix.pixelformat;
     int height       = V4L2_TYPE_IS_MULTIPLANAR(fmt.type) ?
                        fmt.fmt.pix_mp.height : fmt.fmt.pix.height;
-    int is_planar_format = 0;
+    int bytesperline = V4L2_TYPE_IS_MULTIPLANAR(fmt.type) ?
+                       (fmt.fmt.pix_mp.num_planes ? fmt.fmt.pix_mp.plane_fmt[0].bytesperline: 0) : fmt.fmt.pix.bytesperline;
+    int sizeimage    = V4L2_TYPE_IS_MULTIPLANAR(fmt.type) ?
+                       (fmt.fmt.pix_mp.num_planes ? fmt.fmt.pix_mp.plane_fmt[0].sizeimage: 0) : fmt.fmt.pix.sizeimage;
+    int is_planar_format = 0, buffer_height = 0;
 
     switch (pixel_format) {
     case V4L2_PIX_FMT_YUV420M:
@@ -397,21 +428,67 @@ static int v4l2_buffer_swframe_to_buf(const AVFrame *frame, V4L2Buffer *out)
         const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(frame->format);
         int planes_nb = 0;
         int offset = 0;
+        int chroma_height = AV_CEIL_RSHIFT(height, desc->log2_chroma_h);
+        int components_heights[4] = {0};
+        int total_heights = 0;
+
+        /* If bytesperline is set to 0 by driver, use frame linesize instead */
+        if (!bytesperline)
+            bytesperline = frame->linesize[0];
+
+        /* height of pixels in v4l2 buffer */
+        buffer_height = sizeimage / bytesperline;
 
         for (i = 0; i < desc->nb_components; i++)
             planes_nb = FFMAX(planes_nb, desc->comp[i].plane + 1);
 
-        for (i = 0; i < planes_nb; i++) {
-            int size, h = height;
-            if (i == 1 || i == 2) {
-                h = AV_CEIL_RSHIFT(h, desc->log2_chroma_h);
+        /* calculate total frame heights of all components */
+        int n = planes_nb < 4 ? planes_nb : 4;
+        if (n > 0) {
+            components_heights[0] = height;
+            total_heights = height;
+
+            for (int i = 1; i < n; ++i) {
+                components_heights[i] = chroma_height;
             }
-            size = frame->linesize[i] * h;
-            ret = v4l2_bufref_to_buf(out, 0, frame->data[i], size, offset);
-            if (ret)
-                return ret;
-            offset += size;
+            total_heights += (n - 1) * chroma_height;
         }
+
+        const int same_stride = (bytesperline == frame->linesize[0]);
+        if (same_stride) {
+            /* Fast path: plane stride equals bytesperline */
+            for (int i = 0; i < n; ++i) {
+                /* Get buffer height for this componnet with comp/total height-ratio and buffer_heights */
+                const int h = components_heights[i];
+                const int comp_buf_height = (buffer_height * h) / total_heights;
+
+                /* Size to copy from source */
+                size_t size = (size_t)frame->linesize[i] * (size_t)h;
+
+                int ret = v4l2_bufref_to_buf(out, 0, frame->data[i], size, offset);
+                if (ret)
+                    return ret;
+
+                /* Advance destination offset by the *buffer* portion height (not source height) */
+                offset += (size_t)frame->linesize[i] * (size_t)comp_buf_height;
+            }
+        } else {
+            /* General path: plane stride differs → use plane-to-plane alignment */
+            for (int i = 0; i < n; ++i) {
+                /* Get buffer height for this componnet with comp/total height-ratio and buffer_heights */
+                const int h = components_heights[i];
+                const int comp_buf_height = (buffer_height * h) / total_heights;
+                size_t size = (size_t)bytesperline * (size_t)comp_buf_height;
+
+                int ret = v4l2_plane_to_plane_align(out, 0, frame->data[i], size, offset,
+                                                    frame->linesize[i], h, bytesperline);
+                if (ret)
+                    return ret;
+
+                offset += size;
+            }
+        }
+
         return 0;
     }
 
