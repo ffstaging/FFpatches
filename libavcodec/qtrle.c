@@ -557,6 +557,10 @@ done:
 
     if ((ret = av_frame_ref(rframe, s->frame)) < 0)
         return ret;
+
+    rframe->pict_type = !duplicate ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_P;
+    rframe->flags     = AV_FRAME_FLAG_KEY * !duplicate;
+
     *got_frame      = 1;
 
     /* always report that the buffer was completely consumed */
