@@ -297,6 +297,8 @@ typedef struct SANMVideoContext {
     uint8_t c4tbl[2][256][16];
     uint16_t c4param;
     uint8_t c47cb[4];
+    uint8_t c45tbl1[0x300];
+    uint8_t c45tbl2[0x8000];
 } SANMVideoContext;
 
 enum GlyphEdge {
@@ -1946,6 +1948,71 @@ static int old_codec48(SANMVideoContext *ctx, GetByteContext *gb, int top, int l
     return 0;
 }
 
+static void old_codec45(SANMVideoContext *ctx, GetByteContext *gb, int top, int left, int flag)
+{
+    int t1, t2, i;
+    int16_t x, y;
+
+    if (bytestream2_get_bytes_left(gb) < 6)
+        return;
+
+    bytestream2_skip(gb, 2);
+    t1 = bytestream2_get_le16u(gb);
+    t2 = bytestream2_get_byteu(gb);
+    bytestream2_skip(gb, 1);
+    if (t2 != 1)
+        return;
+    if (t1 == 0) {
+        if (bytestream2_get_bytes_left(gb) < 0x300)
+            return;
+        bytestream2_get_bufferu(gb, ctx->c45tbl1, 0x300);
+        i = 0;
+        while ((bytestream2_get_bytes_left(gb) > 1) && (i < 0x8000)) {
+            uint8_t len = bytestream2_get_byteu(gb);
+            uint8_t val = bytestream2_get_byteu(gb);
+            if ((i + len) > 0x8000)
+                len = 0x8000 - i;
+            memset(ctx->c45tbl2 + i, val, len);
+            i += len;
+        }
+    }
+
+    if (flag)
+        return;
+
+    x = left;
+    y = top;
+    while (bytestream2_get_bytes_left(gb) > 3) {
+        int16_t xd = bytestream2_get_le16u(gb);
+        int8_t yd = bytestream2_get_byteu(gb);
+        x += xd;
+        y += yd;
+        int len = bytestream2_get_byteu(gb);
+        while (len >= 0) {
+            if ((x > 0) && (y > 0) && (x < ctx->width - 1)) {
+                if (y >= ctx->height)
+                    return;
+
+                uint8_t *dst = (uint8_t *)ctx->fbuf + x + y * ctx->pitch;
+                unsigned int c1 = *(dst - 1) * 3;
+                unsigned int c2 = *(dst + 1) * 3;
+                unsigned int r = ctx->c45tbl1[c1 + 0] + ctx->c45tbl1[c2 + 0];
+                unsigned int g = ctx->c45tbl1[c1 + 1] + ctx->c45tbl1[c2 + 1];
+                unsigned int b = ctx->c45tbl1[c1 + 2] + ctx->c45tbl1[c2 + 2];
+                c1 = *(dst - ctx->pitch) * 3;
+                c2 = *(dst + ctx->pitch) * 3;
+                r += ctx->c45tbl1[c1 + 0] + ctx->c45tbl1[c2 + 0];
+                g += ctx->c45tbl1[c1 + 1] + ctx->c45tbl1[c2 + 1];
+                b += ctx->c45tbl1[c1 + 2] + ctx->c45tbl1[c2 + 2];
+                *dst = ctx->c45tbl2[((r << 5) & 0x7c00) | (g & 0x3e0) | (b >> 5)];
+            }
+            x++;
+            len--;
+        }
+        x--;
+    }
+}
+
 static int process_frame_obj(SANMVideoContext *ctx, GetByteContext *gb,
                              int xoff, int yoff)
 {
@@ -1964,6 +2031,12 @@ static int process_frame_obj(SANMVideoContext *ctx, GetByteContext *gb,
     parm2 = bytestream2_get_le16u(gb);
 
     if (w < 1 || h < 1 || w > 640 || h > 480 || left > 640 || top > 480 || left + w <= 0 || top + h <= 0) {
+        /* codec45 frames with data for the 2 tables have nonsensical dimensions */
+        if (codec == 45) {
+            old_codec45(ctx, gb, 0, 0, 1);
+            return 0;
+        }
+
         av_log(ctx->avctx, AV_LOG_WARNING,
                "ignoring invalid fobj dimensions: c%d %d %d @ %d %d\n",
                codec, w, h, left, top);
@@ -1980,7 +2053,7 @@ static int process_frame_obj(SANMVideoContext *ctx, GetByteContext *gb,
     if ((w == 640) && (h == 272) && (top == 60) && (codec == 47))
         left = top = 0;
 
-    if (!ctx->have_dimensions) {
+    if (!ctx->have_dimensions && (codec != 45)) {
         int xres, yres;
         if (ctx->subversion < 2) {
             /* Rebel Assault 1: 384x242 internal size */
@@ -2073,7 +2146,7 @@ static int process_frame_obj(SANMVideoContext *ctx, GetByteContext *gb,
     case 37:
         return old_codec37(ctx, gb, top, left, w, h); break;
     case 45:
-        return 0;
+        old_codec45(ctx, gb, top, left, 0); break;
     case 47:
         return old_codec47(ctx, gb, top, left, w, h); break;
     case 48:
