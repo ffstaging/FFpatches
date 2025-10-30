@@ -30,11 +30,11 @@ av_cold void ff_xvid_idct_init_x86(IDCTDSPContext *c)
 #if HAVE_X86ASM
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->idct_put  = ff_xvid_idct_put_sse2;
         c->idct_add  = ff_xvid_idct_add_sse2;
         c->idct      = ff_xvid_idct_sse2;
         c->perm_type = FF_IDCT_PERM_SSE2;
-    }
+    )
 #endif /* HAVE_X86ASM */
 }

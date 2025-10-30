@@ -53,22 +53,22 @@ av_cold void ff_psdsp_init_x86(PSDSPContext *s)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE(cpu_flags)) {
+    IF_EXTERNAL_SSE(cpu_flags,
         s->add_squares            = ff_ps_add_squares_sse;
         s->mul_pair_single        = ff_ps_mul_pair_single_sse;
         s->hybrid_analysis_ileave = ff_ps_hybrid_analysis_ileave_sse;
         s->hybrid_synthesis_deint = ff_ps_hybrid_synthesis_deint_sse;
         s->hybrid_analysis        = ff_ps_hybrid_analysis_sse;
-    }
-    if (EXTERNAL_SSE3(cpu_flags)) {
+    )
+    IF_EXTERNAL_SSE3(cpu_flags,
         s->add_squares            = ff_ps_add_squares_sse3;
         s->stereo_interpolate[0]  = ff_ps_stereo_interpolate_sse3;
         s->stereo_interpolate[1]  = ff_ps_stereo_interpolate_ipdopd_sse3;
-    }
-    if (EXTERNAL_SSE4(cpu_flags)) {
+    )
+    IF_EXTERNAL_SSE4(cpu_flags,
         s->hybrid_synthesis_deint = ff_ps_hybrid_synthesis_deint_sse4;
-    }
-    if (EXTERNAL_FMA3(cpu_flags)) {
+    )
+    IF_EXTERNAL_FMA3(cpu_flags,
         s->hybrid_analysis        = ff_ps_hybrid_analysis_fma3;
-    }
+    )
 }

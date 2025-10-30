@@ -32,8 +32,8 @@ av_cold void ff_h263dsp_init_x86(H263DSPContext *c)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->h263_h_loop_filter = ff_h263_h_loop_filter_sse2;
         c->h263_v_loop_filter = ff_h263_v_loop_filter_sse2;
-    }
+    )
 }

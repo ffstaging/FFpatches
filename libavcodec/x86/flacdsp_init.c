@@ -65,7 +65,7 @@ av_cold void ff_flacdsp_init_x86(FLACDSPContext *c, enum AVSampleFormat fmt, int
 #if HAVE_X86ASM
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->wasted32 = ff_flac_wasted_32_sse2;
         if (fmt == AV_SAMPLE_FMT_S16) {
             c->decorrelate[1] = ff_flac_decorrelate_ls_16_sse2;
@@ -76,8 +76,8 @@ av_cold void ff_flacdsp_init_x86(FLACDSPContext *c, enum AVSampleFormat fmt, int
             c->decorrelate[2] = ff_flac_decorrelate_rs_32_sse2;
             c->decorrelate[3] = ff_flac_decorrelate_ms_32_sse2;
         }
-    }
-    if (EXTERNAL_SSSE3(cpu_flags)) {
+    )
+    IF_EXTERNAL_SSSE3(cpu_flags,
         if (fmt == AV_SAMPLE_FMT_S16) {
             if (channels == 2)
                 c->decorrelate[0] = ff_flac_decorrelate_indep2_16_ssse3;
@@ -85,8 +85,9 @@ av_cold void ff_flacdsp_init_x86(FLACDSPContext *c, enum AVSampleFormat fmt, int
                 c->decorrelate[0] = ff_flac_decorrelate_indep4_16_ssse3;
             else if (channels == 6)
                 c->decorrelate[0] = ff_flac_decorrelate_indep6_16_ssse3;
-            else if (ARCH_X86_64 && channels == 8)
+            else IF(ARCH_X86_64, channels == 8,
                 c->decorrelate[0] = ff_flac_decorrelate_indep8_16_ssse3;
+            )
         } else if (fmt == AV_SAMPLE_FMT_S32) {
             if (channels == 2)
                 c->decorrelate[0] = ff_flac_decorrelate_indep2_32_ssse3;
@@ -94,30 +95,33 @@ av_cold void ff_flacdsp_init_x86(FLACDSPContext *c, enum AVSampleFormat fmt, int
                 c->decorrelate[0] = ff_flac_decorrelate_indep4_32_ssse3;
             else if (channels == 6)
                 c->decorrelate[0] = ff_flac_decorrelate_indep6_32_ssse3;
-            else if (ARCH_X86_64 && channels == 8)
+            else IF(ARCH_X86_64, channels == 8,
                 c->decorrelate[0] = ff_flac_decorrelate_indep8_32_ssse3;
+            )
         }
-    }
-    if (EXTERNAL_SSE4(cpu_flags)) {
+    )
+    IF_EXTERNAL_SSE4(cpu_flags,
         c->lpc16 = ff_flac_lpc_16_sse4;
         c->lpc32 = ff_flac_lpc_32_sse4;
         c->wasted33 = ff_flac_wasted_33_sse4;
-    }
-    if (EXTERNAL_AVX(cpu_flags)) {
+    )
+    IF_EXTERNAL_AVX(cpu_flags,
         if (fmt == AV_SAMPLE_FMT_S16) {
-            if (ARCH_X86_64 && channels == 8)
+            IF(ARCH_X86_64, channels == 8,
                 c->decorrelate[0] = ff_flac_decorrelate_indep8_16_avx;
+            )
         } else if (fmt == AV_SAMPLE_FMT_S32) {
             if (channels == 4)
                 c->decorrelate[0] = ff_flac_decorrelate_indep4_32_avx;
             else if (channels == 6)
                 c->decorrelate[0] = ff_flac_decorrelate_indep6_32_avx;
-            else if (ARCH_X86_64 && channels == 8)
+            else IF(ARCH_X86_64, channels == 8,
                 c->decorrelate[0] = ff_flac_decorrelate_indep8_32_avx;
+            )
         }
-    }
-    if (EXTERNAL_XOP(cpu_flags)) {
+    )
+    IF_EXTERNAL_XOP(cpu_flags,
         c->lpc32 = ff_flac_lpc_32_xop;
-    }
+    )
 #endif /* HAVE_X86ASM */
 }

@@ -208,14 +208,14 @@ av_cold void ff_mpegvideoencdsp_init_x86(MpegvideoEncDSPContext *c,
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->pix_sum     = ff_pix_sum16_sse2;
         c->pix_norm1   = ff_pix_norm1_sse2;
-    }
+    )
 
-    if (EXTERNAL_XOP(cpu_flags)) {
+    IF_EXTERNAL_XOP(cpu_flags,
         c->pix_sum     = ff_pix_sum16_xop;
-    }
+    )
 
 #if HAVE_INLINE_ASM
 

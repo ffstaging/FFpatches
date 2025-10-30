@@ -18,7 +18,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "config.h"
 #include "libavutil/attributes.h"
 #include "libavutil/cpu.h"
 #include "libavutil/x86/cpu.h"
@@ -31,7 +30,7 @@ av_cold void ff_svq1enc_init_x86(SVQ1EncDSPContext *c)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->ssd_int8_vs_int16 = ff_ssd_int8_vs_int16_sse2;
-    }
+    )
 }

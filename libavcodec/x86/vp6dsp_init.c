@@ -32,7 +32,7 @@ av_cold void ff_vp6dsp_init_x86(VP56DSPContext *c)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->vp6_filter_diag4 = ff_vp6_filter_diag4_sse2;
-    }
+    )
 }

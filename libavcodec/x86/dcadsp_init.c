@@ -36,14 +36,17 @@ av_cold void ff_dcadsp_init_x86(DCADSPContext *s)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags))
+    IF_EXTERNAL_SSE2(cpu_flags,
         s->lfe_fir_float[0] = ff_lfe_fir0_float_sse2;
-    if (EXTERNAL_SSE3(cpu_flags))
+    )
+    IF_EXTERNAL_SSE3(cpu_flags,
         s->lfe_fir_float[1] = ff_lfe_fir1_float_sse3;
-    if (EXTERNAL_AVX(cpu_flags)) {
+    )
+    IF_EXTERNAL_AVX(cpu_flags,
         s->lfe_fir_float[0] = ff_lfe_fir0_float_avx;
         s->lfe_fir_float[1] = ff_lfe_fir1_float_avx;
-    }
-    if (EXTERNAL_FMA3(cpu_flags))
+    )
+    IF_EXTERNAL_FMA3(cpu_flags,
         s->lfe_fir_float[0] = ff_lfe_fir0_float_fma3;
+    )
 }

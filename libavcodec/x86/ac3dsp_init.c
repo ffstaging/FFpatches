@@ -38,20 +38,20 @@ av_cold void ff_ac3dsp_init_x86(AC3DSPContext *c)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->ac3_exponent_min = ff_ac3_exponent_min_sse2;
         c->float_to_fixed24 = ff_float_to_fixed24_sse2;
         c->compute_mantissa_size = ff_ac3_compute_mantissa_size_sse2;
         c->extract_exponents = ff_ac3_extract_exponents_sse2;
-    }
+    )
 
-    if (EXTERNAL_SSSE3(cpu_flags)) {
+    IF_EXTERNAL_SSSE3(cpu_flags,
         if (!(cpu_flags & AV_CPU_FLAG_ATOM))
             c->extract_exponents = ff_ac3_extract_exponents_ssse3;
-    }
-    if (EXTERNAL_AVX_FAST(cpu_flags)) {
+    )
+    IF_EXTERNAL_AVX_FAST(cpu_flags,
         c->float_to_fixed24 = ff_float_to_fixed24_avx;
-    }
+    )
 }
 
 #define DOWNMIX_FUNC_OPT(ch, opt)                                       \
@@ -76,12 +76,12 @@ void ff_ac3dsp_set_downmix_x86(AC3DSPContext *c)
 
 #define SET_DOWNMIX(ch, suf, SUF)                                       \
     if (ch == c->in_channels) {                                         \
-        if (EXTERNAL_ ## SUF (cpu_flags)) {                             \
+        IF_EXTERNAL_ ## SUF (cpu_flags,                                 \
             if (c->out_channels == 1)                                   \
                 c->downmix = ff_ac3_downmix_ ## ch ## _to_1_ ## suf;    \
             else                                                        \
                 c->downmix = ff_ac3_downmix_ ## ch ## _to_2_ ## suf;    \
-        }                                                               \
+        )                                                               \
     }
 
 #define SET_DOWNMIX_ALL(suf, SUF)                   \

@@ -40,15 +40,15 @@ av_cold void ff_huffyuvencdsp_init_x86(HuffYUVEncDSPContext *c, enum AVPixelForm
     av_unused int cpu_flags = av_get_cpu_flags();
     const AVPixFmtDescriptor *pix_desc = av_pix_fmt_desc_get(pix_fmt);
 
-    if (EXTERNAL_MMXEXT(cpu_flags) && pix_desc && pix_desc->comp[0].depth<16) {
+    IF_EXTERNAL_EXTENDED(MMXEXT, cpu_flags, pix_desc && pix_desc->comp[0].depth<16,
         c->sub_hfyu_median_pred_int16 = ff_sub_hfyu_median_pred_int16_mmxext;
-    }
+    )
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->diff_int16 = ff_diff_int16_sse2;
-    }
+    )
 
-    if (EXTERNAL_AVX2_FAST(cpu_flags)) {
+    IF_EXTERNAL_AVX2_FAST(cpu_flags,
         c->diff_int16 = ff_diff_int16_avx2;
-    }
+    )
 }

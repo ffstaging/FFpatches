@@ -21,7 +21,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "config.h"
 #include "libavutil/attributes.h"
 #include "libavutil/cpu.h"
 #include "libavutil/x86/cpu.h"
@@ -42,12 +41,12 @@ av_cold void ff_cfhddsp_init_x86(CFHDDSPContext *c, int depth, int bayer)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->horiz_filter = ff_cfhd_horiz_filter_sse2;
         c->vert_filter = ff_cfhd_vert_filter_sse2;
         if (depth == 10 && !bayer)
             c->horiz_filter_clip = ff_cfhd_horiz_filter_clip10_sse2;
         if (depth == 12 && !bayer)
             c->horiz_filter_clip = ff_cfhd_horiz_filter_clip12_sse2;
-    }
+    )
 }

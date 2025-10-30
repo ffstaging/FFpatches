@@ -16,8 +16,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "config.h"
-
 #include "libavutil/attributes.h"
 #include "libavutil/x86/cpu.h"
 #include "libavcodec/opus/dsp.h"
@@ -29,8 +27,8 @@ av_cold void ff_opus_dsp_init_x86(OpusDSP *ctx)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_FMA3(cpu_flags)) {
+    IF_EXTERNAL_FMA3(cpu_flags,
         ctx->postfilter = ff_opus_postfilter_fma3;
         ctx->deemphasis = ff_opus_deemphasis_fma3;
-    }
+    )
 }

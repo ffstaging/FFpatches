@@ -44,9 +44,9 @@ av_cold void ff_sbcdsp_init_x86(SBCDSPContext *s)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_MMX(cpu_flags)) {
+    IF_EXTERNAL_MMX(cpu_flags,
         s->sbc_analyze_4 = ff_sbc_analyze_4_mmx;
         s->sbc_analyze_8 = ff_sbc_analyze_8_mmx;
         s->sbc_calc_scalefactors = ff_sbc_calc_scalefactors_mmx;
-    }
+    )
 }

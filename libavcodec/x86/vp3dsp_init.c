@@ -44,19 +44,19 @@ av_cold void ff_vp3dsp_init_x86(VP3DSPContext *c)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_MMX(cpu_flags)) {
+    IF_EXTERNAL_MMX(cpu_flags,
         c->put_no_rnd_pixels_l2 = ff_put_vp_no_rnd_pixels8_l2_mmx;
-    }
+    )
 
-    if (EXTERNAL_MMXEXT(cpu_flags)) {
+    IF_EXTERNAL_MMXEXT(cpu_flags,
         c->idct_dc_add = ff_vp3_idct_dc_add_mmxext;
-    }
+    )
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->idct_put  = ff_vp3_idct_put_sse2;
         c->idct_add  = ff_vp3_idct_add_sse2;
 
         c->v_loop_filter = c->v_loop_filter_unaligned = ff_vp3_v_loop_filter_sse2;
         c->h_loop_filter = c->h_loop_filter_unaligned = ff_vp3_h_loop_filter_sse2;
-    }
+    )
 }

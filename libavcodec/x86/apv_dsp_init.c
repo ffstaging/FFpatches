@@ -36,9 +36,9 @@ av_cold void ff_apv_dsp_init_x86_64(APVDSPContext *dsp)
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_AVX2_FAST(cpu_flags)) {
+    IF_EXTERNAL_AVX2_FAST(cpu_flags,
         dsp->decode_transquant = ff_apv_decode_transquant_avx2;
-    }
+    )
 }
 
 #endif /* ARCH_X86_64 */

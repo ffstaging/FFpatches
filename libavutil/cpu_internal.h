@@ -23,6 +23,35 @@
 
 #include "cpu.h"
 
+#define IF_1(cond, ...) if (cond) { __VA_ARGS__ }
+#define IF_0(cond, ...) if (0 && cond) {}
+#define IF_2(CONFIG_BOOL, cond, ...) IF_ ## CONFIG_BOOL (cond, __VA_ARGS__)
+
+#define IF(CONFIG, cond, ...) IF_2(CONFIG, (cond), __VA_ARGS__)
+
+#define IF_HAVE(FEATURE, cond, ...) IF(HAVE_ ## FEATURE, (cond), __VA_ARGS__)
+
+#define IF_CPUEXT_SUFFIX(flags, suffix, cpuext, ...)                       \
+    IF_HAVE(cpuext ## suffix, (flags) & AV_CPU_FLAG_ ## cpuext, __VA_ARGS__)
+
+#define IF_CPUEXT_SUFFIX_EXT(flags, suffix, cpuext, additional_cond, ...) \
+    IF_HAVE(cpuext ## suffix, ((flags) & AV_CPU_FLAG_ ## cpuext) && (additional_cond), __VA_ARGS__)
+
+#define IF_CPUEXT_SUFFIX_FAST2(flags, suffix, cpuext, slow_cpuext, ...) \
+    IF_HAVE(cpuext ## suffix, ((flags) & AV_CPU_FLAG_ ## cpuext) &&     \
+     !((flags) & AV_CPU_FLAG_ ## slow_cpuext ## SLOW), __VA_ARGS__)
+
+#define IF_CPUEXT_SUFFIX_SLOW(flags, suffix, cpuext, slow_cpuext, ...)  \
+    IF_HAVE(cpuext ## suffix,                                           \
+            (flags) & (AV_CPU_FLAG_ ## cpuext | AV_CPU_FLAG_ ## cpuext ## SLOW), __VA_ARGS__)
+
+#define IF_CPUEXT_SUFFIX_FAST(flags, suffix, cpuext, ...) \
+    IF_CPUEXT_SUFFIX_FAST2(flags, suffix, cpuext, cpuext, __VA_ARGS__)
+
+#define IF_CPUEXT(flags, cpuext, ...)      IF_CPUEXT_SUFFIX     (flags, , cpuext, __VA_ARGS__)
+#define IF_CPUEXT_FAST(flags, cpuext, ...) IF_CPUEXT_SUFFIX_FAST(flags, , cpuext, __VA_ARGS__)
+#define IF_CPUEXT_SLOW(flags, cpuext, ...) IF_CPUEXT_SUFFIX_SLOW(flags, , cpuext, __VA_ARGS__)
+
 #define CPUEXT_SUFFIX(flags, suffix, cpuext)                            \
     (HAVE_ ## cpuext ## suffix && ((flags) & AV_CPU_FLAG_ ## cpuext))
 
@@ -33,10 +62,6 @@
 #define CPUEXT_SUFFIX_SLOW(flags, suffix, cpuext)                       \
     (HAVE_ ## cpuext ## suffix &&                                       \
      ((flags) & (AV_CPU_FLAG_ ## cpuext | AV_CPU_FLAG_ ## cpuext ## SLOW)))
-
-#define CPUEXT_SUFFIX_SLOW2(flags, suffix, cpuext, slow_cpuext)         \
-    (HAVE_ ## cpuext ## suffix && ((flags) & AV_CPU_FLAG_ ## cpuext) && \
-     ((flags) & (AV_CPU_FLAG_ ## slow_cpuext | AV_CPU_FLAG_ ## slow_cpuext ## SLOW)))
 
 #define CPUEXT_SUFFIX_FAST(flags, suffix, cpuext) CPUEXT_SUFFIX_FAST2(flags, suffix, cpuext, cpuext)
 

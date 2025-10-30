@@ -32,12 +32,12 @@ av_cold void ff_pixblockdsp_init_x86(PixblockDSPContext *c,
 {
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         if (!high_bit_depth) {
             c->get_pixels_unaligned =
             c->get_pixels = ff_get_pixels_sse2;
         }
         c->diff_pixels_unaligned =
         c->diff_pixels = ff_diff_pixels_sse2;
-    }
+    )
 }

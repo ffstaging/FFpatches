@@ -37,21 +37,21 @@ av_cold void ff_takdsp_init_x86(TAKDSPContext *c)
 #if HAVE_X86ASM
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->decorrelate_ls = ff_tak_decorrelate_ls_sse2;
         c->decorrelate_sr = ff_tak_decorrelate_sr_sse2;
         c->decorrelate_sm = ff_tak_decorrelate_sm_sse2;
-    }
+    )
 
-    if (EXTERNAL_SSE4(cpu_flags)) {
+    IF_EXTERNAL_SSE4(cpu_flags,
         c->decorrelate_sf = ff_tak_decorrelate_sf_sse4;
-    }
+    )
 
-    if (EXTERNAL_AVX2_FAST(cpu_flags)) {
+    IF_EXTERNAL_AVX2_FAST(cpu_flags,
         c->decorrelate_ls = ff_tak_decorrelate_ls_avx2;
         c->decorrelate_sr = ff_tak_decorrelate_sr_avx2;
         c->decorrelate_sm = ff_tak_decorrelate_sm_avx2;
         c->decorrelate_sf = ff_tak_decorrelate_sf_avx2;
-    }
+    )
 #endif
 }

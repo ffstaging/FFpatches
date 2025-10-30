@@ -91,15 +91,15 @@ av_cold void ff_llvidencdsp_init_x86(LLVidEncDSPContext *c)
     }
 #endif /* HAVE_INLINE_ASM */
 
-    if (EXTERNAL_SSE2(cpu_flags)) {
+    IF_EXTERNAL_SSE2(cpu_flags,
         c->diff_bytes = ff_diff_bytes_sse2;
-    }
+    )
 
-    if (EXTERNAL_AVX(cpu_flags)) {
+    IF_EXTERNAL_AVX(cpu_flags,
         c->sub_left_predict = ff_sub_left_predict_avx;
-    }
+    )
 
-    if (EXTERNAL_AVX2_FAST(cpu_flags)) {
+    IF_EXTERNAL_AVX2_FAST(cpu_flags,
         c->diff_bytes = ff_diff_bytes_avx2;
-    }
+    )
 }
