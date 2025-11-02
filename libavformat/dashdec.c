@@ -709,6 +709,7 @@ static int resolve_content_path(AVFormatContext *s, const char *url, int *max_ur
     char *path = NULL;
     char *mpdName = NULL;
     xmlNodePtr node = NULL;
+    xmlChar *escaped = NULL;
     char *baseurl = NULL;
     char *root_url = NULL;
     char *text = NULL;
@@ -780,7 +781,9 @@ static int resolve_content_path(AVFormatContext *s, const char *url, int *max_ur
     }
     root_url = (av_strcasecmp(baseurl, "")) ? baseurl : path;
     if (node) {
-        xmlNodeSetContent(node, root_url);
+        escaped = xmlEncodeSpecialChars(NULL, root_url);
+        xmlNodeSetContent(node, escaped);
+        free(escaped);
         updated = 1;
     }
 
@@ -814,8 +817,10 @@ static int resolve_content_path(AVFormatContext *s, const char *url, int *max_ur
                 memset(p + 1, 0, strlen(p));
             }
             av_strlcat(tmp_str, text + start, tmp_max_url_size);
-            xmlNodeSetContent(baseurl_nodes[i], tmp_str);
+            escaped = xmlEncodeSpecialChars(NULL, tmp_str);
+            xmlNodeSetContent(baseurl_nodes[i], escaped);
             updated = 1;
+            xmlFree(escaped);
             xmlFree(text);
         }
     }
