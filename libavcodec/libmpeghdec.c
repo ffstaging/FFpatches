@@ -152,15 +152,10 @@ static int mpegh3dadec_decode_frame(AVCodecContext *avctx, AVFrame *frame,
     MPEGH_DECODER_ERROR err;
     MPEGH_DECODER_OUTPUT_INFO out_info;
 
-    if (!avctx->sample_rate) {
-        av_log(avctx, AV_LOG_ERROR, "Audio sample rate is not set");
-        return AVERROR_INVALIDDATA;
-    }
-
     if (avpkt->data != NULL && avpkt->size > 0) {
-        if ((err = mpeghdecoder_processTimescale(s->decoder, avpkt->data,
-                                                 avpkt->size, avpkt->pts,
-                                                 avctx->sample_rate))) {
+        if ((err = mpeghdecoder_processTimescale(
+                 s->decoder, avpkt->data, avpkt->size,
+                 avpkt->pts * avctx->pkt_timebase.num, avctx->pkt_timebase.den))) {
             av_log(avctx, AV_LOG_ERROR, "mpeghdecoder_process() failed: %x\n",
                    err);
             return AVERROR_INVALIDDATA;
@@ -189,8 +184,7 @@ static int mpegh3dadec_decode_frame(AVCodecContext *avctx, AVFrame *frame,
     frame->nb_samples  = out_info.numSamplesPerChannel;
     frame->sample_rate = avctx->sample_rate = out_info.sampleRate;
     frame->pts = out_info.ticks;
-    frame->time_base.num = 1;
-    frame->time_base.den = out_info.sampleRate;
+    frame->time_base = av_make_q(1, out_info.sampleRate);
 
     if ((ret = ff_get_buffer(avctx, frame, 0)) < 0)
         return ret;
