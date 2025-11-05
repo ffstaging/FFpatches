@@ -1254,7 +1254,7 @@ static int tiff_decode_tag(TiffContext *s, AVFrame *frame)
 {
     AVFrameSideData *sd;
     GetByteContext gb_temp;
-    unsigned tag, type, count, off, value = 0, value2 = 1; // value2 is a denominator so init. to 1
+    unsigned tag, prev_last_tag, type, count, off, value = 0, value2 = 1; // value2 is a denominator so init. to 1
     int i, start;
     int pos;
     int ret;
@@ -1268,8 +1268,10 @@ static int tiff_decode_tag(TiffContext *s, AVFrame *frame)
         return AVERROR_INVALIDDATA;
 
     // We ignore TIFF_STRIP_SIZE as it is sometimes in the logic but wrong order around TIFF_STRIP_OFFS
-    if (tag != TIFF_STRIP_SIZE)
+    if (tag != TIFF_STRIP_SIZE) {
+        prev_last_tag = s->last_tag;
         s->last_tag = tag;
+    }
 
     off = bytestream2_tell(&s->gb);
     if (count == 1) {
@@ -1874,6 +1876,8 @@ static int tiff_decode_tag(TiffContext *s, AVFrame *frame)
         tiff_set_type(s, TIFF_TYPE_CINEMADNG);
         break;
     default:
+        // We don't care about out of order tags that we don't process
+        s->last_tag = prev_last_tag;
         if (s->avctx->err_recognition & AV_EF_EXPLODE) {
             av_log(s->avctx, AV_LOG_ERROR,
                    "Unknown or unsupported tag %d/0x%0X\n",
