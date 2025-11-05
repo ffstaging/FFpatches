@@ -789,6 +789,7 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
                      (CONFIG_H264_D3D11VA_HWACCEL * 2) + \
                      CONFIG_H264_D3D12VA_HWACCEL + \
                      CONFIG_H264_NVDEC_HWACCEL + \
+                     CONFIG_H264_V4L2REQUEST_HWACCEL + \
                      CONFIG_H264_VAAPI_HWACCEL + \
                      CONFIG_H264_VIDEOTOOLBOX_HWACCEL + \
                      CONFIG_H264_VDPAU_HWACCEL + \
@@ -817,6 +818,9 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
 #endif
 #if CONFIG_H264_NVDEC_HWACCEL
         *fmt++ = AV_PIX_FMT_CUDA;
+#endif
+#if CONFIG_H264_V4L2REQUEST_HWACCEL
+        *fmt++ = AV_PIX_FMT_DRM_PRIME;
 #endif
         if (CHROMA444(h)) {
             if (h->avctx->colorspace == AVCOL_SPC_RGB) {
@@ -873,6 +877,9 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
 #if CONFIG_H264_VIDEOTOOLBOX_HWACCEL
         if (h->avctx->colorspace != AVCOL_SPC_RGB)
             *fmt++ = AV_PIX_FMT_VIDEOTOOLBOX;
+#endif
+#if CONFIG_H264_V4L2REQUEST_HWACCEL
+        *fmt++ = AV_PIX_FMT_DRM_PRIME;
 #endif
         if (CHROMA444(h)) {
             if (h->avctx->colorspace == AVCOL_SPC_RGB)
@@ -1701,7 +1708,7 @@ static int h264_slice_header_parse(const H264Context *h, H264SliceContext *sl,
     unsigned int slice_type, tmp, i;
     int field_pic_flag, bottom_field_flag;
     int first_slice = sl == h->slice_ctx && !h->current_slice;
-    int picture_structure;
+    int picture_structure, pos;
 
     if (first_slice)
         av_assert0(!h->setup_finished);
@@ -1792,6 +1799,7 @@ static int h264_slice_header_parse(const H264Context *h, H264SliceContext *sl,
 
     sl->poc_lsb = 0;
     sl->delta_poc_bottom = 0;
+    pos = get_bits_left(&sl->gb);
     if (sps->poc_type == 0) {
         sl->poc_lsb = get_bits(&sl->gb, sps->log2_max_poc_lsb);
 
@@ -1806,6 +1814,7 @@ static int h264_slice_header_parse(const H264Context *h, H264SliceContext *sl,
         if (pps->pic_order_present == 1 && picture_structure == PICT_FRAME)
             sl->delta_poc[1] = get_se_golomb(&sl->gb);
     }
+    sl->pic_order_cnt_bit_size = pos - get_bits_left(&sl->gb);
 
     sl->redundant_pic_count = 0;
     if (pps->redundant_pic_cnt_present)
@@ -1845,9 +1854,11 @@ static int h264_slice_header_parse(const H264Context *h, H264SliceContext *sl,
 
     sl->explicit_ref_marking = 0;
     if (nal->ref_idc) {
+        pos = get_bits_left(&sl->gb);
         ret = ff_h264_decode_ref_pic_marking(sl, &sl->gb, nal, h->avctx);
         if (ret < 0 && (h->avctx->err_recognition & AV_EF_EXPLODE))
             return AVERROR_INVALIDDATA;
+        sl->ref_pic_marking_bit_size = pos - get_bits_left(&sl->gb);
     }
 
     if (sl->slice_type_nos != AV_PICTURE_TYPE_I && pps->cabac) {

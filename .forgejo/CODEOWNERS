@@ -61,6 +61,7 @@ libavcodec/.*siren.* @lynne
 libavcodec/smpte_436m.* @programmerjake
 libavcodec/svq1.* @pross
 libavcodec/svq3.* @pross
+libavcodec/v4l2_request.* @Kwiboo
 libavcodec/.*vc2.* @lynne
 libavcodec/vp3.* @pross
 libavcodec/vp4.* @pross
@@ -165,6 +166,7 @@ libavutil/film_grain.* @haasn
 libavutil/dovi_meta.* @haasn
 libavutil/hwcontext_oh.* @quink
 libavutil/hwcontext_mediacodec.* @quink
+libavutil/hwcontext_v4l2request.* @Kwiboo
 libavutil/iamf.* @jamrial
 libavutil/integer.* @michaelni
 libavutil/lfg.* @michaelni
