@@ -75,6 +75,7 @@ HEADERS = adler32.h                                                     \
           pixdesc.h                                                     \
           pixelutils.h                                                  \
           pixfmt.h                                                      \
+          qtff.h                                                        \
           random_seed.h                                                 \
           rc4.h                                                         \
           rational.h                                                    \
@@ -168,6 +169,7 @@ OBJS = adler32.o                                                        \
        parseutils.o                                                     \
        pixdesc.o                                                        \
        pixelutils.o                                                     \
+       qtff.o                                                           \
        random_seed.o                                                    \
        rational.o                                                       \
        refstruct.o                                                      \

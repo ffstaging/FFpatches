@@ -45,6 +45,7 @@
 #include "libavutil/aes.h"
 #include "libavutil/aes_ctr.h"
 #include "libavutil/pixdesc.h"
+#include "libavutil/qtff.h"
 #include "libavutil/sha.h"
 #include "libavutil/spherical.h"
 #include "libavutil/stereo3d.h"
@@ -522,61 +523,38 @@ retry:
     else {
         if (!raw && (data_type == 3 || (data_type == 0 && (langcode < 0x400 || langcode == 0x7fff)))) { // MAC Encoded
             mov_read_mac_string(c, pb, str_size, str, str_size_alloc);
-        } else if (data_type == 21) { // BE signed integer, variable size
-            int val = 0;
-            if (str_size == 1)
-                val = (int8_t)avio_r8(pb);
-            else if (str_size == 2)
-                val = (int16_t)avio_rb16(pb);
-            else if (str_size == 3)
-                val = ((int32_t)(avio_rb24(pb)<<8))>>8;
-            else if (str_size == 4)
-                val = (int32_t)avio_rb32(pb);
-            if (snprintf(str, str_size_alloc, "%d", val) >= str_size_alloc) {
-                av_log(c->fc, AV_LOG_ERROR,
-                       "Failed to store the number (%d) in string.\n", val);
-                av_free(str);
-                return AVERROR_INVALIDDATA;
-            }
-        } else if (data_type == 22) { // BE unsigned integer, variable size
-            unsigned int val = 0;
-            if (str_size == 1)
-                val = avio_r8(pb);
-            else if (str_size == 2)
-                val = avio_rb16(pb);
-            else if (str_size == 3)
-                val = avio_rb24(pb);
-            else if (str_size == 4)
-                val = avio_rb32(pb);
-            if (snprintf(str, str_size_alloc, "%u", val) >= str_size_alloc) {
-                av_log(c->fc, AV_LOG_ERROR,
-                       "Failed to store the number (%u) in string.\n", val);
-                av_free(str);
-                return AVERROR_INVALIDDATA;
-            }
-        } else if (data_type == 23 && str_size >= 4) {  // BE float32
-            float val = av_int2float(avio_rb32(pb));
-            if (snprintf(str, str_size_alloc, "%f", val) >= str_size_alloc) {
-                av_log(c->fc, AV_LOG_ERROR,
-                       "Failed to store the float32 number (%f) in string.\n", val);
-                av_free(str);
-                return AVERROR_INVALIDDATA;
-            }
-        } else if (data_type > 1 && data_type != 4) {
-            // data_type can be 0 if not set at all above. data_type 1 means
-            // UTF8 and 4 means "UTF8 sort". For any other type (UTF16 or e.g.
-            // a picture), don't return it blindly in a string that is supposed
-            // to be UTF8 text.
-            av_log(c->fc, AV_LOG_WARNING, "Skipping unhandled metadata %s of type %d\n", key, data_type);
-            av_free(str);
-            return 0;
         } else {
-            int ret = ffio_read_size(pb, str, str_size);
+            uint8_t *data_buf = av_malloc(str_size);
+            int ret;
+
+            if (!data_buf) {
+                av_free(str);
+                return AVERROR(ENOMEM);
+            }
+
+            ret = ffio_read_size(pb, data_buf, str_size);
             if (ret < 0) {
+                av_free(data_buf);
                 av_free(str);
                 return ret;
             }
-            str[str_size] = 0;
+
+            // Data types 0 and 4 are technically reserved and a special case, but were previously
+            // decoded to UTF-8 here.
+            ret = av_qtff_convert_well_known_to_str(data_type == 0 || data_type == 4 ? 1 : data_type,
+                                                     data_buf, str_size, str, str_size_alloc);
+            av_free(data_buf);
+
+            if (ret == AVERROR_PATCHWELCOME || ret == AVERROR(EINVAL)) {
+                av_log(c->fc, AV_LOG_WARNING, "Skipping unhandled metadata %s of type %d\n", key, data_type);
+                av_free(str);
+                return 0;
+            } else if (ret < 0) {
+                av_log(c->fc, AV_LOG_ERROR,
+                       "Failed to convert metadata %s of type %d to string.\n", key, data_type);
+                av_free(str);
+                return ret;
+            }
         }
         c->fc->event_flags |= AVFMT_EVENT_FLAG_METADATA_UPDATED;
         av_dict_set(metadata, key, str, 0);
