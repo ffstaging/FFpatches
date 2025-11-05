@@ -144,6 +144,15 @@ static void put_header(MPVEncContext *const s, uint32_t header)
     put_bits32(&s->pb, header);
 }
 
+static unsigned bcd2uint(uint8_t bcd)
+{
+    unsigned low  = bcd & 0xf;
+    unsigned high = bcd >> 4;
+    if (low > 9 || high > 9)
+        return 0;
+    return low + 10*high;
+}
+
 /* put sequence header if needed */
 static void mpeg1_encode_sequence_header(MPEG12EncContext *mpeg12)
 {
@@ -155,6 +164,7 @@ static void mpeg1_encode_sequence_header(MPEG12EncContext *mpeg12)
     int64_t best_aspect_error = INT64_MAX;
     AVRational aspect_ratio = s->c.avctx->sample_aspect_ratio;
     int aspect_ratio_info;
+    const AVFrameSideData *timecode_side_data;
 
     put_bits_assume_flushed(&s->pb);
 
@@ -283,12 +293,26 @@ static void mpeg1_encode_sequence_header(MPEG12EncContext *mpeg12)
     }
 
     put_header(s, GOP_START_CODE);
-    put_bits(&s->pb, 1, mpeg12->drop_frame_timecode);    // drop frame flag
-    /* time code: we must convert from the real frame rate to a
-     * fake MPEG frame rate in case of low frame rate */
-    fps       = (framerate.num + framerate.den / 2) / framerate.den;
-    time_code = s->c.cur_pic.ptr->coded_picture_number +
-                mpeg12->timecode_frame_start;
+
+    timecode_side_data = av_frame_get_side_data(s->c.cur_pic.ptr->f, AV_FRAME_DATA_GOP_TIMECODE);
+    if (timecode_side_data && timecode_side_data->data && timecode_side_data->size >= 8) {
+        int64_t tc25bit = *(int64_t *)timecode_side_data->data;
+        unsigned hh = tc25bit>>19 & 0x1f; // 5-bit hours
+        unsigned mm = tc25bit>>13 & 0x3f; // 6-bit minutes
+        unsigned ss = tc25bit>>6  & 0x3f; // 6-bit seconds
+        unsigned ff = tc25bit     & 0x3f; // 6-bit frames
+        mpeg12->drop_frame_timecode = !!(tc25bit & 1<<24);  // 1-bit drop
+        fps = (framerate.num + framerate.den / 2) / framerate.den;
+        time_code = (hh*3600 + mm*60 + ss) * fps + ff;
+        put_bits(&s->pb, 1, mpeg12->drop_frame_timecode);    // drop frame flag
+    } else {
+        put_bits(&s->pb, 1, mpeg12->drop_frame_timecode);    // drop frame flag
+        /* time code: we must convert from the real frame rate to a
+         * fake MPEG frame rate in case of low frame rate */
+        fps       = (framerate.num + framerate.den / 2) / framerate.den;
+        time_code = s->c.cur_pic.ptr->coded_picture_number +
+                    mpeg12->timecode_frame_start;
+    }
 
     mpeg12->gop_picture_number = s->c.cur_pic.ptr->coded_picture_number;
 
