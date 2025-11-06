@@ -533,7 +533,7 @@ static av_cold int amf_encode_init_h264(AVCodecContext *avctx)
     if (ctx->rate_control_mode == AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP) {
         AMF_ASSIGN_PROPERTY_BOOL(res, ctx->encoder, AMF_VIDEO_ENCODER_ENABLE_VBAQ, 0);
         if (ctx->enable_vbaq)
-            av_log(ctx, AV_LOG_WARNING, "VBAQ is not supported by cqp Rate Control Method, automatically disabled\n");
+            av_log(ctx, AV_LOG_WARNING, "VBAQ is not supported by cqp rate control method, automatically disabled\n");
     } else {
         if (ctx->enable_vbaq != -1) {
             AMF_ASSIGN_PROPERTY_BOOL(res, ctx->encoder, AMF_VIDEO_ENCODER_ENABLE_VBAQ, !!ctx->enable_vbaq);
