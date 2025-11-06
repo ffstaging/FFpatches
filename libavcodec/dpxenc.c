@@ -28,14 +28,6 @@
 #include "version.h"
 #include "dpx.h"
 
-typedef struct DPXContext {
-    int big_endian;
-    int bits_per_component;
-    int num_components;
-    int descriptor;
-    int planar;
-} DPXContext;
-
 static av_cold int encode_init(AVCodecContext *avctx)
 {
     DPXContext *s = avctx->priv_data;

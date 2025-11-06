@@ -208,7 +208,7 @@ static int vk_ffv1_start_frame(AVCodecContext          *avctx,
     /* Allocate slice offsets buffer */
     err = ff_vk_get_pooled_buffer(&ctx->s, &fv->slice_offset_pool,
                                   &fp->slice_offset_buf,
-                                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
                                   VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                                   NULL, 2*f->slice_count*sizeof(uint32_t),
                                   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
@@ -694,10 +694,10 @@ static int init_setup_shader(FFV1Context *f, FFVulkanContext *s,
         },
         {
             .name        = "slice_offsets_buf",
-            .type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .type        = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .stages      = VK_SHADER_STAGE_COMPUTE_BIT,
             .mem_quali   = "readonly",
-            .buf_content = "uint32_t slice_offsets",
+            .buf_content = "u32vec2 slice_offsets",
             .buf_elems   = 2*f->max_slice_count,
         },
         {
