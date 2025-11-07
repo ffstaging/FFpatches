@@ -32,6 +32,7 @@
 #include "timecode_internal.h"
 #include "log.h"
 #include "error.h"
+#include "libavutil/avassert.h"
 
 int av_timecode_adjust_ntsc_framenum2(int framenum, int fps)
 {
@@ -105,7 +106,7 @@ char *av_timecode_make_string(const AVTimecode *tc, char *buf, int framenum_arg)
 {
     int fps = tc->fps;
     int drop = tc->flags & AV_TIMECODE_FLAG_DROPFRAME;
-    int hh, mm, ss, ff, ff_len, neg = 0;
+    int hh, mm, ss, ff, ff_len, len, neg = 0;
     int64_t framenum = framenum_arg;
 
     framenum += tc->start;
@@ -122,9 +123,10 @@ char *av_timecode_make_string(const AVTimecode *tc, char *buf, int framenum_arg)
     if (tc->flags & AV_TIMECODE_FLAG_24HOURSMAX)
         hh = hh % 24;
     ff_len = fps > 10000 ? 5 : fps > 1000 ? 4 : fps > 100 ? 3 : fps > 10 ? 2 : 1;
-    snprintf(buf, AV_TIMECODE_STR_SIZE, "%s%02d:%02d:%02d%c%0*d",
-             neg ? "-" : "",
-             hh, mm, ss, drop ? ';' : ':', ff_len, ff);
+    len = snprintf(buf, AV_TIMECODE_STR_SIZE, "%s%02d:%02d:%02d%c%0*d",
+                   neg ? "-" : "",
+                   hh, mm, ss, drop ? ';' : ':', ff_len, ff);
+    av_assert0(len >= 0 && len < sizeof(buf));
     return buf;
 }
 
