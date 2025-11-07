@@ -1499,7 +1499,7 @@ int ff_rtsp_make_setup_request(AVFormatContext *s, const char *host, int port,
                               int lower_transport, const char *real_challenge)
 {
     RTSPState *rt = s->priv_data;
-    int rtx = 0, j, i, err, interleave = 0, port_off = 0;
+    int rtx = 0, j, i, err, len, interleave = 0, port_off = 0;
     RTSPStream *rtsp_st;
     RTSPMessageHeader reply1, *reply = &reply1;
     char cmd[MAX_URL_SIZE];
@@ -1631,9 +1631,10 @@ int ff_rtsp_make_setup_request(AVFormatContext *s, const char *host, int port,
         } else if (rt->server_type == RTSP_SERVER_REAL ||
                    rt->server_type == RTSP_SERVER_WMS)
             av_strlcat(transport, ";mode=play", sizeof(transport));
-        snprintf(cmd, sizeof(cmd),
-                 "Transport: %s\r\n",
-                 transport);
+        len = snprintf(cmd, sizeof(cmd),
+               "Transport: %s\r\n",
+               transport);
+        av_assert0(len >= 0 && len < sizeof(cmd));
         if (rt->accept_dynamic_rate)
             av_strlcat(cmd, "x-Dynamic-Rate: 0\r\n", sizeof(cmd));
         if (CONFIG_RTPDEC && i == 0 && rt->server_type == RTSP_SERVER_REAL) {
