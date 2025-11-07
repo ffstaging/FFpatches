@@ -24,6 +24,7 @@
 #include "metadata.h"
 #include "vorbiscomment.h"
 #include "libavutil/dict.h"
+#include "libavutil/avassert.h"
 
 /**
  * VorbisComment metadata conversion mapping.
@@ -100,8 +101,10 @@ int ff_vorbiscomment_write(AVIOContext *pb, const AVDictionary *m,
             m  = (s / 60) % 60;
             ms = av_rescale_q(chp->start, chp->time_base, av_make_q(   1, 1000)) % 1000;
             s  = s % 60;
-            snprintf(chapter_number, sizeof(chapter_number), "%03d", i);
-            snprintf(chapter_time, sizeof(chapter_time), "%02d:%02d:%02d.%03d", h, m, s, ms);
+            int len_num = snprintf(chapter_number, sizeof(chapter_number), "%03d", i);
+            av_assert0(len_num >= 0 && len_num < sizeof(chapter_number));
+            int len_time = snprintf(chapter_time, sizeof(chapter_time), "%02d:%02d:%02d.%03d", h, m, s, ms);
+            av_assert0(len_time >= 0 && len_time < sizeof(chapter_time));
             avio_wl32(pb, 10 + 1 + 12);
             avio_write(pb, "CHAPTER", 7);
             avio_write(pb, chapter_number, 3);
