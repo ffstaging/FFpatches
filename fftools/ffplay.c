@@ -196,6 +196,7 @@ typedef struct Decoder {
     int64_t next_pts;
     AVRational next_pts_tb;
     SDL_Thread *decoder_tid;
+    uint8_t last_metadata_hash[16];
 } Decoder;
 
 typedef struct VideoState {
@@ -577,6 +578,8 @@ static int decoder_init(Decoder *d, AVCodecContext *avctx, PacketQueue *queue, S
 
 static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
     int ret = AVERROR(EAGAIN);
+    uint8_t metadata_hash[16];
+    char metadata_description[96];
 
     for (;;) {
         if (d->queue->serial == d->pkt_serial) {
@@ -615,8 +618,26 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
                     avcodec_flush_buffers(d->avctx);
                     return 0;
                 }
-                if (ret >= 0)
+                if (ret >= 0) {
+                    if (frame->metadata) {
+                        ret = av_dict_md5_sum(metadata_hash, frame->metadata);
+                        if (ret < 0) return ret;
+                        if (memcmp(metadata_hash, d->last_metadata_hash, sizeof(metadata_hash))) {
+                            memcpy(d->last_metadata_hash, metadata_hash, sizeof(metadata_hash));
+                            if (show_status) {
+                                printf("\x1b[2K\r");
+                                fflush(stdout);
+                            }
+                            snprintf(metadata_description,
+                                     sizeof(metadata_description),
+                                     "\r  New metadata for %s stream %d",
+                                     d->avctx->codec_type == AVMEDIA_TYPE_AUDIO ? "audio" : "video",
+                                     d->pkt ? d->pkt->stream_index : -1);
+                            av_dump_dictionary(NULL, frame->metadata, metadata_description, "    ", AV_LOG_INFO);
+                        }
+                    }
                     return 1;
+                }
             } while (ret != AVERROR(EAGAIN));
         }
 
@@ -2762,6 +2783,11 @@ static int stream_component_open(VideoState *is, int stream_index)
         is->audio_stream = stream_index;
         is->audio_st = ic->streams[stream_index];
 
+        if (is->audio_st->metadata) {
+            ret = av_dict_md5_sum(is->auddec.last_metadata_hash, is->audio_st->metadata);
+            if (ret < 0) goto fail;
+        }
+
         if ((ret = decoder_init(&is->auddec, avctx, &is->audioq, is->continue_read_thread)) < 0)
             goto fail;
         if (is->ic->iformat->flags & AVFMT_NOTIMESTAMPS) {
@@ -2775,6 +2801,11 @@ static int stream_component_open(VideoState *is, int stream_index)
     case AVMEDIA_TYPE_VIDEO:
         is->video_stream = stream_index;
         is->video_st = ic->streams[stream_index];
+
+        if (is->video_st->metadata) {
+            ret = av_dict_md5_sum(is->viddec.last_metadata_hash, is->video_st->metadata);
+            if (ret < 0) goto fail;
+        }
 
         if ((ret = decoder_init(&is->viddec, avctx, &is->videoq, is->continue_read_thread)) < 0)
             goto fail;

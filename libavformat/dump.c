@@ -139,9 +139,9 @@ static void print_fps(double d, const char *postfix, int log_level)
         av_log(NULL, log_level, "%1.0fk %s", d / 1000, postfix);
 }
 
-static void dump_dictionary(void *ctx, const AVDictionary *m,
-                            const char *name, const char *indent,
-                            int log_level)
+void av_dump_dictionary(void *ctx, const AVDictionary *m,
+                        const char *name, const char *indent,
+                        int log_level)
 {
     const AVDictionaryEntry *tag = NULL;
 
@@ -170,7 +170,7 @@ static void dump_metadata(void *ctx, const AVDictionary *m, const char *indent,
                           int log_level)
 {
     if (m && !(av_dict_count(m) == 1 && av_dict_get(m, "language", NULL, 0)))
-        dump_dictionary(ctx, m, "Metadata", indent, log_level);
+        av_dump_dictionary(ctx, m, "Metadata", indent, log_level);
 }
 
 /* param change side data*/
@@ -734,7 +734,7 @@ static void dump_stream_group(const AVFormatContext *ic, uint8_t *printed,
         dump_disposition(stg->disposition, AV_LOG_INFO);
         av_log(NULL, AV_LOG_INFO, "\n");
         dump_metadata(NULL, stg->metadata, "    ", AV_LOG_INFO);
-        dump_dictionary(NULL, mix_presentation->annotations, "Annotations", "    ", AV_LOG_INFO);
+        av_dump_dictionary(NULL, mix_presentation->annotations, "Annotations", "    ", AV_LOG_INFO);
         for (int j = 0; j < mix_presentation->nb_submixes; j++) {
             AVIAMFSubmix *sub_mix = mix_presentation->submixes[j];
             av_log(NULL, AV_LOG_INFO, "    Submix %d:\n", j);
@@ -753,7 +753,7 @@ static void dump_stream_group(const AVFormatContext *ic, uint8_t *printed,
                     if (flags & AVFMT_SHOW_IDS)
                         av_log(NULL, AV_LOG_INFO, "[0x%"PRIx64"]", audio_element->id);
                     av_log(NULL, AV_LOG_INFO, "\n");
-                    dump_dictionary(NULL, submix_element->annotations, "Annotations", "        ", AV_LOG_INFO);
+                    av_dump_dictionary(NULL, submix_element->annotations, "Annotations", "        ", AV_LOG_INFO);
                 }
             }
             for (int k = 0; k < sub_mix->nb_layouts; k++) {

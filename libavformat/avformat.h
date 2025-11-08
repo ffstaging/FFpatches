@@ -2818,6 +2818,20 @@ void av_dump_format(AVFormatContext *ic,
                     const char *url,
                     int is_output);
 
+/**
+ * Print the given dictionary.
+ *
+ * @param ctx       the logging context
+ * @param m         the dictionay to print
+ * @param name      name of the dictionary
+ * @param indent    intendation to use between key and values
+ * @param log_level log level to use for printing
+ */
+void av_dump_dictionary(void *ctx,
+                        const AVDictionary *m,
+                        const char *name,
+                        const char *indent,
+                        int log_level);
 
 #define AV_FRAME_FILENAME_FLAGS_MULTIPLE          1  ///< Allow multiple %d
 #define AV_FRAME_FILENAME_FLAGS_IGNORE_TRUNCATION 2  ///< Ignore truncated output instead of returning an error

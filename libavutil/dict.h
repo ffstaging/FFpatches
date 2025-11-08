@@ -31,6 +31,7 @@
 #define AVUTIL_DICT_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 /**
  * @addtogroup lavu_dict AVDictionary
@@ -234,6 +235,17 @@ void av_dict_free(AVDictionary **m);
  */
 int av_dict_get_string(const AVDictionary *m, char **buffer,
                        const char key_val_sep, const char pairs_sep);
+
+/**
+ * Compute the md5 sum of a dictionary.
+ *
+ * @param dst The output buffer to write the digest into
+ * @param m   The dictionary
+ * @param len The length of the data, in bytes
+ *
+ * @return                   >= 0 on success, negative on error
+ */
+int av_dict_md5_sum(uint8_t *dst, const AVDictionary *m);
 
 /**
  * @}

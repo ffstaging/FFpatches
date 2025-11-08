@@ -26,6 +26,7 @@
 #include "avstring.h"
 #include "dict.h"
 #include "error.h"
+#include "md5.h"
 #include "mem.h"
 #include "bprint.h"
 
@@ -283,4 +284,25 @@ int av_dict_get_string(const AVDictionary *m, char **buffer,
         av_bprint_escape(&bprint, t->value, special_chars, AV_ESCAPE_MODE_BACKSLASH, 0);
     }
     return av_bprint_finalize(&bprint, buffer);
+}
+
+int av_dict_md5_sum(uint8_t *dst, const AVDictionary *m)
+{
+    struct AVMD5 *ctx = av_md5_alloc();
+    const AVDictionaryEntry *entry = av_dict_iterate(m, NULL);
+
+    if (!ctx) return AVERROR(ENOMEM);
+
+    av_md5_init(ctx);
+
+    while (entry) {
+        av_md5_update(ctx, entry->key, strlen(entry->key));
+        av_md5_update(ctx, entry->value, strlen(entry->value));
+        entry = av_dict_iterate(m, entry);
+    }
+
+    av_md5_final(ctx, dst);
+    av_free(ctx);
+
+    return 0;
 }
