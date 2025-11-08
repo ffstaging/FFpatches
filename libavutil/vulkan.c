@@ -1167,6 +1167,37 @@ int ff_vk_map_buffers(FFVulkanContext *s, FFVkBuffer **buf, uint8_t *mem[],
     return 0;
 }
 
+int ff_vk_flush_buffer(FFVulkanContext *s, FFVkBuffer *buf,
+                       size_t offset, size_t mem_size,
+                       int flush)
+{
+    VkResult ret;
+    FFVulkanFunctions *vk = &s->vkfn;
+
+    if (buf->flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+        return 0;
+
+    const VkMappedMemoryRange flush_data = {
+        .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .memory = buf->mem,
+        .offset = buf->virtual_offset + offset,
+        .size   = mem_size,
+    };
+
+    if (flush)
+        ret = vk->FlushMappedMemoryRanges(s->hwctx->act_dev, 1, &flush_data);
+    else
+        ret = vk->InvalidateMappedMemoryRanges(s->hwctx->act_dev, 1, &flush_data);
+
+    if (ret != VK_SUCCESS) {
+        av_log(s, AV_LOG_ERROR, "Failed to flush memory: %s\n",
+               ff_vk_ret2str(ret));
+        return AVERROR_EXTERNAL;
+    }
+
+    return 0;
+}
+
 int ff_vk_unmap_buffers(FFVulkanContext *s, FFVkBuffer **buf, int nb_buffers,
                         int flush)
 {
@@ -1181,6 +1212,7 @@ int ff_vk_unmap_buffers(FFVulkanContext *s, FFVkBuffer **buf, int nb_buffers,
             const VkMappedMemoryRange flush_buf = {
                 .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
                 .memory = buf[i]->mem,
+                .offset = buf[i]->virtual_offset,
                 .size   = VK_WHOLE_SIZE,
             };
 
@@ -2548,9 +2580,10 @@ print:
                 GLSLA("%s", desc[i].buf_content);
             }
             GLSLA("\n}");
-        } else if (desc[i].elems > 0) {
-            GLSLA("[%i]", desc[i].elems);
         }
+
+        if (desc[i].elems > 0)
+            GLSLA("[%i]", desc[i].elems);
 
         GLSLA(";");
         GLSLA("\n");
