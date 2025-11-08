@@ -3544,10 +3544,12 @@ static int decode_slice(HEVCContext *s, unsigned nal_idx, GetBitContext *gb)
 
     ret = hls_slice_header(&s->sh, s, gb);
     if (ret < 0) {
-        // hls_slice_header() does not cleanup on failure thus the state now is inconsistent so we cannot use it on dependent slices
-        s->slice_initialized = 0;
         return ret;
     }
+    // Once hls_slice_header has been called, the context is inconsistent with the slice header
+    // until the context is reinitialized according to the contents of the new slice header
+    // at the start of decode_slice_data.
+    s->slice_initialized = 0;
 
     if ((s->avctx->skip_frame >= AVDISCARD_BIDIR && s->sh.slice_type == HEVC_SLICE_B) ||
         (s->avctx->skip_frame >= AVDISCARD_NONINTRA && s->sh.slice_type != HEVC_SLICE_I) ||
