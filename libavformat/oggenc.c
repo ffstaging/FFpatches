@@ -649,16 +649,27 @@ static int ogg_write_packet_internal(AVFormatContext *s, AVPacket *pkt)
 
     side_metadata = av_packet_get_side_data(pkt, AV_PKT_DATA_STRINGS_METADATA, &size);
     if (side_metadata && oggstream->packet_written) {
-        ogg_write_trailer(s);
+        ret = ogg_write_trailer(s);
+        if (ret < 0)
+            return ret;
+
         ogg_deinit(s);
+        av_freep(&st->priv_data);
 
         av_dict_free(&st->metadata);
         ret = av_packet_unpack_dictionary(side_metadata, size, &st->metadata);
         if (ret < 0)
             return ret;
 
-        ogg_init(s);
-        ogg_write_header(s);
+        ret = ogg_init(s);
+        if (ret < 0)
+            return ret;
+
+        oggstream = st->priv_data;
+
+        ret = ogg_write_header(s);
+        if (ret < 0)
+            return ret;
     }
 
     oggstream->packet_written = 1;
