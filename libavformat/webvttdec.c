@@ -58,6 +58,81 @@ static int64_t read_ts(const char *s)
     return AV_NOPTS_VALUE;
 }
 
+static int webvtt_parse_cue(WebVTTContext *webvtt, AVBPrint *cue, int64_t pos)
+{
+    int i;
+    AVPacket *sub;
+    const char *p, *identifier, *settings;
+    size_t identifier_len, settings_len;
+    int64_t ts_start, ts_end;
+
+    p = identifier = cue->str;
+
+    /* optional cue identifier (can be a number like in SRT or some kind of
+        * chaptering id) */
+    for (i = 0; p[i] && p[i] != '\n' && p[i] != '\r'; i++) {
+        if (!strncmp(p + i, "-->", 3)) {
+            identifier = NULL;
+            break;
+        }
+    }
+    if (!identifier)
+        identifier_len = 0;
+    else {
+        identifier_len = strcspn(p, "\r\n");
+        p += identifier_len;
+        if (*p == '\r')
+            p++;
+        if (*p == '\n')
+            p++;
+    }
+
+    /* cue timestamps */
+    if ((ts_start = read_ts(p)) == AV_NOPTS_VALUE)
+        return AVERROR_INVALIDDATA;
+    if (!(p = strstr(p, "-->")))
+        return AVERROR_INVALIDDATA;
+    p += 2;
+    do p++; while (*p == ' ' || *p == '\t');
+    if ((ts_end = read_ts(p)) == AV_NOPTS_VALUE)
+        return AVERROR_INVALIDDATA;
+
+    /* optional cue settings */
+    p += strcspn(p, "\n\r\t ");
+    while (*p == '\t' || *p == ' ')
+        p++;
+    settings = p;
+    settings_len = strcspn(p, "\r\n");
+    p += settings_len;
+    if (*p == '\r')
+        p++;
+    if (*p == '\n')
+        p++;
+
+    /* create packet */
+    sub = ff_subtitles_queue_insert(&webvtt->q, p, strlen(p), 0);
+    if (!sub) {
+        return AVERROR(ENOMEM);
+    }
+    sub->pos = pos;
+    sub->pts = ts_start;
+    sub->duration = ts_end - ts_start;
+
+#define SET_SIDE_DATA(name, type) do {                                  \
+    if (name##_len) {                                                   \
+        uint8_t *buf = av_packet_new_side_data(sub, type, name##_len);  \
+        if (!buf)                                                       \
+            return AVERROR(ENOMEM);                                     \
+        memcpy(buf, name, name##_len);                                  \
+    }                                                                   \
+} while (0)
+
+    SET_SIDE_DATA(identifier, AV_PKT_DATA_WEBVTT_IDENTIFIER);
+    SET_SIDE_DATA(settings,   AV_PKT_DATA_WEBVTT_SETTINGS);
+
+    return 0;
+}
+
 static int webvtt_read_header(AVFormatContext *s)
 {
     WebVTTContext *webvtt = s->priv_data;
@@ -74,13 +149,27 @@ static int webvtt_read_header(AVFormatContext *s)
 
     av_bprint_init(&cue,    0, AV_BPRINT_SIZE_UNLIMITED);
 
+    res = ff_subtitles_read_chunk(s->pb, &cue);
+    if (res < 0) {
+        av_log(s, AV_LOG_ERROR, "Unable to read file header\n");
+        goto end;
+    }
+
+    if (!cue.len) {
+        av_log(s, AV_LOG_ERROR, "Unable to read file header\n");
+        res = AVERROR_EOF;
+        goto end;
+    }
+
+    if (!strncmp(cue.str, "\xEF\xBB\xBFWEBVTT", 9) &&
+        !strncmp(cue.str, "WEBVTT", 6)) {
+        av_log(s, AV_LOG_ERROR, "Invalid file header\n");
+        res = AVERROR_INVALIDDATA;
+        goto end;
+    }
+
     for (;;) {
-        int i;
-        int64_t pos;
-        AVPacket *sub;
-        const char *p, *identifier, *settings;
-        size_t identifier_len, settings_len;
-        int64_t ts_start, ts_end;
+        int64_t pos = avio_tell(s->pb);
 
         res = ff_subtitles_read_chunk(s->pb, &cue);
         if (res < 0)
@@ -89,81 +178,12 @@ static int webvtt_read_header(AVFormatContext *s)
         if (!cue.len)
             break;
 
-        p = identifier = cue.str;
-        pos = avio_tell(s->pb);
-
-        /* ignore header chunk */
-        if (!strncmp(p, "\xEF\xBB\xBFWEBVTT", 9) ||
-            !strncmp(p, "WEBVTT", 6) ||
-            !strncmp(p, "STYLE", 5) ||
-            !strncmp(p, "REGION", 6) ||
-            !strncmp(p, "NOTE", 4))
-            continue;
-
-        /* optional cue identifier (can be a number like in SRT or some kind of
-         * chaptering id) */
-        for (i = 0; p[i] && p[i] != '\n' && p[i] != '\r'; i++) {
-            if (!strncmp(p + i, "-->", 3)) {
-                identifier = NULL;
-                break;
-            }
+        res = webvtt_parse_cue(webvtt, &cue, pos);
+        if (res < 0) {
+            if (res != AVERROR_INVALIDDATA)
+                goto end;
+            av_log(s, AV_LOG_DEBUG, "Ignoring non-cue block at 0x%"PRIx64"\n", pos);
         }
-        if (!identifier)
-            identifier_len = 0;
-        else {
-            identifier_len = strcspn(p, "\r\n");
-            p += identifier_len;
-            if (*p == '\r')
-                p++;
-            if (*p == '\n')
-                p++;
-        }
-
-        /* cue timestamps */
-        if ((ts_start = read_ts(p)) == AV_NOPTS_VALUE)
-            break;
-        if (!(p = strstr(p, "-->")))
-            break;
-        p += 2;
-        do p++; while (*p == ' ' || *p == '\t');
-        if ((ts_end = read_ts(p)) == AV_NOPTS_VALUE)
-            break;
-
-        /* optional cue settings */
-        p += strcspn(p, "\n\r\t ");
-        while (*p == '\t' || *p == ' ')
-            p++;
-        settings = p;
-        settings_len = strcspn(p, "\r\n");
-        p += settings_len;
-        if (*p == '\r')
-            p++;
-        if (*p == '\n')
-            p++;
-
-        /* create packet */
-        sub = ff_subtitles_queue_insert(&webvtt->q, p, strlen(p), 0);
-        if (!sub) {
-            res = AVERROR(ENOMEM);
-            goto end;
-        }
-        sub->pos = pos;
-        sub->pts = ts_start;
-        sub->duration = ts_end - ts_start;
-
-#define SET_SIDE_DATA(name, type) do {                                  \
-    if (name##_len) {                                                   \
-        uint8_t *buf = av_packet_new_side_data(sub, type, name##_len);  \
-        if (!buf) {                                                     \
-            res = AVERROR(ENOMEM);                                      \
-            goto end;                                                   \
-        }                                                               \
-        memcpy(buf, name, name##_len);                                  \
-    }                                                                   \
-} while (0)
-
-        SET_SIDE_DATA(identifier, AV_PKT_DATA_WEBVTT_IDENTIFIER);
-        SET_SIDE_DATA(settings,   AV_PKT_DATA_WEBVTT_SETTINGS);
     }
 
     ff_subtitles_queue_finalize(s, &webvtt->q);
