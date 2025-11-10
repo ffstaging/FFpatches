@@ -40,6 +40,9 @@
 
 #define MAX_PAGE_SIZE 65025
 
+static int ogg_write_trailer(AVFormatContext *s);
+static void ogg_deinit(AVFormatContext *s);
+
 typedef struct OGGPage {
     int64_t start_granule;
     int64_t granule;
@@ -634,12 +637,56 @@ static int ogg_write_header(AVFormatContext *s)
     return 0;
 }
 
+static int ogg_check_new_metadata(AVFormatContext *s, AVPacket *pkt)
+{
+    int ret = 0;
+    size_t size;
+    AVStream *st = s->streams[pkt->stream_index];
+    const uint8_t *side_metadata = av_packet_get_side_data(pkt, AV_PKT_DATA_STRINGS_METADATA, &size);
+
+    if (!side_metadata)
+        return 0;
+
+    if (s->nb_streams > 1) {
+        av_log(s, AV_LOG_WARNING, "Multiple streams present: cannot insert new metadata!\n");
+        return 0;
+    }
+
+    if (st->codecpar->codec_id != AV_CODEC_ID_VORBIS &&
+        st->codecpar->codec_id != AV_CODEC_ID_FLAC &&
+        st->codecpar->codec_id != AV_CODEC_ID_OPUS) {
+        av_log(s, AV_LOG_WARNING, "Inserting in-base metadata is only supported for vorbis, flac and opus streams!\n");
+        return 0;
+    }
+
+    ret = ogg_write_trailer(s);
+    if (ret < 0)
+        return ret;
+
+    ogg_deinit(s);
+
+    av_dict_free(&st->metadata);
+    ret = av_packet_unpack_dictionary(side_metadata, size, &st->metadata);
+    if (ret < 0)
+        return ret;
+
+    ret = ogg_init(s);
+    if (ret < 0)
+        return ret;
+
+    return ogg_write_header(s);
+}
+
 static int ogg_write_packet_internal(AVFormatContext *s, AVPacket *pkt)
 {
     AVStream *st = s->streams[pkt->stream_index];
-    OGGStreamContext *oggstream = st->priv_data;
+    OGGStreamContext *oggstream;
     int ret;
     int64_t granule;
+
+    ogg_check_new_metadata(s, pkt);
+
+    oggstream = st->priv_data;
 
     if (st->codecpar->codec_id == AV_CODEC_ID_THEORA) {
         int64_t pts = oggstream->vrev < 1 ? pkt->pts : pkt->pts + pkt->duration;
@@ -720,7 +767,7 @@ static int ogg_write_trailer(AVFormatContext *s)
     return 0;
 }
 
-static void ogg_free(AVFormatContext *s)
+static void ogg_deinit(AVFormatContext *s)
 {
     OGGContext *ogg = s->priv_data;
     OGGPageList *p = ogg->page_list;
@@ -738,6 +785,7 @@ static void ogg_free(AVFormatContext *s)
             av_freep(&oggstream->header[0]);
         }
         av_freep(&oggstream->header[1]);
+        av_freep(&st->priv_data);
     }
 
     while (p) {
@@ -772,7 +820,7 @@ const FFOutputFormat ff_ogg_muxer = {
     .write_header      = ogg_write_header,
     .write_packet      = ogg_write_packet,
     .write_trailer     = ogg_write_trailer,
-    .deinit            = ogg_free,
+    .deinit            = ogg_deinit,
     .p.flags           = AVFMT_TS_NEGATIVE | AVFMT_TS_NONSTRICT,
     .p.priv_class      = &ogg_muxer_class,
     .flags_internal    = FF_OFMT_FLAG_ALLOW_FLUSH,
@@ -791,7 +839,7 @@ const FFOutputFormat ff_oga_muxer = {
     .write_header      = ogg_write_header,
     .write_packet      = ogg_write_packet,
     .write_trailer     = ogg_write_trailer,
-    .deinit            = ogg_free,
+    .deinit            = ogg_deinit,
     .p.flags           = AVFMT_TS_NEGATIVE,
     .p.priv_class      = &ogg_muxer_class,
     .flags_internal    = FF_OFMT_FLAG_ALLOW_FLUSH,
@@ -813,7 +861,7 @@ const FFOutputFormat ff_ogv_muxer = {
     .write_header      = ogg_write_header,
     .write_packet      = ogg_write_packet,
     .write_trailer     = ogg_write_trailer,
-    .deinit            = ogg_free,
+    .deinit            = ogg_deinit,
     .p.flags           = AVFMT_TS_NEGATIVE | AVFMT_TS_NONSTRICT,
     .p.priv_class      = &ogg_muxer_class,
     .flags_internal    = FF_OFMT_FLAG_ALLOW_FLUSH,
@@ -832,7 +880,7 @@ const FFOutputFormat ff_spx_muxer = {
     .write_header      = ogg_write_header,
     .write_packet      = ogg_write_packet,
     .write_trailer     = ogg_write_trailer,
-    .deinit            = ogg_free,
+    .deinit            = ogg_deinit,
     .p.flags           = AVFMT_TS_NEGATIVE,
     .p.priv_class      = &ogg_muxer_class,
     .flags_internal    = FF_OFMT_FLAG_ALLOW_FLUSH,
@@ -851,7 +899,7 @@ const FFOutputFormat ff_opus_muxer = {
     .write_header      = ogg_write_header,
     .write_packet      = ogg_write_packet,
     .write_trailer     = ogg_write_trailer,
-    .deinit            = ogg_free,
+    .deinit            = ogg_deinit,
     .p.flags           = AVFMT_TS_NEGATIVE,
     .p.priv_class      = &ogg_muxer_class,
     .flags_internal    = FF_OFMT_FLAG_ALLOW_FLUSH,
