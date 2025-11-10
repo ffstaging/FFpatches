@@ -337,6 +337,24 @@ static void nvenc_print_driver_requirement(AVCodecContext *avctx, int level)
     av_log(avctx, level, "The minimum required Nvidia driver for nvenc is %s or newer\n", minver);
 }
 
+av_always_inline
+static NV_ENC_VUI_MATRIX_COEFFS to_nv_color_matrix(enum AVColorSpace n)
+{
+    return (NV_ENC_VUI_MATRIX_COEFFS)n;
+}
+
+av_always_inline
+static NV_ENC_VUI_COLOR_PRIMARIES to_nv_color_pri(enum AVColorPrimaries n)
+{
+    return (NV_ENC_VUI_COLOR_PRIMARIES)n;
+}
+
+av_always_inline
+static NV_ENC_VUI_TRANSFER_CHARACTERISTIC to_nv_color_trc(enum AVColorTransferCharacteristic n)
+{
+    return (NV_ENC_VUI_TRANSFER_CHARACTERISTIC)n;
+}
+
 static av_cold int nvenc_load_libraries(AVCodecContext *avctx)
 {
     NvencContext *ctx            = avctx->priv_data;
@@ -1266,14 +1284,14 @@ static av_cold int nvenc_setup_h264_config(AVCodecContext *avctx)
     const AVPixFmtDescriptor *pixdesc = av_pix_fmt_desc_get(ctx->data_pix_fmt);
 
     if ((pixdesc->flags & AV_PIX_FMT_FLAG_RGB) && !IS_GBRP(ctx->data_pix_fmt)) {
-        vui->colourMatrix = AVCOL_SPC_BT470BG;
-        vui->colourPrimaries = avctx->color_primaries;
-        vui->transferCharacteristics = avctx->color_trc;
+        vui->colourMatrix = to_nv_color_matrix(AVCOL_SPC_BT470BG);
+        vui->colourPrimaries = to_nv_color_pri(avctx->color_primaries);
+        vui->transferCharacteristics = to_nv_color_trc(avctx->color_trc);
         vui->videoFullRangeFlag = 0;
     } else {
-        vui->colourMatrix = IS_GBRP(ctx->data_pix_fmt) ? AVCOL_SPC_RGB : avctx->colorspace;
-        vui->colourPrimaries = avctx->color_primaries;
-        vui->transferCharacteristics = avctx->color_trc;
+        vui->colourMatrix = to_nv_color_matrix(IS_GBRP(ctx->data_pix_fmt) ? AVCOL_SPC_RGB : avctx->colorspace);
+        vui->colourPrimaries = to_nv_color_pri(avctx->color_primaries);
+        vui->transferCharacteristics = to_nv_color_trc(avctx->color_trc);
         vui->videoFullRangeFlag = (avctx->color_range == AVCOL_RANGE_JPEG
             || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ420P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ422P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ444P);
     }
@@ -1457,14 +1475,14 @@ static av_cold int nvenc_setup_hevc_config(AVCodecContext *avctx)
     const AVPixFmtDescriptor *pixdesc = av_pix_fmt_desc_get(ctx->data_pix_fmt);
 
     if ((pixdesc->flags & AV_PIX_FMT_FLAG_RGB) && !IS_GBRP(ctx->data_pix_fmt)) {
-        vui->colourMatrix = AVCOL_SPC_BT470BG;
-        vui->colourPrimaries = avctx->color_primaries;
-        vui->transferCharacteristics = avctx->color_trc;
+        vui->colourMatrix = to_nv_color_matrix(AVCOL_SPC_BT470BG);
+        vui->colourPrimaries = to_nv_color_pri(avctx->color_primaries);
+        vui->transferCharacteristics = to_nv_color_trc(avctx->color_trc);
         vui->videoFullRangeFlag = 0;
     } else {
-        vui->colourMatrix = IS_GBRP(ctx->data_pix_fmt) ? AVCOL_SPC_RGB : avctx->colorspace;
-        vui->colourPrimaries = avctx->color_primaries;
-        vui->transferCharacteristics = avctx->color_trc;
+        vui->colourMatrix = to_nv_color_matrix(IS_GBRP(ctx->data_pix_fmt) ? AVCOL_SPC_RGB : avctx->colorspace);
+        vui->colourPrimaries = to_nv_color_pri(avctx->color_primaries);
+        vui->transferCharacteristics = to_nv_color_trc(avctx->color_trc);
         vui->videoFullRangeFlag = (avctx->color_range == AVCOL_RANGE_JPEG
             || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ420P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ422P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ444P);
     }
@@ -1655,14 +1673,14 @@ static av_cold int nvenc_setup_av1_config(AVCodecContext *avctx)
     const AVPixFmtDescriptor *pixdesc = av_pix_fmt_desc_get(ctx->data_pix_fmt);
 
     if ((pixdesc->flags & AV_PIX_FMT_FLAG_RGB) && !IS_GBRP(ctx->data_pix_fmt)) {
-        av1->matrixCoefficients = AVCOL_SPC_BT470BG;
-        av1->colorPrimaries = avctx->color_primaries;
-        av1->transferCharacteristics = avctx->color_trc;
+        av1->matrixCoefficients = to_nv_color_matrix(AVCOL_SPC_BT470BG);
+        av1->colorPrimaries = to_nv_color_pri(avctx->color_primaries);
+        av1->transferCharacteristics = to_nv_color_trc(avctx->color_trc);
         av1->colorRange = 0;
     } else {
-        av1->matrixCoefficients = IS_GBRP(ctx->data_pix_fmt) ? AVCOL_SPC_RGB : avctx->colorspace;
-        av1->colorPrimaries = avctx->color_primaries;
-        av1->transferCharacteristics = avctx->color_trc;
+        av1->matrixCoefficients = to_nv_color_matrix(IS_GBRP(ctx->data_pix_fmt) ? AVCOL_SPC_RGB : avctx->colorspace);
+        av1->colorPrimaries = to_nv_color_pri(avctx->color_primaries);
+        av1->transferCharacteristics = to_nv_color_trc(avctx->color_trc);
         av1->colorRange = (avctx->color_range == AVCOL_RANGE_JPEG
             || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ420P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ422P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ444P);
     }
