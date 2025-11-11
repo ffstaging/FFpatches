@@ -37,6 +37,9 @@ typedef enum SwsPixelType {
 } SwsPixelType;
 
 const char *ff_sws_pixel_type_name(SwsPixelType type);
+/**
+ * Return the size of type in bytes.
+ */
 int ff_sws_pixel_type_size(SwsPixelType type) av_const;
 bool ff_sws_pixel_type_is_int(SwsPixelType type) av_const;
 SwsPixelType ff_sws_pixel_type_to_uint(SwsPixelType type) av_const;
