@@ -22,6 +22,8 @@
 #include "libavutil/avstring.h"
 #include "libavutil/mem.h"
 #include "libavutil/opt.h"
+#include "libavutil/parseutils.h"
+#include "libavutil/intfloat.h"
 
 #include "avformat.h"
 #include "demux.h"
@@ -34,6 +36,10 @@ typedef struct MPJPEGDemuxContext {
     char       *searchstr;
     int         searchstr_len;
     int         strict_mime_boundary;
+    AVRational  framerate;      /* framerate from X-Framerate header */
+    int64_t     timestamp;      /* timestamp from X-Timestamp header */
+    int         has_timestamp;  /* flag indicating if timestamp was set */
+    int         framerate_set; /* flag indicating if framerate was set in header */
 } MPJPEGDemuxContext;
 
 static void trim_right(char *p)
@@ -97,7 +103,8 @@ static int split_tag_value(char **tag, char **value, char *line)
 static int parse_multipart_header(AVIOContext *pb,
                                     int* size,
                                     const char* expected_boundary,
-                                    void *log_ctx);
+                                    void *log_ctx,
+                                    MPJPEGDemuxContext *mpjpeg);
 
 static int mpjpeg_read_close(AVFormatContext *s)
 {
@@ -118,7 +125,7 @@ static int mpjpeg_read_probe(const AVProbeData *p)
 
     ffio_init_read_context(&pb, p->buf, p->buf_size);
 
-    ret = (parse_multipart_header(&pb.pub, &size, "--", NULL) >= 0) ? AVPROBE_SCORE_MAX : 0;
+    ret = (parse_multipart_header(&pb.pub, &size, "--", NULL, NULL) >= 0) ? AVPROBE_SCORE_MAX : 0;
 
     return ret;
 }
@@ -146,7 +153,13 @@ static int mpjpeg_read_header(AVFormatContext *s)
     st->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
     st->codecpar->codec_id   = AV_CODEC_ID_MJPEG;
 
-    avpriv_set_pts_info(st, 60, 1, 25);
+    /* Default framerate is 25 fps, will be updated from headers if available */
+    MPJPEGDemuxContext *mpjpeg = s->priv_data;
+    mpjpeg->framerate = (AVRational){25, 1};
+    mpjpeg->framerate_set = 0;
+    mpjpeg->has_timestamp = 0;
+    /* Use AV_TIME_BASE_Q timebase to support variable fps via X-Timestamp */
+    avpriv_set_pts_info(st, 60, AV_TIME_BASE_Q.num, AV_TIME_BASE_Q.den);
 
     avio_seek(s->pb, pos, SEEK_SET);
 
@@ -167,7 +180,8 @@ static int parse_content_length(const char *value)
 static int parse_multipart_header(AVIOContext *pb,
                             int* size,
                             const char* expected_boundary,
-                            void *log_ctx)
+                            void *log_ctx,
+                            MPJPEGDemuxContext *mpjpeg)
 {
     char line[128];
     int found_content_type = 0;
@@ -235,6 +249,31 @@ static int parse_multipart_header(AVIOContext *pb,
                 av_log(log_ctx, AV_LOG_WARNING,
                            "Invalid Content-Length value : %s\n",
                            value);
+        } else if (mpjpeg && !av_strcasecmp(tag, "X-Timestamp")) {
+            double ts = av_strtod(value, NULL);
+            if (isfinite(ts)) {
+                /* X-Timestamp is in seconds, convert to AV_TIME_BASE */
+                mpjpeg->timestamp = (int64_t)(ts * AV_TIME_BASE);
+                mpjpeg->has_timestamp = 1;
+                av_log(log_ctx, AV_LOG_DEBUG,
+                       "Parsed X-Timestamp: %s -> %"PRId64" (%.6f seconds)\n",
+                       value, mpjpeg->timestamp, ts);
+            } else {
+                av_log(log_ctx, AV_LOG_WARNING,
+                       "Invalid X-Timestamp value : %s\n", value);
+            }
+        } else if (mpjpeg && (!av_strcasecmp(tag, "X-Framerate") || !av_strcasecmp(tag, "X-FrameRate"))) {
+            AVRational fps = {0};
+            if (av_parse_video_rate(&fps, value) >= 0 && fps.num > 0 && fps.den > 0) {
+                mpjpeg->framerate = fps;
+                mpjpeg->framerate_set = 1;
+                av_log(log_ctx, AV_LOG_DEBUG,
+                       "Parsed X-Framerate: %s -> %d/%d fps\n",
+                       value, fps.num, fps.den);
+            } else {
+                av_log(log_ctx, AV_LOG_WARNING,
+                       "Invalid X-Framerate value : %s\n", value);
+            }
         }
     }
 
@@ -311,9 +350,19 @@ static int mpjpeg_read_packet(AVFormatContext *s, AVPacket *pkt)
         mpjpeg->searchstr_len = strlen(mpjpeg->searchstr);
     }
 
-    ret = parse_multipart_header(s->pb, &size, mpjpeg->boundary, s);
+    /* Reset timestamp flag for each packet */
+    mpjpeg->has_timestamp = 0;
+
+    ret = parse_multipart_header(s->pb, &size, mpjpeg->boundary, s, mpjpeg);
     if (ret < 0)
         return ret;
+
+    /* Update framerate if it was set in header */
+    if (mpjpeg->framerate_set && s->nb_streams > 0) {
+        AVStream *st = s->streams[0];
+        /* Only update avg_frame_rate, timebase should remain 1/AV_TIME_BASE for variable fps */
+        st->avg_frame_rate = mpjpeg->framerate;
+    }
 
     if (size > 0) {
         /* size has been provided to us in MIME header */
@@ -351,6 +400,14 @@ static int mpjpeg_read_packet(AVFormatContext *s, AVPacket *pkt)
         if (ret == AVERROR_EOF) {
             ret = pkt->size > 0 ? pkt->size : AVERROR_EOF;
         }
+    }
+
+    /* Set timestamp from X-Timestamp header if available */
+    if (ret >= 0 && mpjpeg->has_timestamp && s->nb_streams > 0) {
+        AVStream *st = s->streams[0];
+        /* Use AV_TIME_BASE_Q as timebase for timestamps */
+        pkt->pts = mpjpeg->timestamp;
+        pkt->dts = mpjpeg->timestamp;
     }
 
     return ret;
