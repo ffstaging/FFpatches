@@ -47,7 +47,7 @@ static void reset_index_position(int64_t metadata_head_size, AVStream *st)
     FFStream *const sti = ffstream(st);
     /* the real seek index offset should be the size of metadata blocks with the offset in the frame blocks */
     for (int i = 0; i < sti->nb_index_entries; i++)
-        sti->index_entries[i].pos += metadata_head_size;
+        sti->index_entries[i].pos = av_sat_add64(sti->index_entries[i].pos, metadata_head_size);
 }
 
 static const uint16_t sr_table[16] = {
