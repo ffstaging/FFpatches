@@ -196,6 +196,7 @@ static av_cold void join_uninit(AVFilterContext *ctx)
         av_frame_free(&s->input_frames[i]);
     }
 
+    av_channel_layout_uninit(&s->ch_layout);
     av_freep(&s->channels);
     av_freep(&s->buffers);
     av_freep(&s->input_frames);
