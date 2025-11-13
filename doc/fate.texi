@@ -44,19 +44,7 @@ targets and variables.
 
 If you want to run FATE on your machine you need to have the samples
 in place. You can get the samples via the build target fate-rsync.
-Use this command from the top-level source directory:
-
-@example
-make fate-rsync SAMPLES=fate-suite/
-make fate       SAMPLES=fate-suite/
-@end example
-
-The above commands set the samples location by passing a makefile
-variable via command line. It is also possible to set the samples
-location at source configuration time by invoking configure with
-@option{--samples=<path to the samples directory>}. Afterwards you can
-invoke the makefile targets without setting the @var{SAMPLES} makefile
-variable. This is illustrated by the following commands:
+Use this command from the top-level source directory of FFmpeg:
 
 @example
 ./configure --samples=fate-suite/
@@ -64,13 +52,11 @@ make fate-rsync
 make fate
 @end example
 
-Yet another way to tell FATE about the location of the sample
-directory is by making sure the environment variable FATE_SAMPLES
-contains the path to your samples directory. This can be achieved
-by e.g. putting that variable in your shell profile or by setting
-it in your interactive session.
+You can pass different samples directory to @code{make fate-rsync} and
+@code{make fate} later. Those two are equivalent:
 
 @example
+make fate SAMPLES=fate-suite/
 FATE_SAMPLES=fate-suite/ make fate
 @end example
 
