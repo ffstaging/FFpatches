@@ -161,8 +161,10 @@ static int scale_vt_filter_frame(AVFilterLink *link, AVFrame *in)
     out->crop_right = 0;
     out->crop_bottom = 0;
     if (out->width != in->width || out->height != in->height) {
-        av_frame_side_data_remove_by_props(&out->side_data, &out->nb_side_data,
-                                           AV_SIDE_DATA_PROP_SIZE_DEPENDENT);
+        int prop = AV_SIDE_DATA_PROP_SIZE_DEPENDENT;
+        if (in->width * out->height != out->width * in->height)
+            prop |= AV_SIDE_DATA_PROP_ASPECT_RATIO_DEPENDENT;
+        av_frame_side_data_remove_by_props(&out->side_data, &out->nb_side_data, prop);
     }
 
     av_reduce(&out->sample_aspect_ratio.num, &out->sample_aspect_ratio.den,

@@ -674,8 +674,10 @@ static int config_props(AVFilterLink *outlink)
     av_freep(&flags_val);
 
     if (inlink->w != outlink->w || inlink->h != outlink->h) {
-        av_frame_side_data_remove_by_props(&outlink->side_data, &outlink->nb_side_data,
-                                           AV_SIDE_DATA_PROP_SIZE_DEPENDENT);
+        int prop = AV_SIDE_DATA_PROP_SIZE_DEPENDENT;
+        if (inlink->w * outlink->h != outlink->w * inlink->h)
+            prop |= AV_SIDE_DATA_PROP_ASPECT_RATIO_DEPENDENT;
+        av_frame_side_data_remove_by_props(&outlink->side_data, &outlink->nb_side_data, prop);
     }
 
     if (scale->in_primaries != scale->out_primaries || scale->in_transfer != scale->out_transfer) {
@@ -852,8 +854,10 @@ scale:
         out->color_trc = scale->out_transfer;
 
     if (out->width != in->width || out->height != in->height) {
-        av_frame_side_data_remove_by_props(&out->side_data, &out->nb_side_data,
-                                           AV_SIDE_DATA_PROP_SIZE_DEPENDENT);
+        int prop = AV_SIDE_DATA_PROP_SIZE_DEPENDENT;
+        if (in->width * out->height != out->width * in->height)
+            prop |= AV_SIDE_DATA_PROP_ASPECT_RATIO_DEPENDENT;
+        av_frame_side_data_remove_by_props(&out->side_data, &out->nb_side_data, prop);
     }
 
     if (in->color_primaries != out->color_primaries || in->color_trc != out->color_trc) {

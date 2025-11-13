@@ -146,9 +146,12 @@ static int scale_vaapi_filter_frame(AVFilterLink *inlink, AVFrame *input_frame)
         goto fail;
 
     if (output_frame->width != input_frame->width || output_frame->height != input_frame->height) {
+        int prop = AV_SIDE_DATA_PROP_SIZE_DEPENDENT;
+        if (input_frame->width * output_frame->height != output_frame->width * input_frame->height)
+            prop |= AV_SIDE_DATA_PROP_ASPECT_RATIO_DEPENDENT;
         av_frame_side_data_remove_by_props(&output_frame->side_data,
                                            &output_frame->nb_side_data,
-                                           AV_SIDE_DATA_PROP_SIZE_DEPENDENT);
+                                           prop);
     }
 
     if (ctx->colour_primaries != AVCOL_PRI_UNSPECIFIED)

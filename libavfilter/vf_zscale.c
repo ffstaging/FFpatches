@@ -818,8 +818,11 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                   (int64_t)in->sample_aspect_ratio.den * outlink->w * link->h,
                   INT_MAX);
 
-        if (out->width != in->width || out->height != in->height)
+        if (out->width != in->width || out->height != in->height) {
             changed |= AV_SIDE_DATA_PROP_SIZE_DEPENDENT;
+            if (in->width * out->height != out->width * in->height)
+                changed |= AV_SIDE_DATA_PROP_ASPECT_RATIO_DEPENDENT;
+        }
         if (out->color_trc != in->color_trc || out->color_primaries != in->color_primaries)
             changed |= AV_SIDE_DATA_PROP_COLOR_DEPENDENT;
         av_frame_side_data_remove_by_props(&out->side_data, &out->nb_side_data, changed);

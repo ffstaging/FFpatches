@@ -1031,8 +1031,11 @@ static int output_frame(AVFilterContext *ctx, int64_t pts)
         out->color_primaries = s->color_primaries;
 
     /* Strip side data if no longer relevant */
-    if (out->width != ref->width || out->height != ref->height)
+    if (out->width != ref->width || out->height != ref->height) {
         changed |= AV_SIDE_DATA_PROP_SIZE_DEPENDENT;
+        if (ref->width * out->height != out->width * ref->height)
+            changed |= AV_SIDE_DATA_PROP_ASPECT_RATIO_DEPENDENT;
+    }
     if (ref->color_trc != out->color_trc || ref->color_primaries != out->color_primaries)
         changed |= AV_SIDE_DATA_PROP_COLOR_DEPENDENT;
     av_frame_side_data_remove_by_props(&out->side_data, &out->nb_side_data, changed);

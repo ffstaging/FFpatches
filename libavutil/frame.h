@@ -321,6 +321,15 @@ enum AVSideDataProps {
      * or adjusted to the new layout.
      */
     AV_SIDE_DATA_PROP_CHANNEL_DEPENDENT = (1 << 4),
+
+    /**
+     * Side data depends on the video aspect ratio. Side data with this property
+     * loses its meaning with non-uniform scale.
+     *
+     * @note Cropping also affects side data with this property, even when the
+     *       resulting aspect ratio matches the original input.
+     */
+    AV_SIDE_DATA_PROP_ASPECT_RATIO_DEPENDENT = (1 << 5),
 };
 
 /**
