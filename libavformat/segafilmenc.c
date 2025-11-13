@@ -58,6 +58,10 @@ static int film_write_packet(AVFormatContext *format_context, AVPacket *pkt)
     if (codec_id == AV_CODEC_ID_CINEPAK) {
         encoded_buf_size = AV_RB24(&pkt->data[1]);
         /* Already Sega Cinepak, so no need to reformat the packets */
+        if (encoded_buf_size == 0) {
+            av_log(format_context, AV_LOG_ERROR, "Invalid encoded_buf_size 0\n");
+            return AVERROR_INVALIDDATA;
+        }
         if (encoded_buf_size != pkt->size && (pkt->size % encoded_buf_size) != 0) {
             avio_write(pb, pkt->data, pkt->size);
         } else {
