@@ -2258,6 +2258,7 @@ ARCH_EXT_LIST_X86_SIMD="
     avx2
     avx512
     avx512icl
+    cet
     fma3
     fma4
     mmx
@@ -6638,6 +6639,11 @@ EOF
     # check whether binutils is new enough to compile SSSE3/MMXEXT
     enabled ssse3  && check_inline_asm ssse3_inline  '"pabsw %xmm0, %xmm0"'
     enabled mmxext && check_inline_asm mmxext_inline '"pmaxub %mm0, %mm1"'
+
+    # check whether Intel CET is in use
+    if enabled x86_64; then
+        check_cpp_condition cet "stddef.h" "defined(__CET__)"
+    fi
 
     probe_x86asm(){
         x86asmexe_probe=$1
