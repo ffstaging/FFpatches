@@ -471,7 +471,8 @@ static av_always_inline av_const int av_parity_c(uint32_t v)
  * Convert a UTF-8 character (up to 4 bytes) to its 32-bit UCS-4 encoded form.
  *
  * @param val      Output value, must be an lvalue of type uint32_t.
- * @param GET_BYTE Expression reading one byte from the input.
+ * @param GET_BYTE Expression reading one byte from the input, must be unsigned
+ *                 type like uint8_t.
  *                 Evaluated up to 7 times (4 for the currently
  *                 assigned Unicode range).  With a memory buffer
  *                 input, this could be *ptr++, or if you want to make sure
@@ -486,13 +487,13 @@ static av_always_inline av_const int av_parity_c(uint32_t v)
  * to prevent undefined results.
  */
 #define GET_UTF8(val, GET_BYTE, ERROR)\
-    val= (GET_BYTE);\
+    val= (uint8_t)(GET_BYTE);\
     {\
         uint32_t top = (val & 128) >> 1;\
         if ((val & 0xc0) == 0x80 || val >= 0xFE)\
             {ERROR}\
         while (val & top) {\
-            unsigned int tmp = (GET_BYTE) - 128;\
+            unsigned int tmp = (uint8_t)(GET_BYTE) - 128;\
             if(tmp>>6)\
                 {ERROR}\
             val= (val<<6) + tmp;\
@@ -506,16 +507,17 @@ static av_always_inline av_const int av_parity_c(uint32_t v)
  *
  * @param val       Output value, must be an lvalue of type uint32_t.
  * @param GET_16BIT Expression returning two bytes of UTF-16 data converted
- *                  to native byte order.  Evaluated one or two times.
+ *                  to native byte order, must be unsigned type like uint16_t.
+ *                  Evaluated one or two times.
  * @param ERROR     Expression to be evaluated on invalid input,
  *                  typically a goto statement.
  */
 #define GET_UTF16(val, GET_16BIT, ERROR)\
-    val = (GET_16BIT);\
+    val = (uint16_t)(GET_16BIT);\
     {\
         unsigned int hi = val - 0xD800;\
         if (hi < 0x800) {\
-            val = (GET_16BIT) - 0xDC00;\
+            val = (uint16_t)(GET_16BIT) - 0xDC00;\
             if (val > 0x3FFU || hi > 0x3FFU)\
                 {ERROR}\
             val += (hi<<10) + 0x10000;\
