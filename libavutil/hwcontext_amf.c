@@ -39,6 +39,7 @@
 #include "pixdesc.h"
 #include "pixfmt.h"
 #include "imgutils.h"
+#include "thread.h"
 #include "libavutil/avassert.h"
 #include <AMF/core/Surface.h>
 #include <AMF/core/Trace.h>
@@ -49,6 +50,22 @@
 #endif
 #define FFMPEG_AMF_WRITER_ID L"ffmpeg_amf"
 
+typedef struct AVAMFDeviceContextInternal {
+    AVAMFDeviceContext p;
+    AVMutex mutex;
+} AVAMFDeviceContextInternal ;
+
+void av_amf_device_lock(AVAMFDeviceContext *ctx)
+{
+    AVAMFDeviceContextInternal *priv = (AVAMFDeviceContextInternal*)ctx;
+    ff_mutex_lock(&priv->mutex);
+}
+
+void av_amf_device_unlock(AVAMFDeviceContext *ctx)
+{
+    AVAMFDeviceContextInternal *priv = (AVAMFDeviceContextInternal*)ctx;
+    ff_mutex_unlock(&priv->mutex);
+}
 
 typedef struct AmfTraceWriter {
     AMFTraceWriterVtbl *vtblp;
@@ -352,7 +369,8 @@ static int amf_transfer_data_from(AVHWFramesContext *ctx, AVFrame *dst,
 
 static void amf_device_uninit(AVHWDeviceContext *device_ctx)
 {
-    AVAMFDeviceContext      *amf_ctx = device_ctx->hwctx;
+    AVAMFDeviceContextInternal *priv = device_ctx->hwctx;
+    AVAMFDeviceContext *amf_ctx = &priv->p;
     AMF_RESULT          res = AMF_NOT_INITIALIZED;
     AMFTrace           *trace;
 
@@ -378,12 +396,13 @@ static void amf_device_uninit(AVHWDeviceContext *device_ctx)
     }
 
     amf_ctx->version = 0;
-    ff_mutex_destroy(&amf_ctx->mutex);
+    ff_mutex_destroy(&priv->mutex);
 }
 
 static int amf_device_init(AVHWDeviceContext *ctx)
 {
-    AVAMFDeviceContext *amf_ctx = ctx->hwctx;
+    AVAMFDeviceContextInternal *priv = ctx->hwctx;
+    AVAMFDeviceContext *amf_ctx = &priv->p;
     AMFContext1 *context1 = NULL;
     AMF_RESULT res;
 
@@ -415,7 +434,8 @@ static int amf_device_init(AVHWDeviceContext *ctx)
         }
      }
 #endif
-    ff_mutex_init(&amf_ctx->mutex, NULL);
+
+    ff_mutex_init(&priv->mutex, NULL);
     return 0;
 }
 
@@ -644,7 +664,7 @@ const HWContextType ff_hwcontext_type_amf = {
     .type                 = AV_HWDEVICE_TYPE_AMF,
     .name                 = "AMF",
 
-    .device_hwctx_size    = sizeof(AVAMFDeviceContext),
+    .device_hwctx_size    = sizeof(AVAMFDeviceContextInternal),
     .frames_hwctx_size    = sizeof(AMFFramesContext),
 
     .device_create        = amf_device_create,
