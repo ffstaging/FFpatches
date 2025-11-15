@@ -275,7 +275,7 @@ static MMSSCPacketType get_tcp_server_response(MMSTContext *mmst)
                        read_result,
                        read_result < 0 ? strerror(AVUNERROR(read_result)) :
                            "The server closed the connection");
-                return read_result < 0 ? read_result : AVERROR(EIO);
+                return read_result < 0 ? read_result :  AVERROR(EIO);
             }
 
             length_remaining= AV_RL32(mms->in_buffer+8) + 4;
@@ -296,7 +296,7 @@ static MMSSCPacketType get_tcp_server_response(MMSTContext *mmst)
                        length_remaining, read_result,
                        read_result < 0 ? strerror(AVUNERROR(read_result)) :
                            "The server closed the connection");
-                return read_result < 0 ? read_result : AVERROR(EIO);
+                return read_result < 0 ? read_result :  AVERROR(EIO);
             }
             packet_type= AV_RL16(mms->in_buffer+36);
             if (read_result >= 44 && (hr = AV_RL32(mms->in_buffer + 40))) {
@@ -333,7 +333,7 @@ static MMSSCPacketType get_tcp_server_response(MMSTContext *mmst)
                        length_remaining, read_result,
                        read_result < 0 ? strerror(AVUNERROR(read_result)) :
                            "The server closed the connection");
-                return read_result < 0 ? read_result : AVERROR(EIO);
+                return read_result < 0 ? read_result :  AVERROR(EIO);
             }
 
             // if we successfully read everything.
@@ -611,7 +611,7 @@ static int mms_read(URLContext *h, uint8_t *buf, int size)
                     av_log(h, AV_LOG_ERROR,
                            "Incoming pktlen %d is larger than ASF pktsize %d\n",
                            mms->remaining_in_len, mms->asf_packet_len);
-                    result= AVERROR(EIO);
+                    result= AVERROR_INVALIDDATA;
                 } else {
                     // copy the data to the packet buffer.
                     result = ff_mms_read_data(mms, buf, size);

@@ -759,7 +759,7 @@ static int input_thread(void *arg)
             else {
                 av_log(d, AV_LOG_ERROR, "Error during demuxing: %s\n",
                        av_err2str(ret));
-                ret = exit_on_error ? ret : 0;
+                ret = exit_on_error || ret == AVERROR(EIO) ? ret : 0;
             }
 
             ret_bsf = demux_bsf_flush(d, &dt);

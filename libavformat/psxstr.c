@@ -33,6 +33,7 @@
 #include "libavutil/internal.h"
 #include "libavutil/intreadwrite.h"
 #include "avformat.h"
+#include "avio_internal.h"
 #include "demux.h"
 #include "internal.h"
 
@@ -134,11 +135,12 @@ static int str_read_header(AVFormatContext *s)
     StrDemuxContext *str = s->priv_data;
     unsigned char sector[RAW_CD_SECTOR_SIZE];
     int start;
+    int ret;
     int i;
 
     /* skip over any RIFF header */
-    if (avio_read(pb, sector, RIFF_HEADER_SIZE) != RIFF_HEADER_SIZE)
-        return AVERROR(EIO);
+    if ((ret = ffio_read_size(pb, sector, RIFF_HEADER_SIZE)) < 0)
+        return ret;
     if (AV_RL32(&sector[0]) == RIFF_TAG)
         start = RIFF_HEADER_SIZE;
     else
@@ -167,13 +169,10 @@ static int str_read_packet(AVFormatContext *s,
     AVStream *st;
 
     while (1) {
-        int read = avio_read(pb, sector, RAW_CD_SECTOR_SIZE);
+        int read = ffio_read_size(pb, sector, RAW_CD_SECTOR_SIZE);
 
-        if (read == AVERROR_EOF)
-            return AVERROR_EOF;
-
-        if (read != RAW_CD_SECTOR_SIZE)
-            return AVERROR(EIO);
+        if (read < 0)
+            return read;
 
         channel = sector[0x11];
         if (channel >= 32)
@@ -287,7 +286,7 @@ static int str_read_packet(AVFormatContext *s,
         }
 
         if (avio_feof(pb))
-            return AVERROR(EIO);
+            return AVERROR_INVALIDDATA;
     }
 }
 

@@ -216,7 +216,7 @@ static int gif_read_header(AVFormatContext *s)
 skip:
     /* jump to start because gif decoder needs header data too */
     if (avio_seek(pb, pos - 6, SEEK_SET) != pos - 6)
-        return AVERROR(EIO);
+        return AVERROR_INVALIDDATA;
 
     /* GIF format operates with time in "hundredths of second",
      * therefore timebase is 1/100 */
