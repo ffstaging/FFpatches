@@ -264,6 +264,13 @@ typedef struct VTEncContext {
 
     int64_t first_pts;
     int64_t dts_delta;
+    int64_t last_dts;  // Track last DTS for B-frame monotonicity
+    int64_t last_non_b_dts;  // Track last I/P frame DTS for B-frame reference
+
+    // Full PTS/DTS reset for B-frames
+    int64_t base_pts;       // Base PTS value (first frame's PTS)
+    int64_t base_dts;       // Base DTS value (always 0)
+    int64_t vt_pts_first;   // VideoToolbox's first frame PTS for offset calculation
 
     int profile;
     int level;
@@ -2320,10 +2327,43 @@ static int vtenc_cm_to_avpacket(
         }
     }
 
-    dts_delta = vtctx->dts_delta >= 0 ? vtctx->dts_delta : 0;
     time_base_num = avctx->time_base.num;
-    pkt->pts = pts.value / time_base_num;
-    pkt->dts = dts.value / time_base_num - dts_delta;
+    dts_delta = vtctx->dts_delta >= 0 ? vtctx->dts_delta : 0;
+    int64_t vt_pts = pts.value / time_base_num;
+    int64_t vt_dts = dts.value / time_base_num;
+
+    // VideoToolbox with B-frames: Fully reset both PTS and DTS from scratch
+    // Strategy: Maintain our own base timestamps and completely regenerate values
+    //   - DTS = frame_ct_out (decode order, always monotonic)
+    //   - PTS = preserve VideoToolbox's presentation order + offset for B-frames
+    // Key insight: Add offset equal to max_b_frames so that earliest B-frames have PTS > DTS
+    if (vtctx->has_b_frames) {
+        // First frame: record VideoToolbox's PTS offset for normalization
+        if (vtctx->vt_pts_first == AV_NOPTS_VALUE) {
+            vtctx->vt_pts_first = vt_pts;
+            // Add offset equal to max_b_frames to ensure DTS <= PTS for all frames
+            // This gives B-frames enough "headroom" to be decoded before display
+            vtctx->base_pts = avctx->max_b_frames;
+            vtctx->base_dts = 0;  // DTS starts from 0
+            av_log(avctx, AV_LOG_DEBUG, "First frame: VT_PTS=%lld, VT_DTS=%lld, setting base_pts=%lld (max_b_frames=%d)\n",
+                   vt_pts, vt_dts, vtctx->base_pts, avctx->max_b_frames);
+        }
+
+        // Generate DTS from frame counter (decode order: 0, 1, 2, 3, ...)
+        // Note: frame_ct_out starts at 1, so subtract 1 to start DTS from 0
+        pkt->dts = vtctx->base_dts + (vtctx->frame_ct_out - 1);
+
+        // Generate PTS preserving VideoToolbox's presentation order with B-frame offset
+        // Normalize VideoToolbox's PTS and add base_pts offset
+        pkt->pts = vtctx->base_pts + (vt_pts - vtctx->vt_pts_first);
+
+        av_log(avctx, AV_LOG_DEBUG, "Reset timestamps: frame=%lld, VT_PTS=%lld, VT_DTS=%lld, final_PTS=%lld, final_DTS=%lld\n",
+               vtctx->frame_ct_out, vt_pts, vt_dts, pkt->pts, pkt->dts);
+    } else {
+        // No B-frames: use VideoToolbox's timestamps with adjustment
+        pkt->pts = vt_pts;
+        pkt->dts = vt_dts - dts_delta;
+    }
 
     return 0;
 }
@@ -2828,6 +2868,13 @@ pe_cleanup:
     }
 
     vtctx->frame_ct_out = 0;
+    vtctx->last_dts = AV_NOPTS_VALUE;
+    vtctx->last_non_b_dts = AV_NOPTS_VALUE;
+
+    // Initialize PTS/DTS reset variables
+    vtctx->base_pts = 0;
+    vtctx->base_dts = 0;
+    vtctx->vt_pts_first = AV_NOPTS_VALUE;
 
     av_assert0(status != 0 || (avctx->extradata && avctx->extradata_size > 0));
     if (!status)
