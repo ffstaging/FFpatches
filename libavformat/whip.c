@@ -20,6 +20,7 @@
  */
 
 #include "libavcodec/avcodec.h"
+#include "libavcodec/bsf.h"
 #include "libavcodec/codec_desc.h"
 #include "libavcodec/h264.h"
 #include "libavcodec/startcode.h"
@@ -346,6 +347,15 @@ static int is_dtls_packet(uint8_t *b, int size) {
         (version == DTLS_VERSION_10 || version == DTLS_VERSION_12);
 }
 
+static int is_avcc(uint8_t *b, int size)
+{
+    return size > 0 && b[0] == 0x01;
+}
+
+ static int is_annexb(uint8_t *b, int size)
+{
+    return (size >= 3 && AV_RB32(b) == 0x01) || ( size >= 4 && AV_RB24(b) == 0x01);
+}
 
 /**
  * Get or Generate a self-signed certificate and private key for DTLS,
@@ -391,6 +401,52 @@ static av_cold int dtls_initialize(AVFormatContext *s)
 
     return 0;
 }
+
+/**
+ * WHIP force the use of Annex B by enabling h264_mp4toannexb BSF in whip_check_bitstream.
+ * However, this BSF runs during packet writing and does not modify codecpar, so RTP muxer
+ * would still detect the stream as avcC.
+ *
+ * This function converts codecpar->extradata to Annex B
+ */
+static av_cold int video_par_mp4toannexb(AVFormatContext *s)
+{
+    int ret = 0;
+    WHIPContext *whip = s->priv_data;
+    const AVBitStreamFilter *filter = av_bsf_get_by_name("h264_mp4toannexb");
+    AVBSFContext *bsf = NULL;
+
+    if (!filter) {
+        av_log(s, AV_LOG_ERROR, "h264_mp4toannexb bitstream filter not found\n");
+        return AVERROR(ENOSYS);
+    }
+
+    if (is_annexb(whip->video_par->extradata, whip->video_par->extradata_size)) {
+        av_log(whip, AV_LOG_VERBOSE, "The input is already in Annex B format\n");
+        goto end;
+    }
+
+    ret = av_bsf_alloc(filter, &bsf);
+    if (ret < 0)
+        goto end;
+
+    ret = avcodec_parameters_copy(bsf->par_in, whip->video_par);
+    if (ret < 0)
+        goto end;
+
+    ret = av_bsf_init(bsf);
+    if (ret < 0)
+        goto end;
+
+    ret = avcodec_parameters_copy(whip->video_par, bsf->par_out);
+    if (ret < 0)
+        goto end;
+end:
+    if (bsf)
+        av_bsf_free(&bsf);
+    return ret;
+}
+
 
 /**
  * Initialize and check the options for the WebRTC muxer.
@@ -529,7 +585,6 @@ static int parse_codec(AVFormatContext *s)
                 av_log(whip, AV_LOG_ERROR, "Only one video stream is supported by RTC\n");
                 return AVERROR(EINVAL);
             }
-            whip->video_par = par;
 
             if (par->codec_id != AV_CODEC_ID_H264) {
                 av_log(whip, AV_LOG_ERROR, "Unsupported video codec %s by RTC, choose h264\n",
@@ -555,6 +610,20 @@ static int parse_codec(AVFormatContext *s)
                 av_log(whip, AV_LOG_WARNING, "No level found in extradata, consider 3.1\n");
                 return AVERROR(EINVAL);
             }
+
+            whip->video_par = avcodec_parameters_alloc();
+            if (!whip->video_par)
+                return AVERROR(ENOMEM);
+            ret = avcodec_parameters_copy(whip->video_par, par);
+            if (ret < 0)
+                return ret;
+
+            ret = video_par_mp4toannexb(s);
+            if (ret < 0) {
+                av_log(whip, AV_LOG_ERROR, "Failed to convert video par from avcC to annexb\n");
+                return ret;
+            }
+
             break;
         case AVMEDIA_TYPE_AUDIO:
             if (whip->audio_par) {
@@ -579,6 +648,14 @@ static int parse_codec(AVFormatContext *s)
                 av_log(whip, AV_LOG_ERROR, "Unsupported audio sample rate %d by RTC, choose 48000\n", par->sample_rate);
                 return AVERROR_PATCHWELCOME;
             }
+
+            whip->audio_par = avcodec_parameters_alloc();
+            if (!whip->audio_par)
+                return AVERROR(ENOMEM);
+            ret = avcodec_parameters_copy(whip->audio_par, par);
+            if (ret < 0)
+                return ret;
+
             break;
         default:
             av_log(whip, AV_LOG_ERROR, "Codec type '%s' for stream %d is not supported by RTC\n",
@@ -1561,6 +1638,7 @@ static int create_rtp_muxer(AVFormatContext *s)
     max_packet_size = whip->pkt_size - DTLS_SRTP_CHECKSUM_LEN;
 
     for (i = 0; i < s->nb_streams; i++) {
+        is_video = s->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO;
         rtp_ctx = avformat_alloc_context();
         if (!rtp_ctx) {
             ret = AVERROR(ENOMEM);
@@ -1584,17 +1662,8 @@ static int create_rtp_muxer(AVFormatContext *s)
         /* Set the synchronized start time. */
         rtp_ctx->start_time_realtime = s->start_time_realtime;
 
-        avcodec_parameters_copy(rtp_ctx->streams[0]->codecpar, s->streams[i]->codecpar);
+        avcodec_parameters_copy(rtp_ctx->streams[0]->codecpar, is_video ? whip->video_par : whip->audio_par);
         rtp_ctx->streams[0]->time_base = s->streams[i]->time_base;
-
-        /**
-         * For H.264, consistently utilize the annexb format through the Bitstream Filter (BSF);
-         * therefore, we deactivate the extradata detection for the RTP muxer.
-         */
-        if (s->streams[i]->codecpar->codec_id == AV_CODEC_ID_H264) {
-            av_freep(&rtp_ctx->streams[0]->codecpar->extradata);
-            rtp_ctx->streams[0]->codecpar->extradata_size = 0;
-        }
 
         buffer = av_malloc(buffer_size);
         if (!buffer) {
@@ -1610,7 +1679,6 @@ static int create_rtp_muxer(AVFormatContext *s)
         rtp_ctx->pb->max_packet_size = max_packet_size;
         rtp_ctx->pb->av_class = &ff_avio_class;
 
-        is_video = s->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO;
         snprintf(buf, sizeof(buf), "%d", is_video? whip->video_payload_type : whip->audio_payload_type);
         av_dict_set(&opts, "payload_type", buf, 0);
         snprintf(buf, sizeof(buf), "%d", is_video? whip->video_ssrc : whip->audio_ssrc);
@@ -1989,6 +2057,8 @@ static av_cold void whip_deinit(AVFormatContext *s)
         s->streams[i]->priv_data = NULL;
     }
 
+    avcodec_parameters_free(&whip->video_par);
+    avcodec_parameters_free(&whip->audio_par);
     av_freep(&whip->sdp_offer);
     av_freep(&whip->sdp_answer);
     av_freep(&whip->whip_resource_url);
@@ -2010,17 +2080,13 @@ static av_cold void whip_deinit(AVFormatContext *s)
 
 static int whip_check_bitstream(AVFormatContext *s, AVStream *st, const AVPacket *pkt)
 {
-    int ret = 1, extradata_isom = 0;
-    uint8_t *b = pkt->data;
+    int ret = 1;
     WHIPContext *whip = s->priv_data;
 
     if (st->codecpar->codec_id == AV_CODEC_ID_H264) {
-        extradata_isom = st->codecpar->extradata_size > 0 && st->codecpar->extradata[0] == 1;
-        if (pkt->size >= 5 && AV_RB32(b) != 0x0000001 && (AV_RB24(b) != 0x000001 || extradata_isom)) {
+        if (is_avcc(st->codecpar->extradata, st->codecpar->extradata_size)) {
             ret = ff_stream_add_bitstream_filter(st, "h264_mp4toannexb", NULL);
-            av_log(whip, AV_LOG_VERBOSE, "Enable BSF h264_mp4toannexb, packet=[%x %x %x %x %x ...], extradata_isom=%d\n",
-                b[0], b[1], b[2], b[3], b[4], extradata_isom);
-        } else
+        } else if (is_annexb(st->codecpar->extradata, st->codecpar->extradata_size))
             whip->h264_annexb_insert_sps_pps = 1;
     }
 
