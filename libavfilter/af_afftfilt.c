@@ -250,6 +250,7 @@ static int filter_channel(AVFilterContext *ctx, void *arg, int jobnr, int nb_job
 {
     AFFTFiltContext *s = ctx->priv;
     const int window_size = s->window_size;
+    const int hop_size = s->hop_size;
     const float *window_lut = s->window_func_lut;
     const float f = sqrtf(1.f - s->overlap);
     const int channels = s->channels;
@@ -294,7 +295,7 @@ static int filter_channel(AVFilterContext *ctx, void *arg, int jobnr, int nb_job
 
         s->itx_fn(s->ifft[ch], fft_out, fft_temp, sizeof(*fft_temp));
 
-        memmove(buf, buf + s->hop_size, window_size * sizeof(float));
+        memmove(buf, buf + hop_size, (window_size - hop_size) * sizeof(float));
         for (int i = 0; i < window_size; i++)
             buf[i] += fft_out[i].re * window_lut[i] * f;
     }
