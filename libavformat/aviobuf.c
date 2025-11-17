@@ -554,7 +554,8 @@ static void fill_buffer(AVIOContext *s)
            be done without rereading data */
         s->eof_reached = 1;
     } else if (len < 0) {
-        s->eof_reached = 1;
+        if (len != AVERROR(EAGAIN))
+            s->eof_reached = 1;
         s->error= len;
     } else {
         s->pos += len;
@@ -616,6 +617,7 @@ int avio_read(AVIOContext *s, unsigned char *buf, int size)
 {
     int len, size1;
 
+    s->error = 0;
     size1 = size;
     while (size > 0) {
         len = FFMIN(s->buf_end - s->buf_ptr, size);
@@ -629,7 +631,8 @@ int avio_read(AVIOContext *s, unsigned char *buf, int size)
                     s->eof_reached = 1;
                     break;
                 } else if (len < 0) {
-                    s->eof_reached = 1;
+                    if (len != AVERROR(EAGAIN))
+                        s->eof_reached = 1;
                     s->error= len;
                     break;
                 } else {
