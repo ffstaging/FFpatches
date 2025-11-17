@@ -31,6 +31,8 @@
 #include "libavutil/mem.h"
 #include "libavutil/refstruct.h"
 
+#include "aacdec_usac_mps212.h"
+
 /* Number of scalefactor bands per complex prediction band, equal to 2. */
 #define SFB_PER_PRED_BAND 2
 
@@ -1483,8 +1485,6 @@ static int decode_usac_core_coder(AACDecContext *ac, AACUSACConfig *usac,
     }
 
     if (ec->stereo_config_index) {
-        avpriv_report_missing_feature(ac->avctx, "AAC USAC Mps212");
-        return AVERROR_PATCHWELCOME;
     }
 
     spectrum_decode(ac, usac, che, core_nb_channels);
