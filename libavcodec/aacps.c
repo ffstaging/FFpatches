@@ -396,7 +396,8 @@ static void map_val_20_to_34(INTFLOAT par[PS_MAX_NR_IIDICC])
     par[ 1] = AAC_HALF_SUM(par[ 0], par[ 1]);
 }
 
-static void decorrelation(PSContext *ps, INTFLOAT (*out)[32][2], const INTFLOAT (*s)[32][2], int is34)
+static void decorrelation(PSContext *ps, INTFLOAT (*out)[32][2], const INTFLOAT (*s)[32][2], int is34,
+                          int frame_length_short)
 {
     LOCAL_ALIGNED_16(INTFLOAT, power, [34], [PS_QMF_TIME_SLOTS]);
     LOCAL_ALIGNED_16(INTFLOAT, transient_gain, [34], [PS_QMF_TIME_SLOTS]);
@@ -405,6 +406,7 @@ static void decorrelation(PSContext *ps, INTFLOAT (*out)[32][2], const INTFLOAT 
     INTFLOAT *peak_decay_diff_smooth = ps->peak_decay_diff_smooth;
     INTFLOAT (*delay)[PS_QMF_TIME_SLOTS + PS_MAX_DELAY][2] = ps->delay;
     INTFLOAT (*ap_delay)[PS_AP_LINKS][PS_QMF_TIME_SLOTS + PS_MAX_AP_DELAY][2] = ps->ap_delay;
+    const int numQMFSlots = frame_length_short ? 30 : 32;
 #if !USE_FIXED
     const float transient_impact  = 1.5f;
     const float a_smooth          = 0.25f; ///< Smoothing coefficient
@@ -716,11 +718,12 @@ static void stereo_processing(PSContext *ps, INTFLOAT (*l)[32][2], INTFLOAT (*r)
     }
 }
 
-int AAC_RENAME(ff_ps_apply)(PSContext *ps, INTFLOAT L[2][38][64], INTFLOAT R[2][38][64], int top)
+int AAC_RENAME(ff_ps_apply)(PSContext *ps, INTFLOAT L[2][38][64], INTFLOAT R[2][38][64], int top,
+                            int frame_length_short)
 {
     INTFLOAT (*Lbuf)[32][2] = ps->Lbuf;
     INTFLOAT (*Rbuf)[32][2] = ps->Rbuf;
-    const int len = 32;
+    const int len = frame_length_short ? 30 : 32; // TODO NOT SURE
     int is34 = ps->common.is34bands;
 
     top += NR_BANDS[is34] - 64;
@@ -729,7 +732,7 @@ int AAC_RENAME(ff_ps_apply)(PSContext *ps, INTFLOAT L[2][38][64], INTFLOAT R[2][
         memset(ps->ap_delay + top, 0, (NR_ALLPASS_BANDS[is34] - top)*sizeof(ps->ap_delay[0]));
 
     hybrid_analysis(&ps->dsp, Lbuf, ps->in_buf, L, is34, len);
-    decorrelation(ps, Rbuf, (const INTFLOAT (*)[32][2]) Lbuf, is34);
+    decorrelation(ps, Rbuf, (const INTFLOAT (*)[32][2]) Lbuf, is34, frame_length_short);
     stereo_processing(ps, Lbuf, Rbuf, is34);
     hybrid_synthesis(&ps->dsp, L, Lbuf, is34, len);
     hybrid_synthesis(&ps->dsp, R, Rbuf, is34, len);

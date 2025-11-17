@@ -131,13 +131,14 @@ static int ps_read_extension_data(GetBitContext *gb, PSCommonContext *ps,
 }
 
 int ff_ps_read_data(void *logctx, GetBitContext *gb_host,
-                    PSCommonContext *ps, int bits_left)
+                    PSCommonContext *ps, int bits_left, int frame_length_short)
 {
     int e;
     int bit_count_start = get_bits_count(gb_host);
     int header;
     int bits_consumed;
     GetBitContext gbc = *gb_host, *gb = &gbc;
+    const int numQMFSlots = frame_length_short ? 30 : 32;
 
     header = get_bits1(gb);
     if (header) {     //enable_ps_header

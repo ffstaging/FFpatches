@@ -42,8 +42,6 @@
                        ///< Baseline implies 10 or 20 stereo bands,
                        ///< mixing mode A, and no ipd/opd
 
-#define numQMFSlots 32 //numTimeSlots * RATE
-
 typedef struct PSCommonContext {
     int    start;
     int    enable_iid;
@@ -100,7 +98,8 @@ static inline void AAC_RENAME(ff_ps_ctx_init)(PSContext *ps)
 }
 
 int ff_ps_read_data(void *logctx, GetBitContext *gb,
-                     PSCommonContext *ps, int bits_left);
-int AAC_RENAME(ff_ps_apply)(PSContext *ps, INTFLOAT L[2][38][64], INTFLOAT R[2][38][64], int top);
+                     PSCommonContext *ps, int bits_left, int frame_length_short);
+int AAC_RENAME(ff_ps_apply)(PSContext *ps, INTFLOAT L[2][38][64], INTFLOAT R[2][38][64], int top,
+                            int frame_length_short);
 
 #endif /* AVCODEC_AACPS_H */

@@ -53,6 +53,16 @@ static void sbr_neg_odd_64_c(float *x)
     }
 }
 
+static void sbr_neg_odd_60_c(float *x)
+{
+    union av_intfloat32 *xi = (union av_intfloat32*) x;
+    int i;
+    for (i = 1; i < 60; i += 4) {
+        xi[i + 0].i ^= 1U << 31;
+        xi[i + 2].i ^= 1U << 31;
+    }
+}
+
 static void sbr_qmf_pre_shuffle_c(float *z)
 {
     union av_intfloat32 *zi = (union av_intfloat32*) z;
@@ -93,6 +103,48 @@ static void sbr_qmf_deint_neg_c(float *v, const float *src)
         vi[63 - i].i = si[63 - 2 * i - 1].i ^ (1U << 31);
     }
 }
+
+static void sbr_qmf_pre_shuffle_short_c(float *z)
+{
+    union av_intfloat32 *zi = (union av_intfloat32*) z;
+    int k;
+    zi[60].i = zi[0].i;
+    zi[61].i = zi[1].i;
+    for (k = 1; k < 29; k += 2) {
+        zi[60 + 2 * k + 0].i = zi[60 - k].i ^ (1U << 31);
+        zi[60 + 2 * k + 1].i = zi[ k + 1].i;
+        zi[60 + 2 * k + 2].i = zi[59 - k].i ^ (1U << 31);
+        zi[60 + 2 * k + 3].i = zi[ k + 2].i;
+    }
+
+    zi[60 + 2 * 29 + 0].i = zi[60 - 29].i ^ (1U << 31);
+    zi[60 + 2 * 29 + 1].i = zi[29 +  1].i;
+}
+
+static void sbr_qmf_post_shuffle_short_c(float W[32][2], const float *z)
+{
+    const union av_intfloat32 *zi = (const union av_intfloat32*) z;
+    union av_intfloat32 *Wi       = (union av_intfloat32*) W;
+    int k;
+    for (k = 0; k < 30; k += 2) {
+        Wi[2 * k + 0].i = zi[59 - k].i ^ (1U << 31);
+        Wi[2 * k + 1].i = zi[ k + 0].i;
+        Wi[2 * k + 2].i = zi[58 - k].i ^ (1U << 31);
+        Wi[2 * k + 3].i = zi[ k + 1].i;
+    }
+}
+
+static void sbr_qmf_deint_neg_short_c(float *v, const float *src)
+{
+    const union av_intfloat32 *si = (const union av_intfloat32*)src;
+    union av_intfloat32 *vi = (union av_intfloat32*)v;
+    int i;
+    for (i = 0; i < 30; i++) {
+        vi[     i].i = si[59 - 2 * i    ].i;
+        vi[59 - i].i = si[59 - 2 * i - 1].i ^ (1U << 31);
+    }
+}
+
 
 #if 0
     /* This code is slower because it multiplies memory accesses.

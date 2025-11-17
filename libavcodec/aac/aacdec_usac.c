@@ -1477,7 +1477,8 @@ static int decode_usac_core_coder(AACDecContext *ac, AACUSACConfig *usac,
             !(ec->stereo_config_index == 0 || ec->stereo_config_index == 3))
             sbr_ch = 1;
 
-        ret = ff_aac_sbr_decode_usac_data(ac, che, ec, gb, sbr_ch, indep_flag);
+        ret = ff_aac_sbr_decode_usac_data(ac, che, ec, gb, sbr_ch, indep_flag,
+                                          ac->oc[1].m4ac.frame_length_short);
         if (ret < 0)
             return ret;
     }
@@ -1492,7 +1493,8 @@ static int decode_usac_core_coder(AACDecContext *ac, AACUSACConfig *usac,
     if (ac->oc[1].m4ac.sbr > 0) {
         ac->proc.sbr_apply(ac, che, nb_channels == 2 ? TYPE_CPE : TYPE_SCE,
                            che->ch[0].output,
-                           che->ch[1].output);
+                           che->ch[1].output,
+                           ac->oc[1].m4ac.frame_length_short);
     }
 
     return 0;

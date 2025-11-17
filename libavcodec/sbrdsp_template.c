@@ -47,6 +47,30 @@ static void sbr_qmf_deint_bfly_c(INTFLOAT *v, const INTFLOAT *src0, const INTFLO
     }
 }
 
+static void sbr_sum60x5_c(INTFLOAT *z)
+{
+    int k;
+    for (k = 0; k < 60; k++) {
+        INTFLOAT f = z[k] + z[k + 60] + z[k + 120] + z[k + 180] + z[k + 240];
+        z[k] = f;
+    }
+}
+
+static void sbr_qmf_deint_bfly_short_c(INTFLOAT *v, const INTFLOAT *src0, const INTFLOAT *src1)
+{
+    int i;
+    for (i = 0; i < 60; i++) {
+#if USE_FIXED
+        v[      i] = (int)(0x10U + src0[i] - src1[59 - i]) >> 5;
+        v[119 - i] = (int)(0x10U + src0[i] + src1[59 - i]) >> 5;
+#else
+        v[      i] = src0[i] - src1[59 - i];
+        v[119 - i] = src0[i] + src1[59 - i];
+#endif
+    }
+}
+
+
 static void sbr_hf_apply_noise_0(INTFLOAT (*Y)[2], const AAC_FLOAT *s_m,
                                  const AAC_FLOAT *q_filt, int noise,
                                  int kx, int m_max)
@@ -79,16 +103,23 @@ static void sbr_hf_apply_noise_3(INTFLOAT (*Y)[2], const AAC_FLOAT *s_m,
 
 av_cold void AAC_RENAME(ff_sbrdsp_init)(SBRDSPContext *s)
 {
-    s->sum64x5 = sbr_sum64x5_c;
+    s->sum64x5[0] = sbr_sum64x5_c;
     s->sum_square = sbr_sum_square_c;
-    s->neg_odd_64 = sbr_neg_odd_64_c;
-    s->qmf_pre_shuffle = sbr_qmf_pre_shuffle_c;
-    s->qmf_post_shuffle = sbr_qmf_post_shuffle_c;
-    s->qmf_deint_neg = sbr_qmf_deint_neg_c;
-    s->qmf_deint_bfly = sbr_qmf_deint_bfly_c;
+    s->neg_odd_64[0] = sbr_neg_odd_64_c;
+    s->qmf_pre_shuffle[0] = sbr_qmf_pre_shuffle_c;
+    s->qmf_post_shuffle[0] = sbr_qmf_post_shuffle_c;
+    s->qmf_deint_neg[0] = sbr_qmf_deint_neg_c;
+    s->qmf_deint_bfly[0] = sbr_qmf_deint_bfly_c;
     s->autocorrelate = sbr_autocorrelate_c;
     s->hf_gen = sbr_hf_gen_c;
     s->hf_g_filt = sbr_hf_g_filt_c;
+
+    s->sum64x5[1] = sbr_sum60x5_c;
+    s->neg_odd_64[1] = sbr_neg_odd_60_c;
+    s->qmf_pre_shuffle[1] = sbr_qmf_pre_shuffle_short_c;
+    s->qmf_post_shuffle[1] = sbr_qmf_post_shuffle_short_c;
+    s->qmf_deint_neg[1] = sbr_qmf_deint_neg_short_c;
+    s->qmf_deint_bfly[1] = sbr_qmf_deint_bfly_short_c;
 
     s->hf_apply_noise[0] = sbr_hf_apply_noise_0;
     s->hf_apply_noise[1] = sbr_hf_apply_noise_1;

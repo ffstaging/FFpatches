@@ -25,13 +25,13 @@
 #include "aac_defines.h"
 
 typedef struct SBRDSPContext {
-    void (*sum64x5)(INTFLOAT *z);
+    void (*sum64x5[2])(INTFLOAT *z);
     AAC_FLOAT (*sum_square)(INTFLOAT (*x)[2], int n);
-    void (*neg_odd_64)(INTFLOAT *x);
-    void (*qmf_pre_shuffle)(INTFLOAT *z);
-    void (*qmf_post_shuffle)(INTFLOAT W[32][2], const INTFLOAT *z);
-    void (*qmf_deint_neg)(INTFLOAT *v, const INTFLOAT *src);
-    void (*qmf_deint_bfly)(INTFLOAT *v, const INTFLOAT *src0, const INTFLOAT *src1);
+    void (*neg_odd_64[2])(INTFLOAT *x);
+    void (*qmf_pre_shuffle[2])(INTFLOAT *z);
+    void (*qmf_post_shuffle[2])(INTFLOAT W[32][2], const INTFLOAT *z);
+    void (*qmf_deint_neg[2])(INTFLOAT *v, const INTFLOAT *src);
+    void (*qmf_deint_bfly[2])(INTFLOAT *v, const INTFLOAT *src0, const INTFLOAT *src1);
     void (*autocorrelate)(const INTFLOAT x[40][2], AAC_FLOAT phi[3][2][2]);
     void (*hf_gen)(INTFLOAT (*X_high)[2], const INTFLOAT (*X_low)[2],
                    const INTFLOAT alpha0[2], const INTFLOAT alpha1[2],

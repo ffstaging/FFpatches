@@ -124,14 +124,14 @@ typedef struct SpectralBandReplication SpectralBandReplication;
 typedef struct AACSBRContext {
     int (*sbr_lf_gen)(SpectralBandReplication *sbr,
                       INTFLOAT X_low[32][40][2], const INTFLOAT W[2][32][32][2],
-                      int buf_idx);
+                      int buf_idx, int frame_length_short);
     void (*sbr_hf_assemble)(INTFLOAT Y1[38][64][2],
                             const INTFLOAT X_high[64][40][2],
                             SpectralBandReplication *sbr, SBRData *ch_data,
                             const int e_a[2]);
     int (*sbr_x_gen)(SpectralBandReplication *sbr, INTFLOAT X[2][38][64],
                      const INTFLOAT Y0[38][64][2], const INTFLOAT Y1[38][64][2],
-                     const INTFLOAT X_low[32][40][2], int ch);
+                     const INTFLOAT X_low[32][40][2], int ch, int frame_length_short);
     void (*sbr_hf_inverse_filter)(SBRDSPContext *dsp,
                                   INTFLOAT (*alpha0)[2], INTFLOAT (*alpha1)[2],
                                   const INTFLOAT X_low[32][40][2], int k0);
@@ -215,10 +215,14 @@ struct SpectralBandReplication {
     AAC_FLOAT          s_m[8][48];
     AAC_FLOAT          gain[8][48];
     DECLARE_ALIGNED(32, INTFLOAT, qmf_filter_scratch)[5][64];
-    AVTXContext       *mdct_ana;
-    av_tx_fn           mdct_ana_fn;
-    AVTXContext       *mdct;
-    av_tx_fn           mdct_fn;
+    AVTXContext       *mdct60_ana;
+    av_tx_fn           mdct60_ana_fn;
+    AVTXContext       *mdct60;
+    av_tx_fn           mdct60_fn;
+    AVTXContext       *mdct64_ana;
+    av_tx_fn           mdct64_ana_fn;
+    AVTXContext       *mdct64;
+    av_tx_fn           mdct64_fn;
     SBRDSPContext      dsp;
     AACSBRContext      c;
 };

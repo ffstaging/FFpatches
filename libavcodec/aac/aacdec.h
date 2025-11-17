@@ -402,9 +402,11 @@ typedef struct AACDecProc {
 
     int (*sbr_ctx_alloc_init)(AACDecContext *ac, ChannelElement **che, int id_aac);
     int (*sbr_decode_extension)(AACDecContext *ac, ChannelElement *che,
-                                GetBitContext *gb, int crc, int cnt, int id_aac);
+                                GetBitContext *gb, int crc, int cnt, int id_aac,
+                                int frame_length_short);
     void (*sbr_apply)(AACDecContext *ac, ChannelElement *che,
-                      int id_aac, void /* INTFLOAT */ *L, void /* INTFLOAT */ *R);
+                      int id_aac, void /* INTFLOAT */ *L, void /* INTFLOAT */ *R,
+                      int frame_length_short);
     void (*sbr_ctx_close)(ChannelElement *che);
 } AACDecProc;
 
