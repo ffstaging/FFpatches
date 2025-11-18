@@ -41,6 +41,7 @@ my $indent_operands = 0;
 my $instr_indent = 8;
 my $operand_indent = 24;
 my $match_indent = 0;
+my $file;
 
 while (@ARGV) {
     my $opt = shift;
@@ -54,7 +55,11 @@ while (@ARGV) {
     } elsif ($opt eq "-match-indent") {
         $match_indent = 1;
     } else {
-        die "Unrecognized parameter $opt\n";
+        if (!$file) {
+            $file = $opt;
+        } else {
+            die "Unrecognized parameter $opt\n";
+        }
     }
 }
 
@@ -130,7 +135,22 @@ sub columns {
     return indentcolumns($rest, 3);
 }
 
-while (<STDIN>) {
+my $in;
+my $out;
+my $tempfile;
+
+if ($file) {
+    open(INPUT, "$file") or die "Unable to open $file: $!";
+    $in = *INPUT;
+    $tempfile = "$file.tmp";
+    open(OUTPUT, ">$tempfile") or die "Unable to open $tempfile: $!";
+    $out = *OUTPUT;
+} else {
+    $in = *STDIN;
+    $out = *STDOUT;
+}
+
+while (<$in>) {
     # Trim off trailing whitespace.
     chomp;
     if (/^([\.\w\d]+:)?(\s+)([\w\\][\w\\\.]*)(?:(\s+)(.*)|$)/) {
@@ -201,5 +221,10 @@ while (<STDIN>) {
             $_ = $label . $indent . $instr . $operand_space . $rest;
         }
     }
-    print $_ . "\n";
+    print $out $_ . "\n";
+}
+
+if ($file) {
+    close(OUTPUT);
+    rename($tempfile, $file);
 }
