@@ -1784,6 +1784,8 @@ static int map_frame_to_surface(const AVFrame *frame, mfxFrameSurface1 *surface)
     default:
         return MFX_ERR_UNSUPPORTED;
     }
+    if (frame->linesize[0] <= 0 || frame->linesize[0] > UINT16_MAX)
+	return AVERROR(EINVAL);
     surface->Data.Pitch     = frame->linesize[0];
     surface->Data.TimeStamp = frame->pts;
 
@@ -1838,15 +1840,16 @@ static int qsv_transfer_data_from(AVHWFramesContext *ctx, AVFrame *dst,
     /* According to MSDK spec for mfxframeinfo, "Width must be a multiple of 16.
      * Height must be a multiple of 16 for progressive frame sequence and a
      * multiple of 32 otherwise.", so align all frames to 16 before downloading. */
-    if (dst->height & 15 || dst->linesize[0] & 15) {
+    if (dst->height & 15 || dst->linesize[0] & 15 ||
+        dst->linesize[0] <= 0 || dst->linesize[0] > UINT16_MAX) {
         realigned = 1;
         if (tmp_frame->format != dst->format ||
-            tmp_frame->width  != FFALIGN(dst->linesize[0], 16) ||
+            tmp_frame->width  != FFALIGN(FFABS(dst->linesize[0]), 16) ||
             tmp_frame->height != FFALIGN(dst->height, 16)) {
             av_frame_unref(tmp_frame);
 
             tmp_frame->format = dst->format;
-            tmp_frame->width  = FFALIGN(dst->linesize[0], 16);
+            tmp_frame->width  = FFALIGN(FFABS(dst->linesize[0]), 16);
             tmp_frame->height = FFALIGN(dst->height, 16);
             ret = av_frame_get_buffer(tmp_frame, 0);
             if (ret < 0)
@@ -1865,7 +1868,9 @@ static int qsv_transfer_data_from(AVHWFramesContext *ctx, AVFrame *dst,
     }
 
     out.Info = in->Info;
-    map_frame_to_surface(dst_frame, &out);
+    ret = map_frame_to_surface(dst_frame, &out);
+    if (ret < 0)
+	return ret;
 
     do {
         err = MFXVideoVPP_RunFrameVPPAsync(s->session_download, in, &out, NULL, &sync);
@@ -1922,7 +1927,8 @@ static int qsv_transfer_data_to(AVHWFramesContext *ctx, AVFrame *dst,
     /* According to MSDK spec for mfxframeinfo, "Width must be a multiple of 16.
      * Height must be a multiple of 16 for progressive frame sequence and a
      * multiple of 32 otherwise.", so align all frames to 16 before uploading. */
-    if (src->height & 15 || src->linesize[0] & 15) {
+    if (src->height & 15 || src->linesize[0] & 15 ||
+        src->linesize[0] <= 0 || src->linesize[0] > UINT16_MAX) {
         realigned = 1;
         if (tmp_frame->format != src->format ||
             tmp_frame->width  != FFALIGN(src->width, 16) ||
@@ -1963,7 +1969,9 @@ static int qsv_transfer_data_to(AVHWFramesContext *ctx, AVFrame *dst,
     }
 
     in.Info = out->Info;
-    map_frame_to_surface(src_frame, &in);
+    ret = map_frame_to_surface(src_frame, &in);
+    if (ret < 0)
+	return ret;
 
     do {
         err = MFXVideoVPP_RunFrameVPPAsync(s->session_upload, &in, out, NULL, &sync);

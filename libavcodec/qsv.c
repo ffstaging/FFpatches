@@ -340,6 +340,8 @@ int ff_qsv_map_frame_to_surface(const AVFrame *frame, mfxFrameSurface1 *surface)
     default:
         return AVERROR(ENOSYS);
     }
+    if (frame->linesize[0] <= 0 || frame->linesize[0] > UINT16_MAX)
+	return AVERROR(EINVAL);
     surface->Data.PitchLow  = frame->linesize[0];
 
     return 0;

@@ -289,6 +289,8 @@ static int map_frame_to_surface(AVFrame *frame, mfxFrameSurface1 *surface)
     default:
         return MFX_ERR_UNSUPPORTED;
     }
+    if (frame->linesize[0] <= 0 || frame->linesize[0] > UINT16_MAX)
+	return AVERROR(EINVAL);
     surface->Data.Pitch = frame->linesize[0];
 
     return 0;
