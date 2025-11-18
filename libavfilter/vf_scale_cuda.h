@@ -23,6 +23,22 @@
 #ifndef AVFILTER_SCALE_CUDA_H
 #define AVFILTER_SCALE_CUDA_H
 
+#include <ffnvcodec/dynlink_cuda.h>
+
 #define SCALE_CUDA_PARAM_DEFAULT 999999.0f
+
+typedef struct __attribute__((aligned(16))) {
+    CUtexObject src_tex[4];
+    CUdeviceptr dst[4];
+    int dst_width;
+    int dst_height;
+    int dst_pitch;
+    int src_left;
+    int src_top;
+    int src_width;
+    int src_height;
+    float param;
+    int color_range;
+} CUDAScaleKernelParams;
 
 #endif
