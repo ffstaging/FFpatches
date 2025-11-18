@@ -1158,6 +1158,13 @@ static int scale_internal(SwsContext *sws,
             slice_h = dstSliceH;
         }
 
+        if (offset % c->dst_slice_align || slice_h % c->dst_slice_align) {
+            av_log(c, AV_LOG_ERROR,
+                   "Incorrectly aligned output: %u/%u not multiples of %u\n",
+                   offset, slice_h, c->dst_slice_align);
+            return AVERROR(EINVAL);
+        }
+
         ret = c->convert_unscaled(c, src2, srcStride2, offset, slice_h,
                                   dst2, dstStride2);
         if (scale_dst)
