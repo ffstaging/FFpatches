@@ -7,7 +7,7 @@ fate-ffmpeg-filter_complex_audio: CMD = framecrc -auto_conversion_filters -filte
 
 # Ticket 6375, use case of NoX
 FATE_SAMPLES_FFMPEG-$(call FRAMECRC, MOV, PNG ALAC, ARESAMPLE_FILTER) += fate-ffmpeg-attached_pics
-fate-ffmpeg-attached_pics: CMD = threads=2 framecrc -i $(TARGET_SAMPLES)/lossless-audio/inside.m4a -threads 1 -max_muxing_queue_size 16 -af aresample
+fate-ffmpeg-attached_pics: CMD = framecrc -i $(TARGET_SAMPLES)/lossless-audio/inside.m4a -max_interleave_delta 0 -af aresample
 
 FATE_SAMPLES_FFMPEG-$(call FILTERDEMDEC, COLORKEY OVERLAY SCALE, MPEGPS IMAGE_PPM_PIPE, CAVS PPM, CAVSVIDEO_PARSER) += fate-ffmpeg-filter_colorkey
 fate-ffmpeg-filter_colorkey: tests/data/filtergraphs/colorkey

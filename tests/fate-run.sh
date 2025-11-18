@@ -162,15 +162,15 @@ ffprobe_demux(){
 }
 
 framecrc(){
-    ffmpeg "$@" -bitexact -f framecrc -
+    ffmpeg "$@" -bitexact -threads $threads -f framecrc -
 }
 
 ffmetadata(){
-    ffmpeg "$@" -bitexact -f ffmetadata -
+    ffmpeg "$@" -bitexact -threads $threads -f ffmetadata -
 }
 
 framemd5(){
-    ffmpeg "$@" -bitexact -f framemd5 -
+    ffmpeg "$@" -bitexact -threads $threads -f framemd5 -
 }
 
 crc(){
