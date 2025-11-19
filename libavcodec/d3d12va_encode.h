@@ -157,6 +157,11 @@ typedef struct D3D12VAEncodeContext {
     int max_frame_size;
 
     /**
+     * Motion estimation precision mode
+     */
+    int me_precision;
+
+    /**
      * Explicitly set RC mode (otherwise attempt to pick from
      * available modes).
      */
@@ -338,7 +343,21 @@ int ff_d3d12va_encode_close(AVCodecContext *avctx);
     { "max_frame_size", \
       "Maximum frame size (in bytes)",\
       OFFSET(common.max_frame_size), AV_OPT_TYPE_INT, \
-      { .i64 = 0 }, 0, INT_MAX / 8, FLAGS }
+      { .i64 = 0 }, 0, INT_MAX / 8, FLAGS }, \
+    { "me_precision", \
+      "Motion estimation precision mode",\
+      OFFSET(common.me_precision), AV_OPT_TYPE_INT, \
+      { .i64 = 0 }, 0, 4, FLAGS, .unit = "me_precision" }, \
+    { "maximum", "Maximum (best quality, slowest)", 0, AV_OPT_TYPE_CONST, \
+      { .i64 = 0 }, 0, 0, FLAGS, .unit = "me_precision" }, \
+    { "full_pixel", "Full pixel precision", 0, AV_OPT_TYPE_CONST, \
+      { .i64 = 1 }, 0, 0, FLAGS, .unit = "me_precision" }, \
+    { "half_pixel", "Half pixel precision", 0, AV_OPT_TYPE_CONST, \
+      { .i64 = 2 }, 0, 0, FLAGS, .unit = "me_precision" }, \
+    { "quarter_pixel", "Quarter pixel precision", 0, AV_OPT_TYPE_CONST, \
+      { .i64 = 3 }, 0, 0, FLAGS, .unit = "me_precision" }, \
+    { "eighth_pixel", "Eighth pixel precision", 0, AV_OPT_TYPE_CONST, \
+      { .i64 = 4 }, 0, 0, FLAGS, .unit = "me_precision" }
 
 #define D3D12VA_ENCODE_RC_MODE(name, desc) \
     { #name, desc, 0, AV_OPT_TYPE_CONST, { .i64 = RC_MODE_ ## name }, \

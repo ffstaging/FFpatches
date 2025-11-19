@@ -1205,7 +1205,7 @@ static int d3d12va_create_encoder(AVCodecContext *avctx)
         .EncodeProfile                = ctx->profile->d3d12_profile,
         .InputFormat                  = frames_hwctx->format,
         .CodecConfiguration           = ctx->codec_conf,
-        .MaxMotionEstimationPrecision = D3D12_VIDEO_ENCODER_MOTION_ESTIMATION_PRECISION_MODE_MAXIMUM,
+        .MaxMotionEstimationPrecision = (D3D12_VIDEO_ENCODER_MOTION_ESTIMATION_PRECISION_MODE)ctx->me_precision,
     };
 
     hr = ID3D12VideoDevice3_CreateVideoEncoder(ctx->video_device3, &desc, &IID_ID3D12VideoEncoder,

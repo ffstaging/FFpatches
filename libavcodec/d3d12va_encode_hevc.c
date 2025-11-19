@@ -283,6 +283,17 @@ static int d3d12va_encode_hevc_init_sequence_params(AVCodecContext *avctx)
         av_log(avctx, AV_LOG_DEBUG, "D3D12 video encode on this device uses texture array mode.\n");
     }
 
+    if (ctx->me_precision != 0) {
+        if (support.SupportFlags & D3D12_VIDEO_ENCODER_SUPPORT_FLAG_MOTION_ESTIMATION_PRECISION_MODE_LIMIT_AVAILABLE) {
+            av_log(avctx, AV_LOG_VERBOSE, "Hardware supports motion estimation "
+                "precision mode limits.\n");
+        } else {
+            ctx->me_precision = 0;
+            av_log(avctx, AV_LOG_WARNING, "Hardware does not support motion estimation "
+                "precision mode limits. The me_precision parameter may be ignored.\n");
+        }
+    }
+
     desc = av_pix_fmt_desc_get(base_ctx->input_frames->sw_format);
     av_assert0(desc);
 
