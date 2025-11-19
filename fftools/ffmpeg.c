@@ -891,7 +891,7 @@ static int transcode(Scheduler *sch)
 
     ret = sch_start(sch);
     if (ret < 0)
-        return ret;
+        goto end;
 
     if (stdin_interaction) {
         av_log(NULL, AV_LOG_INFO, "Press [q] to stop, [?] for help\n");
@@ -915,7 +915,7 @@ static int transcode(Scheduler *sch)
     }
 
     ret = sch_stop(sch, &transcode_ts);
-
+end:
     /* write the trailer if needed */
     for (int i = 0; i < nb_output_files; i++) {
         int err = of_write_trailer(output_files[i]);
