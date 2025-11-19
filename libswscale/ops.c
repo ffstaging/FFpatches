@@ -99,9 +99,9 @@ SwsPixelType ff_sws_pixel_type_to_uint(SwsPixelType type)
         return type;
 
     switch (ff_sws_pixel_type_size(type)) {
-    case 8:  return SWS_PIXEL_U8;
-    case 16: return SWS_PIXEL_U16;
-    case 32: return SWS_PIXEL_U32;
+    case 1: return SWS_PIXEL_U8;
+    case 2: return SWS_PIXEL_U16;
+    case 4: return SWS_PIXEL_U32;
     }
 
     av_unreachable("Invalid pixel type!");
