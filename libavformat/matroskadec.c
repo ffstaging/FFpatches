@@ -463,7 +463,7 @@ typedef struct MatroskaDemuxContext {
 static EbmlSyntax ebml_syntax[3], matroska_segment[9], matroska_track_video_color[15], matroska_track_video[19],
                   matroska_track[33], matroska_track_encoding[6], matroska_track_encodings[2],
                   matroska_track_combine_planes[2], matroska_track_operation[2], matroska_block_addition_mapping[5], matroska_tracks[2],
-                  matroska_attachments[2], matroska_chapter_entry[9], matroska_chapter[6], matroska_chapters[2],
+                  matroska_attachments[2], matroska_chapter_entry[10], matroska_edition[6], matroska_chapter[6], matroska_chapters[2],
                   matroska_index_entry[3], matroska_index[2], matroska_tag[3], matroska_tags[2], matroska_seekhead[2],
                   matroska_blockadditions[2], matroska_blockgroup[8], matroska_cluster_parsing[8];
 
@@ -489,9 +489,9 @@ static EbmlSyntax matroska_info[] = {
     { MATROSKA_ID_DURATION,      EBML_FLOAT, 0, 0, offsetof(MatroskaDemuxContext, duration) },
     { MATROSKA_ID_TITLE,         EBML_UTF8,  0, 0, offsetof(MatroskaDemuxContext, title) },
     { MATROSKA_ID_WRITINGAPP,    EBML_NONE },
-    { MATROSKA_ID_MUXINGAPP,     EBML_UTF8, 0, 0, offsetof(MatroskaDemuxContext, muxingapp) },
-    { MATROSKA_ID_DATEUTC,       EBML_BIN,  0, 0, offsetof(MatroskaDemuxContext, date_utc) },
-    { MATROSKA_ID_SEGMENTUID,    EBML_NONE },
+    { MATROSKA_ID_MUXINGAPP,     EBML_UTF8,  0, 0, offsetof(MatroskaDemuxContext, muxingapp) },
+    { MATROSKA_ID_DATEUTC,       EBML_BIN,   0, 0, offsetof(MatroskaDemuxContext, date_utc) },
+    { MATROSKA_ID_SEGMENTUID,    EBML_BIN,   0, 0, offsetof(MatroskaDemuxContext, segment_uid) },
     CHILD_OF(matroska_segment)
 };
 
@@ -683,28 +683,29 @@ static EbmlSyntax matroska_chapter_display[] = {
 };
 
 static EbmlSyntax matroska_chapter_entry[] = {
-    { MATROSKA_ID_CHAPTERTIMESTART,   EBML_UINT, 0, 0, offsetof(MatroskaChapter, start), { .u = AV_NOPTS_VALUE } },
-    { MATROSKA_ID_CHAPTERTIMEEND,     EBML_UINT, 0, 0, offsetof(MatroskaChapter, end),   { .u = AV_NOPTS_VALUE } },
-    { MATROSKA_ID_CHAPTERUID,         EBML_UINT, 0, 0, offsetof(MatroskaChapter, uid) },
-    { MATROSKA_ID_CHAPTERDISPLAY,     EBML_NEST, 0, 0,                        0,         { .n = matroska_chapter_display } },
-    { MATROSKA_ID_CHAPTERFLAGHIDDEN,  EBML_NONE },
-    { MATROSKA_ID_CHAPTERFLAGENABLED, EBML_NONE },
-    { MATROSKA_ID_CHAPTERPHYSEQUIV,   EBML_NONE },
-    { MATROSKA_ID_CHAPTERATOM,        EBML_NONE },
-    CHILD_OF(matroska_chapter)
+    { MATROSKA_ID_CHAPTERTIMESTART,          EBML_UINT, 0, 0, offsetof(MatroskaChapter, start), { .u = AV_NOPTS_VALUE } },
+    { MATROSKA_ID_CHAPTERTIMEEND,            EBML_UINT, 0, 0, offsetof(MatroskaChapter, end),   { .u = AV_NOPTS_VALUE } },
+    { MATROSKA_ID_CHAPTERUID,                EBML_UINT, 0, 0, offsetof(MatroskaChapter, uid) },
+    { MATROSKA_ID_CHAPTERSEGMENTUID,         EBML_BIN,  0, 0, offsetof(MatroskaChapter, segment_uid) },
+    { MATROSKA_ID_CHAPTERSEGMENTEDITIONUID,  EBML_UINT, 0, 0, offsetof(MatroskaChapter, segment_edition_uid) },
+    { MATROSKA_ID_CHAPTERDISPLAY,            EBML_NEST, 0, 0,                        0,         { .n = matroska_chapter_display } },
+    { MATROSKA_ID_CHAPTERFLAGHIDDEN,         EBML_NONE },
+    { MATROSKA_ID_CHAPTERFLAGENABLED,        EBML_NONE },
+    { MATROSKA_ID_CHAPTERPHYSEQUIV,          EBML_NONE },
+    CHILD_OF(matroska_edition)
 };
 
-static EbmlSyntax matroska_chapter[] = {
-    { MATROSKA_ID_CHAPTERATOM,        EBML_NEST, 0, sizeof(MatroskaChapter), offsetof(MatroskaDemuxContext, chapters), { .n = matroska_chapter_entry } },
-    { MATROSKA_ID_EDITIONUID,         EBML_NONE },
-    { MATROSKA_ID_EDITIONFLAGHIDDEN,  EBML_NONE },
-    { MATROSKA_ID_EDITIONFLAGDEFAULT, EBML_NONE },
-    { MATROSKA_ID_EDITIONFLAGORDERED, EBML_NONE },
+static EbmlSyntax matroska_edition[] = {
+    { MATROSKA_ID_EDITIONUID,         EBML_UINT, 0, 0, offsetof(MatroskaEdition, uid) },
+    { MATROSKA_ID_EDITIONFLAGHIDDEN,  EBML_UINT, 0, 0, offsetof(MatroskaEdition, flag_hidden) },
+    { MATROSKA_ID_EDITIONFLAGDEFAULT, EBML_UINT, 0, 0, offsetof(MatroskaEdition, flag_default) },
+    { MATROSKA_ID_EDITIONFLAGORDERED, EBML_UINT, 0, 0, offsetof(MatroskaEdition, flag_ordered) },
+    { MATROSKA_ID_CHAPTERATOM,        EBML_NEST, 0, sizeof(MatroskaChapter), offsetof(MatroskaEdition, chapters), { .n = matroska_chapter_entry } },
     CHILD_OF(matroska_chapters)
 };
 
 static EbmlSyntax matroska_chapters[] = {
-    { MATROSKA_ID_EDITIONENTRY, EBML_NEST, 0, 0, 0, { .n = matroska_chapter } },
+    { MATROSKA_ID_EDITIONENTRY, EBML_NEST, 0, sizeof(MatroskaEdition), offsetof(MatroskaDemuxContext, editions), { .n = matroska_edition } },
     CHILD_OF(matroska_segment)
 };
 
@@ -1884,14 +1885,18 @@ static void matroska_convert_tags(AVFormatContext *s)
                        i, tags[i].target.attachuid);
             }
         } else if (tags[i].target.chapteruid) {
-            MatroskaChapter *chapter = matroska->chapters.elem;
+            MatroskaEdition *editions = matroska->editions.elem;
+            MatroskaChapter *chapter;
             int found = 0;
-            for (j = 0; j < matroska->chapters.nb_elem; j++) {
-                if (chapter[j].uid == tags[i].target.chapteruid &&
-                    chapter[j].chapter) {
+            for (j = 0; j < matroska->editions.nb_elem && !found; j++) {
+                chapter = editions[j].chapters.elem;
+                for (int k = 0; k < editions[j].chapters.nb_elem; k++) {
+                    if (chapter[k].uid == tags[i].target.chapteruid &&
+                        chapter[k].chapter) {
                     matroska_convert_tag(s, &tags[i].tag,
-                                         &chapter[j].chapter->metadata, NULL);
+                                             &chapter[k].chapter->metadata, NULL);
                     found = 1;
+                    }
                 }
             }
             if (!found) {
@@ -3328,9 +3333,10 @@ static int matroska_read_header(AVFormatContext *s)
     FFFormatContext *const si = ffformatcontext(s);
     MatroskaDemuxContext *matroska = s->priv_data;
     EbmlList *attachments_list = &matroska->attachments;
-    EbmlList *chapters_list    = &matroska->chapters;
     MatroskaAttachment *attachments;
-    MatroskaChapter *chapters;
+    EbmlList *editions_list = &matroska->editions;
+    MatroskaEdition *editions;
+    MatroskaChapter *chapters = NULL;
     uint64_t max_start = 0;
     int64_t pos;
     Ebml ebml = { 0 };
@@ -3456,17 +3462,22 @@ static int matroska_read_header(AVFormatContext *s)
         }
     }
 
-    chapters = chapters_list->elem;
-    for (i = 0; i < chapters_list->nb_elem; i++)
-        if (chapters[i].start != AV_NOPTS_VALUE && chapters[i].uid &&
-            (max_start == 0 || chapters[i].start > max_start)) {
-            chapters[i].chapter =
-                avpriv_new_chapter(s, chapters[i].uid,
-                                   (AVRational) { 1, 1000000000 },
-                                   chapters[i].start, chapters[i].end,
-                                   chapters[i].title);
-            max_start = chapters[i].start;
+    editions = editions_list->elem;
+    for (i = 0; i < editions_list->nb_elem; i++) {
+        chapters = editions[i].chapters.elem;
+
+        for (j = 0; j < editions[i].chapters.nb_elem; j++) {
+            if (chapters[j].start != AV_NOPTS_VALUE && chapters[j].uid &&
+                (max_start == 0 || chapters[j].start > max_start)) {
+                chapters[j].chapter =
+                    avpriv_new_chapter(s, chapters[j].uid,
+                                    (AVRational) { 1, 1000000000 },
+                                    chapters[j].start, chapters[j].end,
+                                    chapters[j].title);
+                max_start = chapters[j].start;
+            }
         }
+    }
 
     matroska_add_index_entries(matroska);
 
