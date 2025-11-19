@@ -307,11 +307,21 @@ typedef struct MatroskaAttachment {
     AVStream *stream;
 } MatroskaAttachment;
 
+typedef struct MatroskaEdition {
+    uint64_t uid;
+    uint64_t flag_hidden;
+    uint64_t flag_default;
+    uint64_t flag_ordered;
+    EbmlList chapters;
+} MatroskaEdition;
+
 typedef struct MatroskaChapter {
     uint64_t start;
     uint64_t end;
     uint64_t uid;
     char    *title;
+    EbmlBin  segment_uid;
+    uint64_t segment_edition_uid;
 
     AVChapter *chapter;
 } MatroskaChapter;
@@ -438,6 +448,10 @@ typedef struct MatroskaDemuxContext {
 
     /* Bandwidth value for WebM DASH Manifest */
     int bandwidth;
+
+    /* Editions and ordered chapters support */
+    EbmlList editions;
+    EbmlBin  segment_uid;
 } MatroskaDemuxContext;
 
 #define CHILD_OF(parent) { .def = { .n = parent } }
