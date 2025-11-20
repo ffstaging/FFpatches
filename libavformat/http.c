@@ -146,6 +146,11 @@ typedef struct HTTPContext {
     unsigned int retry_after;
     int reconnect_max_retries;
     int reconnect_delay_total_max;
+    /* TCP keepalive forwarding */
+    int tcp_keepalive;    /* -1 = unset, 0 = off, 1 = on */
+    int tcp_keepidle;     /* seconds, 0 = unset */
+    int tcp_keepintvl;    /* seconds, 0 = unset */
+    int tcp_keepcnt;      /* probe count, 0 = unset */
 } HTTPContext;
 
 #define OFFSET(x) offsetof(HTTPContext, x)
@@ -191,6 +196,10 @@ static const AVOption options[] = {
     { "resource", "The resource requested by a client", OFFSET(resource), AV_OPT_TYPE_STRING, { .str = NULL }, 0, 0, E },
     { "reply_code", "The http status code to return to a client", OFFSET(reply_code), AV_OPT_TYPE_INT, { .i64 = 200}, INT_MIN, 599, E},
     { "short_seek_size", "Threshold to favor readahead over seek.", OFFSET(short_seek_size), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, INT_MAX, D },
+    { "tcp_keepalive", "Enable SO_KEEPALIVE on underlying TCP socket", OFFSET(tcp_keepalive), AV_OPT_TYPE_BOOL, { .i64 = -1 }, -1, 1, D | E },
+    { "tcp_keepidle", "TCP keepalive idle time (seconds) for underlying TCP socket", OFFSET(tcp_keepidle), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, INT_MAX, D | E },
+    { "tcp_keepintvl", "TCP keepalive interval (seconds) for underlying TCP socket", OFFSET(tcp_keepintvl), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, INT_MAX, D | E },
+    { "tcp_keepcnt", "TCP keepalive probe count for underlying TCP socket", OFFSET(tcp_keepcnt), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, INT_MAX, D | E },
     { NULL }
 };
 
@@ -281,6 +290,33 @@ static int http_open_cnx_internal(URLContext *h, AVDictionary **options)
     }
 
     ff_url_join(buf, sizeof(buf), lower_proto, NULL, hostname, port, NULL);
+
+
+    /* Forward TCP keepalive options to underlying protocol via options dict.
+    * Prefer using AVDictionary forwarding to modifying the URL (safer). */
+    if (options) {
+        int err = 0;
+        if (s->tcp_keepalive != -1) {
+            err = av_dict_set_int(options, "tcp_keepalive", s->tcp_keepalive ? 1 : 0, 0);
+            if (err < 0)
+                goto end; /* existing cleanup label in this function */
+        }
+        if (s->tcp_keepidle > 0) {
+            err = av_dict_set_int(options, "tcp_keepidle", s->tcp_keepidle, 0);
+            if (err < 0)
+                goto end;
+        }
+        if (s->tcp_keepintvl > 0) {
+            err = av_dict_set_int(options, "tcp_keepintvl", s->tcp_keepintvl, 0);
+            if (err < 0)
+                goto end;
+        }
+        if (s->tcp_keepcnt > 0) {
+            err = av_dict_set_int(options, "tcp_keepcnt", s->tcp_keepcnt, 0);
+            if (err < 0)
+                goto end;
+        }
+    }
 
     if (!s->hd) {
         err = ffurl_open_whitelist(&s->hd, buf, AVIO_FLAG_READ_WRITE,

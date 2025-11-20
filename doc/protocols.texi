@@ -989,7 +989,31 @@ Set TCP_NODELAY to disable Nagle's algorithm. Default value is 0.
 @item tcp_keepalive=@var{1|0}
 Enable the TCP keepalive mechanism to detect dead peers and help maintain long-lived idle connections. Default value is 0.
 
-Only the basic keepalive option (SO_KEEPALIVE) can be enabled or disabled. Platform-specific tuning parameters such as TCP_KEEPIDLE, TCP_KEEPINTVL, or TCP_KEEPCNT are not configurable and will use the operating system's default values.
+The basic keepalive option (SO_KEEPALIVE) can be enabled or disabled. Platform-specific tuning parameters such as TCP_KEEPIDLE, TCP_KEEPINTVL, or TCP_KEEPCNT are configurable.
+
+@item tcp_keepidle=@var{seconds}
+Set the TCP keepalive idle time (in seconds).
+
+This controls how long the connection must remain idle before the first
+keepalive probe is sent.
+
+Default is 0 (uses system default).
+
+@item tcp_keepintvl=@var{seconds}
+Set the interval (in seconds) between individual TCP keepalive probes.
+
+Default is 0 (uses system default).
+
+@item tcp_keepcnt=@var{count}
+Set the number of unacknowledged keepalive probes that must occur before
+the connection is considered dead.
+
+Default is 0 (uses system default).
+
+@emph{Note:}
+These platform-specific parameters are available on Linux and BSD-derived
+systems. On Windows, only basic keepalive configuration is supported and
+the underlying system will use its own values for probe timing and count.
 
 @end table
 
