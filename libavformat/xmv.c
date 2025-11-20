@@ -417,6 +417,12 @@ static int xmv_fetch_new_packet(AVFormatContext *s)
     /* Seek to it */
     xmv->this_packet_offset = xmv->next_packet_offset;
     if (avio_seek(pb, xmv->this_packet_offset, SEEK_SET) != xmv->this_packet_offset)
+        /* It's possible the packet we're about to work on has no size. This can
+         * happen when it's the last packet of the XMV. So, let's check if we're
+         * at the end of the file again and gracefully close out.
+         */
+        if (xmv->this_packet_offset == xmv->next_packet_offset)
+            return AVERROR_EOF;
         return AVERROR(EIO);
 
     /* Update the size */
