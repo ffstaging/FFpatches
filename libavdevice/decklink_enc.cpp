@@ -47,6 +47,11 @@ extern "C" {
 #include "libklvanc/pixels.h"
 #endif
 
+static bool IsEqualGUID(const REFIID &iid1, const REFIID &iid2)
+{
+    return memcmp(&iid1, &iid2, sizeof(REFIID)) == 0;
+}
+
 /* DeckLink callback class declaration */
 class decklink_frame : public IDeckLinkVideoFrame
 {
@@ -111,7 +116,19 @@ public:
         _ancillary->AddRef();
         return S_OK;
     }
-    virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, LPVOID *ppv) { return E_NOINTERFACE; }
+    virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, LPVOID *ppv)
+    {
+        if (IsEqualGUID(iid, IID_IUnknown) || IsEqualGUID(iid, IID_IDeckLinkVideoFrame)) {
+            *ppv = static_cast<IDeckLinkVideoFrame*>(this);
+        } else {
+            *ppv = NULL;
+            return E_NOINTERFACE;
+        }
+
+        AddRef();
+        return S_OK;
+    }
+
     virtual ULONG   STDMETHODCALLTYPE AddRef(void)                            { return ++_refs; }
     virtual ULONG   STDMETHODCALLTYPE Release(void)
     {
