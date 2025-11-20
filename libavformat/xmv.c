@@ -194,7 +194,10 @@ static int xmv_read_header(AVFormatContext *s)
                                 packet->sample_rate *
                                 packet->channels;
         packet->block_align   = XMV_BLOCK_ALIGN_SIZE * packet->channels;
-        packet->block_samples = 64;
+        if (packet->compression == 1)
+            packet->block_samples = XMV_BLOCK_ALIGN_SIZE / packet->channels;
+        else
+            packet->block_samples = 64;
         packet->codec_id      = ff_wav_codec_get_id(packet->compression,
                                                     packet->bits_per_sample);
 
@@ -202,6 +205,12 @@ static int xmv_read_header(AVFormatContext *s)
 
         packet->frame_size  = 0;
         packet->block_count = 0;
+    
+#if 0
+        if (packet->compression == 1 && packet->sample_rate == 44100) {
+            av_log(s, AV_LOG_WARNING, "We may not be able to handle this properly...\n");
+        }
+#endif
 
         /* TODO: ADPCM'd 5.1 sound is encoded in three separate streams.
          *       Those need to be interleaved to a proper 5.1 stream. */
@@ -340,7 +349,7 @@ static int xmv_process_packet_header(AVFormatContext *s)
             ast->codecpar->sample_rate           = packet->sample_rate;
             ast->codecpar->bits_per_coded_sample = packet->bits_per_sample;
             ast->codecpar->bit_rate              = packet->bit_rate;
-            ast->codecpar->block_align           = 36 * packet->channels;
+            ast->codecpar->block_align           = XMV_BLOCK_ALIGN_SIZE * packet->channels;
 
             avpriv_set_pts_info(ast, 32, packet->block_samples, packet->sample_rate);
 
