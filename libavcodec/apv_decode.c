@@ -408,7 +408,7 @@ static int apv_decode_metadata(AVCodecContext *avctx, AVFrame *frame,
         const APVRawMetadataPayload *pl = &md->payloads[i];
 
         switch (pl->payload_type) {
-        case APV_METADATA_MDCV:
+             case APV_METADATA_MDCV:
             {
                 const APVRawMetadataMDCV *mdcv = &pl->mdcv;
                 AVMasteringDisplayMetadata *mdm;
@@ -420,20 +420,20 @@ static int apv_decode_metadata(AVCodecContext *avctx, AVFrame *frame,
                 if (mdm) {
                     for (int j = 0; j < 3; j++) {
                         mdm->display_primaries[j][0] =
-                            av_make_q(mdcv->primary_chromaticity_x[j], 1 << 16);
+                            av_make_q(av_be2ne16(mdcv->primary_chromaticity_x[j]), 1 << 16);
                         mdm->display_primaries[j][1] =
-                            av_make_q(mdcv->primary_chromaticity_y[j], 1 << 16);
+                            av_make_q(av_be2ne16(mdcv->primary_chromaticity_y[j]), 1 << 16);
                     }
 
                     mdm->white_point[0] =
-                        av_make_q(mdcv->white_point_chromaticity_x, 1 << 16);
+                        av_make_q(av_be2ne16(mdcv->white_point_chromaticity_x), 1 << 16);
                     mdm->white_point[1] =
-                        av_make_q(mdcv->white_point_chromaticity_y, 1 << 16);
+                        av_make_q(av_be2ne16(mdcv->white_point_chromaticity_y), 1 << 16);
 
                     mdm->max_luminance =
-                        av_make_q(mdcv->max_mastering_luminance, 1 << 8);
+                        av_make_q(av_be2ne32(mdcv->max_mastering_luminance), 1 << 8);
                     mdm->min_luminance =
-                        av_make_q(mdcv->min_mastering_luminance, 1 << 14);
+                        av_make_q(av_be2ne32(mdcv->min_mastering_luminance), 1 << 14);
 
                     mdm->has_primaries = 1;
                     mdm->has_luminance = 1;
@@ -450,8 +450,8 @@ static int apv_decode_metadata(AVCodecContext *avctx, AVFrame *frame,
                     return err;
 
                 if (clm) {
-                    clm->MaxCLL  = cll->max_cll;
-                    clm->MaxFALL = cll->max_fall;
+                    clm->MaxCLL  = av_be2ne16(cll->max_cll);
+                    clm->MaxFALL = av_be2ne16(cll->max_fall);
                 }
             }
             break;
