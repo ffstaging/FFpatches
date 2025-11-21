@@ -1075,6 +1075,45 @@ fail:
 }
 #endif
 
+static int mov_read_srat(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+{
+    MOVStreamContext *sc;
+    AVStream *st;
+    int32_t sample_rate;
+
+    if (atom.size < 8 || c->fc->nb_streams < 1)
+        return 0;
+
+    st = c->fc->streams[c->fc->nb_streams-1];
+    if (st->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) {
+        av_log(c->fc, AV_LOG_WARNING, "'srat' within non-audio sample entry, skip\n");
+        return 0;
+    }
+
+    sc = st->priv_data;
+    if (!c->isom || sc->stsd_version != 1 || sc->sample_entry_version != 1) {
+        av_log(c->fc, AV_LOG_WARNING,
+               "'srat' requires isom with stsd version 1 and sample entry version 1, "
+               "current isom %d, stsd version %d, sample entry version %d, skip\n",
+               c->isom, sc->stsd_version, sc->sample_entry_version);
+        return 0;
+    }
+
+    avio_skip(pb, 4); // version+flags
+    sample_rate = avio_rb32(pb);
+    if (sample_rate > 0) {
+        av_log(c->fc, AV_LOG_DEBUG,
+               "overwrite sample rate from %d to %d by 'srat'\n",
+               st->codecpar->sample_rate, sample_rate);
+        st->codecpar->sample_rate = sample_rate;
+    } else {
+        av_log(c->fc, AV_LOG_WARNING,
+               "ignore invalid sample rate %d in 'srat'\n", sample_rate);
+    }
+
+    return 0;
+}
+
 static int mov_read_dec3(MOVContext *c, AVIOContext *pb, MOVAtom atom)
 {
     AVStream *st;
@@ -2733,6 +2772,7 @@ static void mov_parse_stsd_audio(MOVContext *c, AVIOContext *pb,
     AVDictionaryEntry *compatible_brands = av_dict_get(c->fc->metadata, "compatible_brands", NULL, AV_DICT_MATCH_CASE);
     int channel_count;
 
+    sc->sample_entry_version = version;
     avio_rb16(pb); /* revision level */
     id = avio_rl32(pb); /* vendor */
     av_dict_set(&st->metadata, "vendor_id", av_fourcc2str(id), 0);
@@ -9479,6 +9519,7 @@ static const MOVParseTableEntry mov_default_parse_table[] = {
 #if CONFIG_IAMFDEC
 { MKTAG('i','a','c','b'), mov_read_iacb },
 #endif
+{ MKTAG('s','r','a','t'), mov_read_srat },
 { 0, NULL }
 };
 

@@ -258,6 +258,7 @@ typedef struct MOVStreamContext {
     int last_stsd_index;
     int stsd_count;
     int stsd_version;
+    int sample_entry_version;
 
     int32_t *display_matrix;
     AVStereo3D *stereo3d;
