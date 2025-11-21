@@ -46,6 +46,9 @@ typedef struct TCPContext {
     int send_buffer_size;
     int tcp_nodelay;
     int tcp_keepalive;
+    int tcp_keepidle;
+    int tcp_keepintvl;
+    int tcp_keepcnt;
 #if !HAVE_WINSOCK2_H
     int tcp_mss;
 #endif /* !HAVE_WINSOCK2_H */
@@ -54,6 +57,28 @@ typedef struct TCPContext {
 #define OFFSET(x) offsetof(TCPContext, x)
 #define D AV_OPT_FLAG_DECODING_PARAM
 #define E AV_OPT_FLAG_ENCODING_PARAM
+
+/**
+ * @name TCP keepalive tuning options
+ *
+ * These AVOptions extend TCP keepalive controls beyond the basic SO_KEEPALIVE
+ * flag by exposing platform-supported tuning parameters.
+ *
+ * The following options may be set on the "tcp" protocol:
+ *
+ * - @ref tcp_keepalive : Enable or disable SO_KEEPALIVE.
+ * - @ref tcp_keepidle  : Set idle time (seconds) before sending first probe.
+ * - @ref tcp_keepintvl : Set interval (seconds) between keepalive probes.
+ * - @ref tcp_keepcnt   : Set number of failed probes before declaring dead.
+ *
+ * Notes:
+ *  - Linux and BSD systems expose all parameters.
+ *  - Windows only supports enabling keepalive; tuning values are ignored.
+ *
+ * These options improve robustness of long-lived idle connections and help
+ * detect dead peers sooner than system defaults.
+ */
+
 static const AVOption options[] = {
     { "listen",          "Listen for incoming connections",  OFFSET(listen),         AV_OPT_TYPE_INT, { .i64 = 0 },     0,       2,       .flags = D|E },
     { "local_port",      "Local port",                                         OFFSET(local_port),     AV_OPT_TYPE_STRING, { .str = NULL },     0,       0, .flags = D|E },
@@ -64,6 +89,9 @@ static const AVOption options[] = {
     { "recv_buffer_size", "Socket receive buffer size (in bytes)",             OFFSET(recv_buffer_size), AV_OPT_TYPE_INT, { .i64 = -1 },         -1, INT_MAX, .flags = D|E },
     { "tcp_nodelay", "Use TCP_NODELAY to disable nagle's algorithm",           OFFSET(tcp_nodelay), AV_OPT_TYPE_BOOL, { .i64 = 0 },             0, 1, .flags = D|E },
     { "tcp_keepalive", "Use TCP keepalive to detect dead connections and keep long-lived connections active.",           OFFSET(tcp_keepalive), AV_OPT_TYPE_BOOL, { .i64 = 0 },             0, 1, .flags = D|E },
+    { "tcp_keepidle", "TCP keepalive idle time in seconds", OFFSET(tcp_keepidle), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, INT_MAX, .flags = D|E },
+    { "tcp_keepintvl", "TCP keepalive probe interval in seconds", OFFSET(tcp_keepintvl), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, INT_MAX, .flags = D|E },
+    { "tcp_keepcnt", "TCP keepalive probe count", OFFSET(tcp_keepcnt), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, INT_MAX, .flags = D|E },
 #if !HAVE_WINSOCK2_H
     { "tcp_mss",     "Maximum segment size for outgoing TCP packets",          OFFSET(tcp_mss),     AV_OPT_TYPE_INT, { .i64 = -1 },         -1, INT_MAX, .flags = D|E },
 #endif /* !HAVE_WINSOCK2_H */
@@ -132,6 +160,58 @@ static int customize_fd(void *ctx, int fd, int family)
         if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &s->tcp_keepalive, sizeof(s->tcp_keepalive))) {
             ff_log_net_error(ctx, AV_LOG_WARNING, "setsockopt(SO_KEEPALIVE)");
         }
+        /* Attempt to set keepalive tuning if requested */
+        /* POSIX/Linux/BSD style */
+        #if defined(TCP_KEEPIDLE) || defined(TCP_KEEPALIVE)
+        if (s->tcp_keepidle > 0) {
+# ifdef TCP_KEEPIDLE
+            int idle = s->tcp_keepidle;
+            if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle))) {
+                ff_log_net_error(ctx, AV_LOG_WARNING, "setsockopt(TCP_KEEPIDLE)");
+            }
+# elif defined(TCP_KEEPALIVE)
+            int idle = s->tcp_keepidle;
+            if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &idle, sizeof(idle))) {
+                ff_log_net_error(ctx, AV_LOG_WARNING, "setsockopt(TCP_KEEPALIVE)");
+            }
+# endif
+        }
+        if (s->tcp_keepintvl > 0) {
+# ifdef TCP_KEEPINTVL
+            int kv = s->tcp_keepintvl;
+            if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &kv, sizeof(kv))) {
+                ff_log_net_error(ctx, AV_LOG_WARNING, "setsockopt(TCP_KEEPINTVL)");
+            }
+# endif
+        }
+        if (s->tcp_keepcnt > 0) {
+# ifdef TCP_KEEPCNT
+            int kc = s->tcp_keepcnt;
+            if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &kc, sizeof(kc))) {
+                ff_log_net_error(ctx, AV_LOG_WARNING, "setsockopt(TCP_KEEPCNT)");
+            }
+# endif
+        }
+        #endif /* defined(TCP_KEEPIDLE) || defined(TCP_KEEPALIVE) */
+
+        /* Windows SIO_KEEPALIVE_VALS via WSAIoctl */
+        #if HAVE_WINSOCK2_H
+        if (s->tcp_keepidle > 0 || s->tcp_keepintvl > 0) {
+# include <mstcpip.h>
+            /* windows expects milliseconds */
+            struct tcp_keepalive vals;
+            DWORD bytes;
+            vals.onoff = 1;
+            vals.keepalivetime = (DWORD)(s->tcp_keepidle > 0 ? (DWORD)s->tcp_keepidle * 1000 : 7200000);
+            vals.keepaliveinterval = (DWORD)(s->tcp_keepintvl > 0 ? (DWORD)s->tcp_keepintvl * 1000 : 1000);
+            /* WSAIoctl returns SOCKET_ERROR on failure */
+            if (WSAIoctl((SOCKET)fd, SIO_KEEPALIVE_VALS, &vals, sizeof(vals),
+                         NULL, 0, &bytes, NULL, NULL) == SOCKET_ERROR) {
+                ff_log_net_error(ctx, AV_LOG_WARNING, "WSAIoctl(SIO_KEEPALIVE_VALS)");
+            }
+        }
+        #endif /* HAVE_WINSOCK2_H */
+     
     }
 
 #if !HAVE_WINSOCK2_H
