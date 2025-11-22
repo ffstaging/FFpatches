@@ -178,7 +178,7 @@ static int d3d12va_encode_h264_init_sequence_params(AVCodecContext *avctx)
         .Codec                            = D3D12_VIDEO_ENCODER_CODEC_H264,
         .InputFormat                      = hwctx->format,
         .RateControl                      = ctx->rc,
-        .IntraRefresh                     = D3D12_VIDEO_ENCODER_INTRA_REFRESH_MODE_NONE,
+        .IntraRefresh                     = ctx->intra_refresh.Mode,
         .SubregionFrameEncoding           = D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE_FULL_FRAME,
         .ResolutionsListCount             = 1,
         .pResolutionList                  = &ctx->resolution,
@@ -549,6 +549,7 @@ static const AVOption d3d12va_encode_h264_options[] = {
     HW_BASE_ENCODE_COMMON_OPTIONS,
     D3D12VA_ENCODE_COMMON_OPTIONS,
     D3D12VA_ENCODE_RC_OPTIONS,
+    D3D12VA_ENCODE_INTRA_REFRESH_OPTIONS,
 
     { "qp", "Constant QP (for P-frames; scaled by qfactor/qoffset for I/B)",
       OFFSET(qp), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 52, FLAGS },

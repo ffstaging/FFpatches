@@ -204,10 +204,17 @@ static int d3d12va_encode_issue(AVCodecContext *avctx,
     int barriers_ref_index = 0;
     D3D12_RESOURCE_BARRIER *barriers_ref = NULL;
 
+    D3D12_VIDEO_ENCODER_SEQUENCE_CONTROL_FLAGS seq_flags = D3D12_VIDEO_ENCODER_SEQUENCE_CONTROL_FLAG_NONE;
+    
+    // Request intra refresh if enabled
+    if (ctx->intra_refresh.Mode != D3D12_VIDEO_ENCODER_INTRA_REFRESH_MODE_NONE) {
+        seq_flags |= D3D12_VIDEO_ENCODER_SEQUENCE_CONTROL_FLAG_REQUEST_INTRA_REFRESH;
+    }
+    
     D3D12_VIDEO_ENCODER_ENCODEFRAME_INPUT_ARGUMENTS input_args = {
         .SequenceControlDesc = {
-            .Flags = D3D12_VIDEO_ENCODER_SEQUENCE_CONTROL_FLAG_NONE,
-            .IntraRefreshConfig = { 0 },
+            .Flags = seq_flags,
+            .IntraRefreshConfig = ctx->intra_refresh,
             .RateControl = ctx->rc,
             .PictureTargetResolution = ctx->resolution,
             .SelectedLayoutMode = D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE_FULL_FRAME,
@@ -352,7 +359,7 @@ static int d3d12va_encode_issue(AVCodecContext *avctx,
         }
     }
 
-    input_args.PictureControlDesc.IntraRefreshFrameIndex  = 0;
+    input_args.PictureControlDesc.IntraRefreshFrameIndex  = ctx->intra_refresh_frame_index;
     if (base_pic->is_reference)
         input_args.PictureControlDesc.Flags |= D3D12_VIDEO_ENCODER_PICTURE_CONTROL_FLAG_USED_AS_REFERENCE_PICTURE;
 
@@ -539,6 +546,12 @@ static int d3d12va_encode_issue(AVCodecContext *avctx,
         goto fail;
 
     pic->fence_value = ctx->sync_ctx.fence_value;
+
+    // Update intra refresh frame index for next frame
+    if (ctx->intra_refresh.Mode != D3D12_VIDEO_ENCODER_INTRA_REFRESH_MODE_NONE) {
+        ctx->intra_refresh_frame_index =
+            (ctx->intra_refresh_frame_index + 1) % ctx->intra_refresh.IntraRefreshDuration;
+    }
 
     if (d3d12_refs.ppTexture2Ds)
         av_freep(&d3d12_refs.ppTexture2Ds);
@@ -1191,6 +1204,58 @@ static int d3d12va_encode_init_gop_structure(AVCodecContext *avctx)
     return 0;
 }
 
+static int d3d12va_encode_init_intra_refresh(AVCodecContext *avctx)
+{
+    FFHWBaseEncodeContext *base_ctx = avctx->priv_data;
+    D3D12VAEncodeContext *ctx = avctx->priv_data;
+    HRESULT hr;
+    D3D12_FEATURE_DATA_VIDEO_ENCODER_INTRA_REFRESH_MODE intra_refresh_support = {
+        .NodeIndex = 0,
+        .Codec = ctx->codec->d3d12_codec,
+        .Profile = ctx->profile->d3d12_profile,
+        .Level = ctx->level,
+        .IntraRefreshMode = ctx->intra_refresh.Mode,
+    };
+
+    if (ctx->intra_refresh.Mode == D3D12_VIDEO_ENCODER_INTRA_REFRESH_MODE_NONE)
+        return 0;
+
+    // Check driver support for the intra refresh mode
+    hr = ID3D12VideoDevice3_CheckFeatureSupport(ctx->video_device3,
+        D3D12_FEATURE_VIDEO_ENCODER_INTRA_REFRESH_MODE,
+        &intra_refresh_support, sizeof(intra_refresh_support));
+
+    if (FAILED(hr) || !intra_refresh_support.IsSupported) {
+        av_log(avctx, AV_LOG_WARNING,
+               "Requested intra refresh mode not supported by driver, disabling.\n");
+        ctx->intra_refresh.Mode = D3D12_VIDEO_ENCODER_INTRA_REFRESH_MODE_NONE;
+        ctx->intra_refresh.IntraRefreshDuration = 0;
+        return 0;
+    }
+
+    // Set duration: use GOP size if not specified
+    if (ctx->intra_refresh.IntraRefreshDuration == 0) {
+        ctx->intra_refresh.IntraRefreshDuration = base_ctx->gop_size;
+        av_log(avctx, AV_LOG_VERBOSE, "Intra refresh duration set to GOP size: %d\n",
+               ctx->intra_refresh.IntraRefreshDuration);
+    }
+
+    // Initialize frame index
+    ctx->intra_refresh_frame_index = 0;
+
+    av_log(avctx, AV_LOG_VERBOSE, "Intra refresh: mode=%d, duration=%d frames\n",
+           ctx->intra_refresh.Mode, ctx->intra_refresh.IntraRefreshDuration);
+
+    // Some drivers report IsSupported=true but have MaxIntraRefreshFrameDuration=0
+    // We need to check this AFTER initializing other components that query encoder caps
+    // For now, just warn and disable if we suspect issues
+    av_log(avctx, AV_LOG_WARNING,
+           "Intra refresh requested but may not be fully supported by this GPU. "
+           "If encoding fails, disable intra refresh.\n");
+
+    return 0;
+}
+
 static int d3d12va_create_encoder(AVCodecContext *avctx)
 {
     FFHWBaseEncodeContext  *base_ctx     = avctx->priv_data;
@@ -1568,6 +1633,10 @@ int ff_d3d12va_encode_init(AVCodecContext *avctx)
         if (err < 0)
             goto fail;
     }
+
+    err = d3d12va_encode_init_intra_refresh(avctx);
+    if (err < 0)
+        goto fail;
 
     err = d3d12va_encode_create_recon_frames(avctx);
     if (err < 0)
