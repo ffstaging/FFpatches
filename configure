@@ -1927,7 +1927,6 @@ EXTERNAL_LIBRARY_NONFREE_LIST="
     decklink
     libfdk_aac
     libmpeghdec
-    libtls
 "
 
 EXTERNAL_LIBRARY_VERSION3_LIST="
@@ -2014,6 +2013,7 @@ EXTERNAL_LIBRARY_LIST="
     libtensorflow
     libtesseract
     libtheora
+    libtls
     libtorch
     libtwolame
     libuavs3d
