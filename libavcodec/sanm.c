@@ -636,9 +636,14 @@ static av_cold int decode_init(AVCodecContext *avctx)
     avctx->pix_fmt = ctx->version ? AV_PIX_FMT_RGB565 : AV_PIX_FMT_PAL8;
 
     if (!ctx->version) {
-        // ANIM has no dimensions in the header, distrust the incoming data.
-        avctx->width = avctx->height = 0;
-        ctx->have_dimensions = 0;
+        // ANIM valid range is 2x2 up to 640x480
+        if (avctx->width != 0 && avctx->height != 0) {
+            if (avctx->width > 640 || avctx->height > 480 ||
+                avctx->width < 2 || avctx->height < 2) {
+                return AVERROR_INVALIDDATA;
+            }
+            ctx->have_dimensions = 1;
+        }
     } else if (avctx->width > 800 || avctx->height > 600 ||
                avctx->width < 8 || avctx->height < 8) {
         // BL16 valid range is 8x8 - 800x600
@@ -2018,8 +2023,8 @@ static int process_frame_obj(SANMVideoContext *ctx, GetByteContext *gb,
 
     codec = bytestream2_get_byteu(gb);
     param = bytestream2_get_byteu(gb);
-    left  = bytestream2_get_le16u(gb) + xoff;
-    top   = bytestream2_get_le16u(gb) + yoff;
+    left  = bytestream2_get_le16u(gb);
+    top   = bytestream2_get_le16u(gb);
     w     = bytestream2_get_le16u(gb);
     h     = bytestream2_get_le16u(gb);
     bytestream2_skip(gb, 2);
@@ -2057,11 +2062,6 @@ static int process_frame_obj(SANMVideoContext *ctx, GetByteContext *gb,
             if (w > xres || h > yres)
                 return AVERROR_INVALIDDATA;
             ctx->have_dimensions = 1;
-        } else if (fsc) {
-            /* these codecs work on full frames, trust their dimensions */
-            xres = w;
-            yres = h;
-            ctx->have_dimensions = 1;
         } else {
             /* detect common sizes */
             xres = w + left;
@@ -2092,17 +2092,9 @@ static int process_frame_obj(SANMVideoContext *ctx, GetByteContext *gb,
             }
         }
     } else {
-        if (((w > ctx->width) || (h > ctx->height) || (w * h > ctx->buf_size)) && fsc) {
-            /* correct unexpected overly large frames: this happens
-             * for instance with The Dig's sq1.san video: it has a few
-             * (all black) 640x480 frames halfway in, while the rest is
-             * 320x200.
-             */
-            av_log(ctx->avctx, AV_LOG_WARNING,
-                   "resizing too large fobj: c%d  %d %d @ %d %d\n", codec, w, h, left, top);
-            w = ctx->width;
-            h = ctx->height;
-        }
+        /* for codec37/47/48, reject too large frames, like the DOS players do. */
+        if (((w > ctx->width) || (h > ctx->height) || (w * h > ctx->buf_size)) && fsc)
+            return AVERROR_INVALIDDATA;
     }
 
     /* users of codecs>=37 are subversion 2, enforce that for STOR/FTCH */
@@ -2117,6 +2109,9 @@ static int process_frame_obj(SANMVideoContext *ctx, GetByteContext *gb,
         if (!fsc)
             memset(ctx->fbuf, 0, ctx->frm0_size);
     }
+
+    left += xoff;
+    top += yoff;
 
     switch (codec) {
     case 1:
