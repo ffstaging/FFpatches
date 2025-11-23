@@ -307,6 +307,7 @@ static void device_features_copy_needed(VulkanDeviceFeatures *dst, VulkanDeviceF
     COPY_VAL(vulkan_1_2.vulkanMemoryModel);
     COPY_VAL(vulkan_1_2.vulkanMemoryModelDeviceScope);
     COPY_VAL(vulkan_1_2.uniformBufferStandardLayout);
+    COPY_VAL(vulkan_1_2.runtimeDescriptorArray);
 
     COPY_VAL(vulkan_1_3.dynamicRendering);
     COPY_VAL(vulkan_1_3.maintenance4);
@@ -655,6 +656,7 @@ static const VulkanOptExtension optional_device_exts[] = {
     { VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME,               FF_VK_EXT_COOP_MATRIX            },
     { VK_EXT_SHADER_OBJECT_EXTENSION_NAME,                    FF_VK_EXT_SHADER_OBJECT          },
     { VK_KHR_SHADER_SUBGROUP_ROTATE_EXTENSION_NAME,           FF_VK_EXT_SUBGROUP_ROTATE        },
+    { VK_EXT_HOST_IMAGE_COPY_EXTENSION_NAME,                  FF_VK_EXT_HOST_IMAGE_COPY        },
 #ifdef VK_EXT_zero_initialize_device_memory
     { VK_EXT_ZERO_INITIALIZE_DEVICE_MEMORY_EXTENSION_NAME,    FF_VK_EXT_ZERO_INITIALIZE        },
 #endif
@@ -1706,25 +1708,6 @@ static void vulkan_device_uninit(AVHWDeviceContext *ctx)
     ff_vk_uninit(&p->vkctx);
 }
 
-static int vulkan_device_has_rebar(AVHWDeviceContext *ctx)
-{
-    VulkanDevicePriv *p = ctx->hwctx;
-    VkDeviceSize max_vram = 0, max_visible_vram = 0;
-
-    /* Get device memory properties */
-    for (int i = 0; i < p->mprops.memoryTypeCount; i++) {
-        const VkMemoryType type = p->mprops.memoryTypes[i];
-        const VkMemoryHeap heap = p->mprops.memoryHeaps[type.heapIndex];
-        if (!(type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-            continue;
-        max_vram = FFMAX(max_vram, heap.size);
-        if (type.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-            max_visible_vram = FFMAX(max_visible_vram, heap.size);
-    }
-
-    return max_vram - max_visible_vram < 1024; /* 1 kB tolerance */
-}
-
 static int vulkan_device_create_internal(AVHWDeviceContext *ctx,
                                          VulkanDeviceSelection *dev_select,
                                          int disable_multiplane,
@@ -2078,7 +2061,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
     vk->GetPhysicalDeviceMemoryProperties(hwctx->phys_dev, &p->mprops);
 
     /* Only use host image transfers if ReBAR is enabled */
-    p->disable_host_transfer = !vulkan_device_has_rebar(ctx);
+    p->disable_host_transfer = 1;
 
 end:
     av_free(qf_vid);
@@ -4171,28 +4154,9 @@ static int copy_buffer_data(AVHWFramesContext *hwfc, AVBufferRef *buf,
                             AVFrame *swf, VkBufferImageCopy *region,
                             int planes, int upload)
 {
-    VkResult ret;
+    int err;
     VulkanDevicePriv *p = hwfc->device_ctx->hwctx;
-    FFVulkanFunctions *vk = &p->vkctx.vkfn;
-    AVVulkanDeviceContext *hwctx = &p->p;
-
     FFVkBuffer *vkbuf = (FFVkBuffer *)buf->data;
-
-    const VkMappedMemoryRange flush_info = {
-        .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-        .memory = vkbuf->mem,
-        .size   = VK_WHOLE_SIZE,
-    };
-
-    if (!upload && !(vkbuf->flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
-        ret = vk->InvalidateMappedMemoryRanges(hwctx->act_dev, 1,
-                                               &flush_info);
-        if (ret != VK_SUCCESS) {
-            av_log(hwfc, AV_LOG_ERROR, "Failed to invalidate buffer data: %s\n",
-                   ff_vk_ret2str(ret));
-            return AVERROR_EXTERNAL;
-        }
-    }
 
     if (upload) {
         for (int i = 0; i < planes; i++)
@@ -4202,7 +4166,21 @@ static int copy_buffer_data(AVHWFramesContext *hwfc, AVBufferRef *buf,
                                 swf->linesize[i],
                                 swf->linesize[i],
                                 region[i].imageExtent.height);
+
+        err = ff_vk_flush_buffer(&p->vkctx, vkbuf, 0, VK_WHOLE_SIZE, 1);
+        if (err != VK_SUCCESS) {
+            av_log(hwfc, AV_LOG_ERROR, "Failed to flush buffer data: %s\n",
+                   av_err2str(err));
+            return AVERROR_EXTERNAL;
+        }
     } else {
+        err = ff_vk_flush_buffer(&p->vkctx, vkbuf, 0, VK_WHOLE_SIZE, 0);
+        if (err != VK_SUCCESS) {
+            av_log(hwfc, AV_LOG_ERROR, "Failed to invalidate buffer data: %s\n",
+                   av_err2str(err));
+            return AVERROR_EXTERNAL;
+        }
+
         for (int i = 0; i < planes; i++)
             av_image_copy_plane(swf->data[i],
                                 swf->linesize[i],
@@ -4210,16 +4188,6 @@ static int copy_buffer_data(AVHWFramesContext *hwfc, AVBufferRef *buf,
                                 region[i].bufferRowLength,
                                 swf->linesize[i],
                                 region[i].imageExtent.height);
-    }
-
-    if (upload && !(vkbuf->flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
-        ret = vk->FlushMappedMemoryRanges(hwctx->act_dev, 1,
-                                          &flush_info);
-        if (ret != VK_SUCCESS) {
-            av_log(hwfc, AV_LOG_ERROR, "Failed to flush buffer data: %s\n",
-                   ff_vk_ret2str(ret));
-            return AVERROR_EXTERNAL;
-        }
     }
 
     return 0;
