@@ -1989,6 +1989,7 @@ static av_cold void whip_deinit(AVFormatContext *s)
         s->streams[i]->priv_data = NULL;
     }
 
+    av_freep(&whip->dtls_fingerprint);
     av_freep(&whip->sdp_offer);
     av_freep(&whip->sdp_answer);
     av_freep(&whip->whip_resource_url);
