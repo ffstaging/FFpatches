@@ -41,6 +41,7 @@
 #include "bprint.h"
 #include "version.h"
 
+#include <ctype.h>
 #include <float.h>
 
 #define TYPE_BASE(type) ((type) & ~AV_OPT_TYPE_FLAG_ARRAY)
@@ -1872,6 +1873,31 @@ static int get_key(const char **ropts, const char *delim, char **rkey)
     return 0;
 }
 
+#ifdef HAVE_DOS_PATHS
+static int get_dos_path(const char **ropts, const char *delim, char **rval)
+{
+    const char *opts = *ropts;
+    const char *val_start, *val_end;
+
+    if (!isalpha(opts[0]) || opts[1] != ':' || (opts[2] != '\\' && opts[2] != '/'))
+        return AVERROR(EINVAL);
+
+    val_start = opts += strspn(opts, WHITESPACES);
+    opts += 2; // skip drive letter and colon
+    while (*opts && !strchr(delim, *opts))
+        opts++;
+    val_end = opts;
+    while (val_end > val_start && strrchr(WHITESPACES, val_end[-1]))
+        val_end--;
+    if (!(*rval = av_malloc(val_end - val_start + 1)))
+        return AVERROR(ENOMEM);
+    memcpy(*rval, val_start, val_end - val_start);
+    (*rval)[val_end - val_start] = 0;
+    *ropts = opts;
+    return 0;
+}
+#endif
+
 int av_opt_get_key_value(const char **ropts,
                          const char *key_val_sep, const char *pairs_sep,
                          unsigned flags,
@@ -1884,6 +1910,12 @@ int av_opt_get_key_value(const char **ropts,
     if ((ret = get_key(&opts, key_val_sep, &key)) < 0 &&
         !(flags & AV_OPT_FLAG_IMPLICIT_KEY))
         return AVERROR(EINVAL);
+#ifdef HAVE_DOS_PATHS
+    // If value looks like a DOS path, try to parse it as a value.
+    if (pairs_sep && strchr(pairs_sep, ':') &&
+        get_dos_path(&opts, pairs_sep, &val) >= 0)
+    {} else
+#endif
     if (!(val = av_get_token(&opts, pairs_sep))) {
         av_free(key);
         return AVERROR(ENOMEM);

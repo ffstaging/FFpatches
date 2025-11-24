@@ -516,6 +516,11 @@ int main(void)
             ":",
             "=",
             " 5 : hello : size = pal ",
+            "string=C:/dir/hello.txt  ",
+            "string=C:/dir/hello.txt:size=pal",
+            "string=C:\\dir\\hello.txt:size=pal",
+            "string = C:/dir/hello.txt : size = pal",
+            "string = C:\\dir\\hello.txt : size = pal",
             "a_very_long_option_name_that_will_need_to_be_ellipsized_around_here=42"
         };
         static const char * const shorthand[] = { "num", "string", NULL };
