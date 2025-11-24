@@ -150,9 +150,13 @@ X86ASM-OBJS-$(CONFIG_ADPCM_G722_DECODER) += x86/g722dsp.o
 X86ASM-OBJS-$(CONFIG_ADPCM_G722_ENCODER) += x86/g722dsp.o
 X86ASM-OBJS-$(CONFIG_ALAC_DECODER)     += x86/alacdsp.o
 X86ASM-OBJS-$(CONFIG_APNG_DECODER)     += x86/pngdsp.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_APV_DECODER)      += x86/apv_dsp.o
+endif
 X86ASM-OBJS-$(CONFIG_CAVS_DECODER)     += x86/cavsidct.o x86/cavs_qpel.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_CFHD_ENCODER)     += x86/cfhdencdsp.o
+endif
 X86ASM-OBJS-$(CONFIG_CFHD_DECODER)     += x86/cfhddsp.o
 X86ASM-OBJS-$(CONFIG_DCA_DECODER)      += x86/dcadsp.o x86/synth_filter.o
 X86ASM-OBJS-$(CONFIG_DIRAC_DECODER)    += x86/diracdsp.o                \
@@ -165,16 +169,19 @@ X86ASM-OBJS-$(CONFIG_FLAC_ENCODER)     += x86/flac_dsp_gpl.o
 endif
 X86ASM-OBJS-$(CONFIG_JPEG2000_DECODER) += x86/jpeg2000dsp.o
 X86ASM-OBJS-$(CONFIG_LSCR_DECODER)     += x86/pngdsp.o
-X86ASM-OBJS-$(CONFIG_MLP_DECODER)      += x86/mlpdsp.o
 X86ASM-OBJS-$(CONFIG_MPEG4_DECODER)    += x86/xvididct.o
 X86ASM-OBJS-$(CONFIG_PNG_DECODER)      += x86/pngdsp.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_PRORES_DECODER)   += x86/proresdsp.o
 X86ASM-OBJS-$(CONFIG_PRORES_RAW_DECODER) += x86/proresdsp.o
+endif
 X86ASM-OBJS-$(CONFIG_RV40_DECODER)     += x86/rv40dsp.o
 X86ASM-OBJS-$(CONFIG_SBC_ENCODER)      += x86/sbcdsp.o
 X86ASM-OBJS-$(CONFIG_SVQ1_ENCODER)     += x86/svq1enc.o
 X86ASM-OBJS-$(CONFIG_TAK_DECODER)      += x86/takdsp.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_TRUEHD_DECODER)   += x86/mlpdsp.o
+endif
 X86ASM-OBJS-$(CONFIG_TTA_DECODER)      += x86/ttadsp.o
 X86ASM-OBJS-$(CONFIG_TTA_ENCODER)      += x86/ttaencdsp.o
 X86ASM-OBJS-$(CONFIG_UTVIDEO_DECODER)  += x86/utvideodsp.o
@@ -185,12 +192,13 @@ X86ASM-OBJS-$(CONFIG_VP6_DECODER)      += x86/vp6dsp.o
 X86ASM-OBJS-$(CONFIG_VP9_DECODER)      += x86/vp9intrapred.o            \
                                           x86/vp9intrapred_16bpp.o      \
                                           x86/vp9itxfm.o                \
-                                          x86/vp9itxfm_avx2.o           \
-                                          x86/vp9itxfm_avx512.o         \
                                           x86/vp9itxfm_16bpp.o          \
-                                          x86/vp9itxfm_16bpp_avx512.o   \
                                           x86/vp9lpf.o                  \
                                           x86/vp9lpf_16bpp.o            \
                                           x86/vp9mc.o                   \
                                           x86/vp9mc_16bpp.o
+ifdef ARCH_X86_64
+X86ASM-OBJS-$(CONFIG_VP9_DECODER)      += x86/vp9itxfm_avx512.o         \
+                                          x86/vp9itxfm_16bpp_avx512.o
+endif
 X86ASM-OBJS-$(CONFIG_WEBP_DECODER)     += x86/vp8dsp.o

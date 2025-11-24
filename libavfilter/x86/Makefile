@@ -50,29 +50,41 @@ X86ASM-OBJS-$(CONFIG_SCENE_SAD)              += x86/scene_sad.o
 
 X86ASM-OBJS-$(CONFIG_AFIR_FILTER)            += x86/af_afir.o
 X86ASM-OBJS-$(CONFIG_ANLMDN_FILTER)          += x86/af_anlmdn.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_ATADENOISE_FILTER)      += x86/vf_atadenoise.o
 X86ASM-OBJS-$(CONFIG_BLACKDETECT_FILTER)     += x86/vf_blackdetect.o
+endif
 X86ASM-OBJS-$(CONFIG_BLEND_FILTER)           += x86/vf_blend.o
 X86ASM-OBJS-$(CONFIG_BWDIF_FILTER)           += x86/vf_bwdif.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_COLORDETECT_FILTER)     += x86/vf_colordetect.o
+endif
 X86ASM-OBJS-$(CONFIG_COLORSPACE_FILTER)      += x86/colorspacedsp.o
 X86ASM-OBJS-$(CONFIG_CONVOLUTION_FILTER)     += x86/vf_convolution.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_EBUR128_FILTER)         += x86/f_ebur128.o
+endif
 X86ASM-OBJS-$(CONFIG_EQ_FILTER)              += x86/vf_eq.o
 X86ASM-OBJS-$(CONFIG_FRAMERATE_FILTER)       += x86/vf_framerate.o
 X86ASM-OBJS-$(CONFIG_FSPP_FILTER)            += x86/vf_fspp.o
 X86ASM-OBJS-$(CONFIG_GBLUR_FILTER)           += x86/vf_gblur.o
 X86ASM-OBJS-$(CONFIG_GRADFUN_FILTER)         += x86/vf_gradfun.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_HALDCLUT_FILTER)        += x86/vf_lut3d.o
+endif
 X86ASM-OBJS-$(CONFIG_HFLIP_FILTER)           += x86/vf_hflip.o
 X86ASM-OBJS-$(CONFIG_HQDN3D_FILTER)          += x86/vf_hqdn3d.o
 X86ASM-OBJS-$(CONFIG_IDET_FILTER)            += x86/vf_idetdsp.o
 X86ASM-OBJS-$(CONFIG_INTERLACE_FILTER)       += x86/vf_interlace.o
 X86ASM-OBJS-$(CONFIG_LIMITER_FILTER)         += x86/vf_limiter.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_LUT3D_FILTER)           += x86/vf_lut3d.o
+endif
 X86ASM-OBJS-$(CONFIG_MASKEDCLAMP_FILTER)     += x86/vf_maskedclamp.o
 X86ASM-OBJS-$(CONFIG_MASKEDMERGE_FILTER)     += x86/vf_maskedmerge.o
+ifdef ARCH_X86_64
 X86ASM-OBJS-$(CONFIG_NLMEANS_FILTER)         += x86/vf_nlmeans.o
+endif
 X86ASM-OBJS-$(CONFIG_OVERLAY_FILTER)         += x86/vf_overlay.o
 X86ASM-OBJS-$(CONFIG_PP7_FILTER)             += x86/vf_pp7.o
 X86ASM-OBJS-$(CONFIG_PSNR_FILTER)            += x86/vf_psnr.o
