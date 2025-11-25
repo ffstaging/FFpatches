@@ -1838,7 +1838,9 @@ static int vgs_eval(
                 if (a->type == ARG_COLOR) {
                     memcpy(color, a->color, sizeof(color));
                 } else {
-                    uint32_t c = av_be2ne32((uint32_t)state->vars[a->variable]);
+                    uint32_t c;
+                    memcpy(&c, &state->vars[a->variable], sizeof(c));
+                    c = av_be2ne32(c);
                     memcpy(color, &c, sizeof(color));
                 }
 
@@ -1981,14 +1983,10 @@ static int vgs_eval(
                 b = numerics[3];
             }
 
-            #define C(v, o) ((uint32_t)(av_clipd(v, 0, 1) * 255) << o)
+            #define C(v, o) (lround(av_clipd(v, 0, 1) * 0xFF) << o)
 
-            state->vars[user_var] = (double)(
-                C(r, 24)
-                | C(g, 16)
-                | C(b, 8)
-                | C(numerics[4], 0)
-            );
+            uint32_t color = C(r, 24) | C(g, 16) | C(b, 8) | C(numerics[4], 0);
+            memcpy(&state->vars[user_var], &color, sizeof(color));
 
             #undef C
 
