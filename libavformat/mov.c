@@ -4805,6 +4805,10 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
                 av_log(mov->fc, AV_LOG_WARNING, "STSZ sample size %d invalid (too small), ignoring\n", sc->stsz_sample_size);
                 sc->stsz_sample_size = sc->sample_size;
             }
+            if (!sc->stsz_sample_size && !sc->sample_sizes) {
+                av_log(mov->fc, AV_LOG_ERROR, "no stsz_sample_size and sample size table\n");
+                return;
+            }
 
             for (j = 0; j < sc->stsc_data[stsc_index].count; j++) {
                 int keyframe = 0;
