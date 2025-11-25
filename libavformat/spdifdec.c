@@ -109,9 +109,8 @@ static int spdif_get_offset_and_codec(AVFormatContext *s,
     return 0;
 }
 
-/* Largest offset between bursts we currently handle, i.e. AAC with
-   samples = 4096 */
-#define SPDIF_MAX_OFFSET 16384
+/* Largest offset between bursts we currently handle, i.e. E-AC-3 */
+#define SPDIF_MAX_OFFSET 24576
 
 static int spdif_probe(const AVProbeData *p)
 {
@@ -122,7 +121,7 @@ static int spdif_probe(const AVProbeData *p)
 int ff_spdif_probe(const uint8_t *p_buf, int buf_size, enum AVCodecID *codec)
 {
     const uint8_t *buf = p_buf;
-    const uint8_t *probe_end = p_buf + FFMIN(2 * SPDIF_MAX_OFFSET, buf_size - 1);
+    const uint8_t *probe_end = p_buf + FFMIN(2 * SPDIF_MAX_OFFSET + 1, buf_size - 1);
     const uint8_t *expected_code = buf + 7;
     uint32_t state = 0;
     int sync_codes = 0;
@@ -146,7 +145,7 @@ int ff_spdif_probe(const uint8_t *p_buf, int buf_size, enum AVCodecID *codec)
                 break;
 
             /* continue probing to find more sync codes */
-            probe_end = FFMIN(buf + SPDIF_MAX_OFFSET, p_buf + buf_size - 1);
+            probe_end = FFMIN(buf + SPDIF_MAX_OFFSET + 1, p_buf + buf_size - 1);
 
             /* skip directly to the next sync code */
             if (!spdif_get_offset_and_codec(NULL, (buf[2] << 8) | buf[1],
@@ -234,10 +233,7 @@ int ff_spdif_read_packet(AVFormatContext *s, AVPacket *pkt)
         }
         st->codecpar->codec_type = AVMEDIA_TYPE_AUDIO;
         st->codecpar->codec_id = codec_id;
-        if (codec_id == AV_CODEC_ID_EAC3)
-            ffstream(st)->need_parsing = AVSTREAM_PARSE_FULL;
-        else
-            ffstream(st)->need_parsing = AVSTREAM_PARSE_HEADERS;
+        ffstream(st)->need_parsing = AVSTREAM_PARSE_HEADERS;
     } else if (codec_id != s->streams[0]->codecpar->codec_id) {
         avpriv_report_missing_feature(s, "Codec change in IEC 61937");
         return AVERROR_PATCHWELCOME;
