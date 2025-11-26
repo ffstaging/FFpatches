@@ -80,6 +80,7 @@ SWSCALEOBJS                             += sw_gbrp.o            \
                                            sw_range_convert.o   \
                                            sw_rgb.o             \
                                            sw_scale.o           \
+                                           sw_xyz2rgb.o         \
                                            sw_yuv2rgb.o         \
                                            sw_yuv2yuv.o
 
