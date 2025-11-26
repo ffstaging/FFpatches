@@ -22,6 +22,18 @@
 #include "libswscale/swscale_internal.h"
 #include "libavutil/aarch64/cpu.h"
 
+void ff_xyz12Torgb48le_neon_asm(const ColorXform *c, uint8_t *dst,
+                                int dst_stride, const uint8_t *src,
+                                int src_stride, int w, int h);
+
+static void xyz12Torgb48le_neon(const SwsInternal *c, uint8_t *dst,
+                                int dst_stride, const uint8_t *src,
+                                int src_stride, int w, int h)
+{
+    return ff_xyz12Torgb48le_neon_asm(&c->xyz2rgb, dst, dst_stride,
+                                      src, src_stride, w, h);
+}
+
 void ff_hscale16to15_4_neon_asm(int shift, int16_t *_dst, int dstW,
                       const uint8_t *_src, const int16_t *filter,
                       const int32_t *filterPos, int filterSize);
@@ -303,6 +315,17 @@ av_cold void ff_sws_init_range_convert_aarch64(SwsInternal *c)
                 c->lumConvertRange = ff_lumRangeToJpeg16_neon;
                 c->chrConvertRange = ff_chrRangeToJpeg16_neon;
             }
+        }
+    }
+}
+
+av_cold void ff_sws_init_xyz2rgb_aarch64(SwsInternal *c)
+{
+    int cpu_flags = av_get_cpu_flags();
+
+    if (have_neon(cpu_flags)) {
+        if (!(av_pix_fmt_desc_get(c->opts.src_format)->flags & AV_PIX_FMT_FLAG_BE)) {
+            c->xyz12Torgb48 = xyz12Torgb48le_neon;
         }
     }
 }

@@ -860,6 +860,10 @@ void ff_rgb48Toxyz12(const SwsInternal *c, uint8_t *dst, int dst_stride,
 av_cold void ff_sws_init_xyz2rgb(SwsInternal *c)
 {
     c->xyz12Torgb48 = xyz12Torgb48_c;
+
+#if ARCH_AARCH64
+    ff_sws_init_xyz2rgb_aarch64(c);
+#endif
 }
 
 void ff_update_palette(SwsInternal *c, const uint32_t *pal)

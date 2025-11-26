@@ -729,6 +729,7 @@ av_cold void ff_sws_init_range_convert_riscv(SwsInternal *c);
 av_cold void ff_sws_init_range_convert_x86(SwsInternal *c);
 
 av_cold void ff_sws_init_xyz2rgb(SwsInternal *c);
+av_cold void ff_sws_init_xyz2rgb_aarch64(SwsInternal *c);
 
 SwsFunc ff_yuv2rgb_init_x86(SwsInternal *c);
 SwsFunc ff_yuv2rgb_init_ppc(SwsInternal *c);
