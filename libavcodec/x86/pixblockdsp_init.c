@@ -30,8 +30,9 @@ void ff_diff_pixels_sse2(int16_t *restrict block, const uint8_t *s1, const uint8
 av_cold void ff_pixblockdsp_init_x86(PixblockDSPContext *c,
                                      unsigned high_bit_depth)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE2_EXTERNAL
     if (EXTERNAL_SSE2(cpu_flags)) {
         if (!high_bit_depth) {
             c->get_pixels_unaligned =
@@ -40,4 +41,5 @@ av_cold void ff_pixblockdsp_init_x86(PixblockDSPContext *c,
         c->diff_pixels_unaligned =
         c->diff_pixels = ff_diff_pixels_sse2;
     }
+#endif /* HAVE_SSE2_EXTERNAL */
 }

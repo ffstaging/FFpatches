@@ -31,8 +31,9 @@ void ff_fcmul_add_fma3(float *sum, const float *t, const float *c,
 
 av_cold void ff_afir_init_x86(AudioFIRDSPContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE3(cpu_flags)) {
         s->fcmul_add = ff_fcmul_add_sse3;
     }
@@ -42,4 +43,5 @@ av_cold void ff_afir_init_x86(AudioFIRDSPContext *s)
     if (EXTERNAL_FMA3_FAST(cpu_flags)) {
         s->fcmul_add = ff_fcmul_add_fma3;
     }
+#endif /* HAVE_X86ASM */
 }

@@ -91,6 +91,7 @@ av_cold void ff_llvidencdsp_init_x86(LLVidEncDSPContext *c)
     }
 #endif /* HAVE_INLINE_ASM */
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags)) {
         c->diff_bytes = ff_diff_bytes_sse2;
     }
@@ -102,4 +103,5 @@ av_cold void ff_llvidencdsp_init_x86(LLVidEncDSPContext *c)
     if (EXTERNAL_AVX2_FAST(cpu_flags)) {
         c->diff_bytes = ff_diff_bytes_avx2;
     }
+#endif /* HAVE_X86ASM */
 }

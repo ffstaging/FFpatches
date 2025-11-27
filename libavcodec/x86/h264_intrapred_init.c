@@ -156,12 +156,13 @@ PRED4x4(tm_vp8, 8, mmxext)
 PRED4x4(tm_vp8, 8, ssse3)
 PRED4x4(vertical_vp8, 8, mmxext)
 
-av_cold void ff_h264_pred_init_x86(H264PredContext *h, int codec_id,
-                                   const int bit_depth,
-                                   const int chroma_format_idc)
+av_cold void ff_h264_pred_init_x86(H264PredContext *h, int av_unused codec_id,
+                                   const int av_unused bit_depth,
+                                   const int av_unused chroma_format_idc)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (bit_depth == 8) {
         if (EXTERNAL_MMXEXT(cpu_flags)) {
             if (chroma_format_idc <= 1)
@@ -329,4 +330,5 @@ av_cold void ff_h264_pred_init_x86(H264PredContext *h, int codec_id,
             h->pred8x8l[HOR_UP_PRED         ] = ff_pred8x8l_horizontal_up_10_avx;
         }
     }
+#endif /* HAVE_X86ASM */
 }

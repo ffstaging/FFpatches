@@ -51,6 +51,7 @@ av_cold void swri_resample_dsp_x86_init(ResampleContext *c)
 
     switch(c->format){
     case AV_SAMPLE_FMT_S16P:
+#if HAVE_X86ASM
         if (EXTERNAL_SSE2(mm_flags)) {
             c->dsp.resample_linear = ff_resample_linear_int16_sse2;
             c->dsp.resample_common = ff_resample_common_int16_sse2;
@@ -59,8 +60,10 @@ av_cold void swri_resample_dsp_x86_init(ResampleContext *c)
             c->dsp.resample_linear = ff_resample_linear_int16_xop;
             c->dsp.resample_common = ff_resample_common_int16_xop;
         }
+#endif /* HAVE_X86ASM */
         break;
     case AV_SAMPLE_FMT_FLTP:
+#if HAVE_X86ASM
         if (EXTERNAL_SSE(mm_flags)) {
             c->dsp.resample_linear = ff_resample_linear_float_sse;
             c->dsp.resample_common = ff_resample_common_float_sse;
@@ -77,8 +80,10 @@ av_cold void swri_resample_dsp_x86_init(ResampleContext *c)
             c->dsp.resample_linear = ff_resample_linear_float_fma4;
             c->dsp.resample_common = ff_resample_common_float_fma4;
         }
+#endif /* HAVE_X86ASM */
         break;
     case AV_SAMPLE_FMT_DBLP:
+#if HAVE_X86ASM
         if (EXTERNAL_SSE2(mm_flags)) {
             c->dsp.resample_linear = ff_resample_linear_double_sse2;
             c->dsp.resample_common = ff_resample_common_double_sse2;
@@ -91,6 +96,7 @@ av_cold void swri_resample_dsp_x86_init(ResampleContext *c)
             c->dsp.resample_linear = ff_resample_linear_double_fma3;
             c->dsp.resample_common = ff_resample_common_double_fma3;
         }
+#endif /* HAVE_X86ASM */
         break;
     }
 }

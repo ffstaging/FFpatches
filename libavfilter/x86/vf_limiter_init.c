@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/attributes.h"
 #include "libavutil/x86/cpu.h"
 
 #include "libavfilter/limiter.h"
@@ -29,8 +30,9 @@ void ff_limiter_16bit_sse4(const uint8_t *src, uint8_t *dst,
 
 void ff_limiter_init_x86(LimiterDSPContext *dsp, int bpp)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags)) {
         if (bpp <= 8) {
             dsp->limiter = ff_limiter_8bit_sse2;
@@ -41,4 +43,5 @@ void ff_limiter_init_x86(LimiterDSPContext *dsp, int bpp)
             dsp->limiter = ff_limiter_16bit_sse4;
         }
     }
+#endif /* HAVE_X86ASM */
 }

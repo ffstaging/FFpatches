@@ -46,8 +46,9 @@ static void permute_coeffs_01452367(float *v, int len)
 
 av_cold void ff_showcqt_init_x86(ShowCQTContext *s)
 {
-    int cpuflags = av_get_cpu_flags();
+    av_unused int cpuflags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
 #define SELECT_CQT_CALC(type, TYPE, align, perm) \
 if (EXTERNAL_##TYPE(cpuflags)) { \
     s->cqt_calc = ff_showcqt_cqt_calc_##type; \
@@ -60,4 +61,5 @@ if (EXTERNAL_##TYPE(cpuflags)) { \
     SELECT_CQT_CALC(fma4, FMA4, 4, 0); // using xmm
     SELECT_CQT_CALC(avx,  AVX_FAST,  8, 01452367);
     SELECT_CQT_CALC(fma3, FMA3_FAST, 8, 01452367);
+#endif /* HAVE_X86ASM */
 }

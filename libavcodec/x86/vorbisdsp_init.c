@@ -29,8 +29,10 @@ void ff_vorbis_inverse_coupling_sse(float *mag, float *ang,
 
 av_cold void ff_vorbisdsp_init_x86(VorbisDSPContext *dsp)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE_EXTERNAL
     if (EXTERNAL_SSE(cpu_flags))
         dsp->vorbis_inverse_coupling = ff_vorbis_inverse_coupling_sse;
+#endif /* HAVE_SSE_EXTERNAL */
 }

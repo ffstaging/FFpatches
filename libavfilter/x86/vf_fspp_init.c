@@ -36,8 +36,9 @@ void ff_row_fdct_mmx(int16_t *data, const uint8_t *pixels, ptrdiff_t line_size, 
 
 av_cold void ff_fsppdsp_init_x86(FSPPDSPContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_MMX(cpu_flags)) {
         s->row_idct     = ff_row_idct_mmx;
         s->row_fdct     = ff_row_fdct_mmx;
@@ -48,4 +49,5 @@ av_cold void ff_fsppdsp_init_x86(FSPPDSPContext *s)
         s->mul_thrmat   = ff_mul_thrmat_sse2;
         s->column_fidct = ff_column_fidct_sse2;
     }
+#endif /* HAVE_X86ASM */
 }

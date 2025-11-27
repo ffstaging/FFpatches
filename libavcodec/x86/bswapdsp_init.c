@@ -29,12 +29,14 @@ void ff_bswap32_buf_avx2(uint32_t *dst, const uint32_t *src, int w);
 
 av_cold void ff_bswapdsp_init_x86(BswapDSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags))
         c->bswap_buf = ff_bswap32_buf_sse2;
     if (EXTERNAL_SSSE3(cpu_flags))
         c->bswap_buf = ff_bswap32_buf_ssse3;
     if (EXTERNAL_AVX2_FAST(cpu_flags))
         c->bswap_buf = ff_bswap32_buf_avx2;
+#endif /* HAVE_X86ASM */
 }

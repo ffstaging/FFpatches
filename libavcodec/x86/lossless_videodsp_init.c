@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "../lossless_videodsp.h"
+#include "libavutil/attributes.h"
 #include "libavutil/x86/cpu.h"
 
 void ff_add_bytes_sse2(uint8_t *dst, uint8_t *src, ptrdiff_t w);
@@ -44,8 +45,9 @@ void ff_add_gradient_pred_avx2(uint8_t *src, const ptrdiff_t stride, const ptrdi
 
 void ff_llviddsp_init_x86(LLVidDSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags)) {
         c->add_bytes       = ff_add_bytes_sse2;
         c->add_median_pred = ff_add_median_pred_sse2;
@@ -67,4 +69,5 @@ void ff_llviddsp_init_x86(LLVidDSPContext *c)
         c->add_left_pred   = ff_add_left_pred_unaligned_avx2;
         c->add_gradient_pred = ff_add_gradient_pred_avx2;
     }
+#endif /* HAVE_X86ASM */
 }

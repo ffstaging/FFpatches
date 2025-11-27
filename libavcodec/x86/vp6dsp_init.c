@@ -30,9 +30,11 @@ void ff_vp6_filter_diag4_sse2(uint8_t *dst, const uint8_t *src, ptrdiff_t stride
 
 av_cold void ff_vp6dsp_init_x86(VP6DSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE2_EXTERNAL
     if (EXTERNAL_SSE2(cpu_flags)) {
         c->vp6_filter_diag4 = ff_vp6_filter_diag4_sse2;
     }
+#endif /* HAVE_SSE2_EXTERNAL */
 }

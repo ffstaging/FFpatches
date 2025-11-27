@@ -32,9 +32,11 @@ void ff_maskedmerge8_sse2(const uint8_t *bsrc, const uint8_t *osrc,
 
 av_cold void ff_maskedmerge_init_x86(MaskedMergeContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE2_EXTERNAL
     if (EXTERNAL_SSE2(cpu_flags) && s->depth == 8) {
         s->maskedmerge = ff_maskedmerge8_sse2;
     }
+#endif /* HAVE_SSE2_EXTERNAL */
 }

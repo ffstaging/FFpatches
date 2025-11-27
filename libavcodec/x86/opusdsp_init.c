@@ -27,10 +27,12 @@ float ff_opus_deemphasis_fma3(float *out, float *in, float coeff, const float *w
 
 av_cold void ff_opus_dsp_init_x86(OpusDSP *ctx)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+    #if HAVE_FMA3_EXTERNAL
     if (EXTERNAL_FMA3(cpu_flags)) {
         ctx->postfilter = ff_opus_postfilter_fma3;
         ctx->deemphasis = ff_opus_deemphasis_fma3;
     }
+#endif /* HAVE_X86ASM */
 }

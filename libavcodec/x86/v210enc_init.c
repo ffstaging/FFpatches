@@ -46,8 +46,9 @@ void ff_v210_planar_pack_10_avx512icl(const uint16_t *y, const uint16_t *u,
 
 av_cold void ff_v210enc_init_x86(V210EncContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSSE3(cpu_flags)) {
         s->pack_line_8 = ff_v210_planar_pack_8_ssse3;
         s->pack_line_10 = ff_v210_planar_pack_10_ssse3;
@@ -78,4 +79,5 @@ av_cold void ff_v210enc_init_x86(V210EncContext *s)
         s->sample_factor_10 = 4;
         s->pack_line_10     = ff_v210_planar_pack_10_avx512icl;
     }
+#endif /* HAVE_X86ASM */
 }

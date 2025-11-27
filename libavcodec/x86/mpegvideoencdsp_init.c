@@ -174,8 +174,9 @@ static void draw_edges_mmx(uint8_t *buf, ptrdiff_t wrap, int width, int height,
 av_cold void ff_mpegvideoencdsp_init_x86(MpegvideoEncDSPContext *c,
                                          AVCodecContext *avctx)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags)) {
         c->denoise_dct = ff_mpv_denoise_dct_sse2;
         c->pix_sum     = ff_pix_sum16_sse2;
@@ -185,6 +186,7 @@ av_cold void ff_mpegvideoencdsp_init_x86(MpegvideoEncDSPContext *c,
     if (EXTERNAL_XOP(cpu_flags)) {
         c->pix_sum     = ff_pix_sum16_xop;
     }
+#endif /* HAVE_X86ASM */
 
 #if HAVE_INLINE_ASM
 

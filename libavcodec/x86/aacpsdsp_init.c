@@ -51,8 +51,9 @@ void ff_ps_hybrid_analysis_ileave_sse(float (*restrict out)[32][2], float L[2][3
 
 av_cold void ff_psdsp_init_x86(PSDSPContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE(cpu_flags)) {
         s->add_squares            = ff_ps_add_squares_sse;
         s->mul_pair_single        = ff_ps_mul_pair_single_sse;
@@ -71,4 +72,5 @@ av_cold void ff_psdsp_init_x86(PSDSPContext *s)
     if (EXTERNAL_FMA3(cpu_flags)) {
         s->hybrid_analysis        = ff_ps_hybrid_analysis_fma3;
     }
+#endif /* HAVE_X86ASM */
 }

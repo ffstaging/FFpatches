@@ -18,6 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/attributes.h"
 #include "libavutil/x86/cpu.h"
 
 #include "libavfilter/colorspacedsp.h"
@@ -78,9 +79,10 @@ void ff_multiply3x3_sse2(int16_t *data[3], ptrdiff_t stride, int w, int h,
 
 void ff_colorspacedsp_x86_init(ColorSpaceDSPContext *dsp)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
-    if (ARCH_X86_64 && EXTERNAL_SSE2(cpu_flags)) {
+#if HAVE_X86ASM && ARCH_X86_64
+    if (EXTERNAL_SSE2(cpu_flags)) {
 #define assign_yuv2yuv_fns(ss) \
         dsp->yuv2yuv[BPP_8 ][BPP_8 ][SS_##ss] = ff_yuv2yuv_##ss##p8to8_sse2; \
         dsp->yuv2yuv[BPP_8 ][BPP_10][SS_##ss] = ff_yuv2yuv_##ss##p8to10_sse2; \
@@ -116,4 +118,5 @@ void ff_colorspacedsp_x86_init(ColorSpaceDSPContext *dsp)
 
         dsp->multiply3x3 = ff_multiply3x3_sse2;
     }
+#endif
 }

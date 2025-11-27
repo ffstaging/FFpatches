@@ -36,8 +36,9 @@ void ff_transpose_8x8_16_sse2(uint8_t *src,
 
 av_cold void ff_transpose_init_x86(TransVtable *v, int pixstep)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE2_EXTERNAL
     if (EXTERNAL_SSE2(cpu_flags) && pixstep == 1) {
         v->transpose_8x8 = ff_transpose_8x8_8_sse2;
     }
@@ -45,4 +46,5 @@ av_cold void ff_transpose_init_x86(TransVtable *v, int pixstep)
     if (EXTERNAL_SSE2(cpu_flags) && pixstep == 2) {
         v->transpose_8x8 = ff_transpose_8x8_16_sse2;
     }
+#endif /* HAVE_SSE2_EXTERNAL */
 }

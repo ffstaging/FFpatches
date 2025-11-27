@@ -36,8 +36,9 @@ void ff_ac3_extract_exponents_ssse3(uint8_t *exp, int32_t *coef, int nb_coefs);
 
 av_cold void ff_ac3dsp_init_x86(AC3DSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags)) {
         c->ac3_exponent_min = ff_ac3_exponent_min_sse2;
         c->float_to_fixed24 = ff_float_to_fixed24_sse2;
@@ -52,6 +53,7 @@ av_cold void ff_ac3dsp_init_x86(AC3DSPContext *c)
     if (EXTERNAL_AVX_FAST(cpu_flags)) {
         c->float_to_fixed24 = ff_float_to_fixed24_avx;
     }
+#endif /* HAVE_X86ASM */
 }
 
 #define DOWNMIX_FUNC_OPT(ch, opt)                                       \
@@ -72,7 +74,7 @@ DOWNMIX_FUNCS(fma3)
 
 void ff_ac3dsp_set_downmix_x86(AC3DSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
 #define SET_DOWNMIX(ch, suf, SUF)                                       \
     if (ch == c->in_channels) {                                         \
@@ -90,9 +92,11 @@ void ff_ac3dsp_set_downmix_x86(AC3DSPContext *c)
     SET_DOWNMIX(5, suf, SUF)                        \
     SET_DOWNMIX(6, suf, SUF)
 
+#if HAVE_X86ASM
     SET_DOWNMIX_ALL(sse,  SSE)
     if (!(cpu_flags & AV_CPU_FLAG_AVXSLOW)) {
         SET_DOWNMIX_ALL(avx,  AVX)
         SET_DOWNMIX_ALL(fma3, FMA3)
     }
+#endif /* HAVE_X86ASM */
 }

@@ -41,8 +41,9 @@ void ff_restore_rgb_planes10_avx2(uint16_t *src_r, uint16_t *src_g, uint16_t *sr
 
 av_cold void ff_utvideodsp_init_x86(UTVideoDSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags)) {
         c->restore_rgb_planes   = ff_restore_rgb_planes_sse2;
         c->restore_rgb_planes10 = ff_restore_rgb_planes10_sse2;
@@ -51,4 +52,5 @@ av_cold void ff_utvideodsp_init_x86(UTVideoDSPContext *c)
         c->restore_rgb_planes   = ff_restore_rgb_planes_avx2;
         c->restore_rgb_planes10 = ff_restore_rgb_planes10_avx2;
     }
+#endif /* HAVE_X86ASM */
 }

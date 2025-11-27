@@ -2422,7 +2422,7 @@ DEINTERLEAVE_BYTES(avx)
 
 av_cold void rgb2rgb_init_x86(void)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
 #if HAVE_INLINE_ASM
     if (INLINE_MMXEXT(cpu_flags))
@@ -2439,6 +2439,7 @@ av_cold void rgb2rgb_init_x86(void)
         deinterleaveBytes = deinterleave_bytes_sse2;
     }
 #endif
+#if HAVE_SSSE3_EXTERNAL
     if (EXTERNAL_SSSE3(cpu_flags)) {
         shuffle_bytes_0321 = ff_shuffle_bytes_0321_ssse3;
         shuffle_bytes_2103 = ff_shuffle_bytes_2103_ssse3;
@@ -2450,6 +2451,7 @@ av_cold void rgb2rgb_init_x86(void)
         shuffle_bytes_2130 = ff_shuffle_bytes_2130_ssse3;
         shuffle_bytes_1203 = ff_shuffle_bytes_1203_ssse3;
     }
+#endif
 #if HAVE_AVX_EXTERNAL
     if (EXTERNAL_AVX(cpu_flags)) {
         deinterleaveBytes = deinterleave_bytes_avx;

@@ -39,8 +39,9 @@ THRESHOLD_FUNC(16, avx2)
 
 av_cold void ff_threshold_init_x86(ThresholdContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (s->depth == 8) {
         if (EXTERNAL_SSE4(cpu_flags)) {
             s->threshold = ff_threshold8_sse4;
@@ -56,4 +57,5 @@ av_cold void ff_threshold_init_x86(ThresholdContext *s)
             s->threshold = ff_threshold16_avx2;
         }
     }
+#endif /* HAVE_X86ASM */
 }

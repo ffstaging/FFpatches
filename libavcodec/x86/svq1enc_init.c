@@ -29,9 +29,11 @@ int ff_ssd_int8_vs_int16_sse2(const int8_t *pix1, const int16_t *pix2,
 
 av_cold void ff_svq1enc_init_x86(SVQ1EncDSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE2_EXTERNAL
     if (EXTERNAL_SSE2(cpu_flags)) {
         c->ssd_int8_vs_int16 = ff_ssd_int8_vs_int16_sse2;
     }
+#endif /* HAVE_SSE2_EXTERNAL */
 }

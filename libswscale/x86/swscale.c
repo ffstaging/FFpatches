@@ -473,7 +473,8 @@ RANGE_CONVERT_FUNCS_DECL(avx2, 16)
 
 av_cold void ff_sws_init_range_convert_x86(SwsInternal *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
+#if HAVE_X86ASM
     if (EXTERNAL_AVX2_FAST(cpu_flags)) {
         if (c->dstBpc <= 14) {
             RANGE_CONVERT_FUNCS(avx2, 8);
@@ -485,11 +486,12 @@ av_cold void ff_sws_init_range_convert_x86(SwsInternal *c)
     } else if (EXTERNAL_SSE4(cpu_flags) && c->dstBpc > 14) {
         RANGE_CONVERT_FUNCS(sse4, 16);
     }
+#endif
 }
 
 av_cold void ff_sws_init_swscale_x86(SwsInternal *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
 #if HAVE_MMXEXT_INLINE
     if (INLINE_MMXEXT(cpu_flags))
@@ -569,6 +571,7 @@ switch(c->dstBpc){ \
              else                ASSIGN_SCALE_FUNC2(hscalefn, X8, opt1, opt2); \
              break; \
     }
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags)) {
         ASSIGN_SSE_SCALE_FUNC(c->hyScale, c->hLumFilterSize, sse2, sse2);
         ASSIGN_SSE_SCALE_FUNC(c->hcScale, c->hChrFilterSize, sse2, sse2);
@@ -851,4 +854,5 @@ switch(c->dstBpc){ \
     }
 
 #endif
+#endif /* HAVE_X86ASM */
 }

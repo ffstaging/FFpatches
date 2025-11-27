@@ -25,9 +25,11 @@ void ff_butterflies_fixed_sse2(int *restrict src0, int *restrict src1, int len);
 
 av_cold void ff_fixed_dsp_init_x86(AVFixedDSPContext *fdsp)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE2_EXTERNAL
     if (EXTERNAL_SSE2(cpu_flags)) {
         fdsp->butterflies_fixed = ff_butterflies_fixed_sse2;
     }
+#endif /* HAVE_SSE2_EXTERNAL */
 }

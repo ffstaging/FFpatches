@@ -34,8 +34,9 @@ void ff_predictor_avx2(uint8_t *src, ptrdiff_t size);
 
 av_cold void ff_exrdsp_init_x86(ExrDSPContext *dsp)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags)) {
         dsp->reorder_pixels = ff_reorder_pixels_sse2;
     }
@@ -49,4 +50,5 @@ av_cold void ff_exrdsp_init_x86(ExrDSPContext *dsp)
         dsp->reorder_pixels = ff_reorder_pixels_avx2;
         dsp->predictor      = ff_predictor_avx2;
     }
+#endif /* HAVE_X86ASM */
 }

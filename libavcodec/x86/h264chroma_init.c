@@ -53,11 +53,12 @@ CHROMA_MC(avg, 8, 10, sse2)
 CHROMA_MC(put, 8, 10, avx)
 CHROMA_MC(avg, 8, 10, avx)
 
-av_cold void ff_h264chroma_init_x86(H264ChromaContext *c, int bit_depth)
+av_cold void ff_h264chroma_init_x86(H264ChromaContext *c, int av_unused bit_depth)
 {
-    int high_bit_depth = bit_depth > 8;
-    int cpu_flags      = av_get_cpu_flags();
+    av_unused int high_bit_depth = bit_depth > 8;
+    av_unused int cpu_flags      = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_MMXEXT(cpu_flags) && !high_bit_depth) {
         c->avg_h264_chroma_pixels_tab[2] = ff_avg_h264_chroma_mc2_mmxext;
         c->put_h264_chroma_pixels_tab[2] = ff_put_h264_chroma_mc2_mmxext;
@@ -88,4 +89,5 @@ av_cold void ff_h264chroma_init_x86(H264ChromaContext *c, int bit_depth)
         c->put_h264_chroma_pixels_tab[0] = ff_put_h264_chroma_mc8_10_avx;
         c->avg_h264_chroma_pixels_tab[0] = ff_avg_h264_chroma_mc8_10_avx;
     }
+#endif /* HAVE_X86ASM */
 }

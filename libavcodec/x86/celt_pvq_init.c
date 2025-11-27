@@ -31,8 +31,9 @@ extern float ff_pvq_search_exact_avx  (float *X, int *y, int K, int N);
 
 av_cold void ff_celt_pvq_init_x86(CeltPVQ *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags))
         s->pvq_search = ff_pvq_search_approx_sse2;
 
@@ -41,4 +42,5 @@ av_cold void ff_celt_pvq_init_x86(CeltPVQ *s)
 
     if (EXTERNAL_AVX_FAST(cpu_flags))
         s->pvq_search = ff_pvq_search_exact_avx;
+#endif /* HAVE_X86ASM */
 }

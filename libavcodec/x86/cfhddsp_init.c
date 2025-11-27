@@ -40,8 +40,9 @@ void ff_cfhd_horiz_filter_clip12_sse2(int16_t *output, const int16_t *low, const
 
 av_cold void ff_cfhddsp_init_x86(CFHDDSPContext *c, int depth, int bayer)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE2_EXTERNAL
     if (EXTERNAL_SSE2(cpu_flags)) {
         c->horiz_filter = ff_cfhd_horiz_filter_sse2;
         c->vert_filter = ff_cfhd_vert_filter_sse2;
@@ -50,4 +51,5 @@ av_cold void ff_cfhddsp_init_x86(CFHDDSPContext *c, int depth, int bayer)
         if (depth == 12 && !bayer)
             c->horiz_filter_clip = ff_cfhd_horiz_filter_clip12_sse2;
     }
+#endif /* HAVE_SSE2_EXTERNAL */
 }

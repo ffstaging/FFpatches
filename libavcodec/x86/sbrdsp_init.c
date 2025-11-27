@@ -57,8 +57,9 @@ void ff_sbr_autocorrelate_sse3(const float x[40][2], float phi[3][2][2]);
 
 av_cold void ff_sbrdsp_init_x86(SBRDSPContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE(cpu_flags)) {
         s->neg_odd_64 = ff_sbr_neg_odd_64_sse;
         s->sum_square = ff_sbr_sum_square_sse;
@@ -82,4 +83,5 @@ av_cold void ff_sbrdsp_init_x86(SBRDSPContext *s)
     if (EXTERNAL_SSE3(cpu_flags)) {
         s->autocorrelate = ff_sbr_autocorrelate_sse3;
     }
+#endif /* HAVE_X86ASM */
 }

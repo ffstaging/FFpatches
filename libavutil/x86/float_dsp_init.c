@@ -80,8 +80,9 @@ void ff_butterflies_float_sse(float *restrict src0, float *restrict src1, int le
 
 av_cold void ff_float_dsp_init_x86(AVFloatDSPContext *fdsp)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE(cpu_flags)) {
         fdsp->vector_fmul = ff_vector_fmul_sse;
         fdsp->vector_fmac_scalar = ff_vector_fmac_scalar_sse;
@@ -117,4 +118,5 @@ av_cold void ff_float_dsp_init_x86(AVFloatDSPContext *fdsp)
         fdsp->vector_dmac_scalar = ff_vector_dmac_scalar_fma3;
         fdsp->scalarproduct_float = ff_scalarproduct_float_fma3;
     }
+#endif /* HAVE_X86ASM */
 }

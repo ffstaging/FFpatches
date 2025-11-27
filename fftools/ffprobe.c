@@ -2614,9 +2614,9 @@ static void ffprobe_show_program_version(AVTextFormatContext *tfc)
     av_bprint_finalize(&pbuf, NULL);
 }
 
-#define SHOW_LIB_VERSION(libname, LIBNAME)                              \
-    do {                                                                \
-        if (CONFIG_##LIBNAME) {                                         \
+#define SHOW_LIB_VERSION_0(libname, LIBNAME)
+#define SHOW_LIB_VERSION_1(libname, LIBNAME)                            \
+        do {                                                            \
             unsigned int version = libname##_version();                 \
             avtext_print_section_header(tfc, NULL, SECTION_ID_LIBRARY_VERSION); \
             print_str("name",    "lib" #libname);                       \
@@ -2626,8 +2626,13 @@ static void ffprobe_show_program_version(AVTextFormatContext *tfc)
             print_int("version", version);                              \
             print_str("ident",   LIB##LIBNAME##_IDENT);                 \
             avtext_print_section_footer(tfc);                             \
-        }                                                               \
-    } while (0)
+        } while(0)
+#define SHOW_LIB_VERSION_2(cfg, libname, LIBNAME)                       \
+    SHOW_LIB_VERSION_ ## cfg(libname, LIBNAME)
+#define SHOW_LIB_VERSION_3(cfg, libname, LIBNAME)                       \
+    SHOW_LIB_VERSION_2(cfg, libname, LIBNAME)
+#define SHOW_LIB_VERSION(libname, LIBNAME)                              \
+    SHOW_LIB_VERSION_3(CONFIG_ ## LIBNAME, libname, LIBNAME)
 
 static void ffprobe_show_library_versions(AVTextFormatContext *tfc)
 {

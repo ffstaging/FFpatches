@@ -38,8 +38,9 @@ void ff_sub_hfyu_median_pred_int16_mmxext(uint16_t *dst, const uint16_t *src1, c
 av_cold void ff_huffyuvencdsp_init_x86(HuffYUVEncDSPContext *c, enum AVPixelFormat pix_fmt)
 {
     av_unused int cpu_flags = av_get_cpu_flags();
-    const AVPixFmtDescriptor *pix_desc = av_pix_fmt_desc_get(pix_fmt);
+    av_unused const AVPixFmtDescriptor *pix_desc = av_pix_fmt_desc_get(pix_fmt);
 
+#if HAVE_X86ASM
     if (EXTERNAL_MMXEXT(cpu_flags) && pix_desc && pix_desc->comp[0].depth<16) {
         c->sub_hfyu_median_pred_int16 = ff_sub_hfyu_median_pred_int16_mmxext;
     }
@@ -51,4 +52,5 @@ av_cold void ff_huffyuvencdsp_init_x86(HuffYUVEncDSPContext *c, enum AVPixelForm
     if (EXTERNAL_AVX2_FAST(cpu_flags)) {
         c->diff_int16 = ff_diff_int16_avx2;
     }
+#endif
 }

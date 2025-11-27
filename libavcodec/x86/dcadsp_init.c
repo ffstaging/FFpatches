@@ -34,8 +34,9 @@ LFE_FIR_FLOAT_FUNC(fma3)
 
 av_cold void ff_dcadsp_init_x86(DCADSPContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags))
         s->lfe_fir_float[0] = ff_lfe_fir0_float_sse2;
     if (EXTERNAL_SSE3(cpu_flags))
@@ -46,4 +47,5 @@ av_cold void ff_dcadsp_init_x86(DCADSPContext *s)
     }
     if (EXTERNAL_FMA3(cpu_flags))
         s->lfe_fir_float[0] = ff_lfe_fir0_float_fma3;
+#endif /* HAVE_X86ASM */
 }

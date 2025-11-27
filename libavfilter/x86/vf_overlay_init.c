@@ -35,11 +35,12 @@ int ff_overlay_row_22_sse4(uint8_t *d, uint8_t *da, uint8_t *s, uint8_t *a,
 av_cold void ff_overlay_init_x86(AVFilterContext *ctx)
 {
     OverlayContext *s = ctx->priv;
-    const AVFilterLink *main = ctx->inputs[0];
-    const AVFilterLink *overlay = ctx->inputs[0];
-    int cpu_flags = av_get_cpu_flags();
-    int main_has_alpha = s->main_has_alpha;
+    av_unused const AVFilterLink *main = ctx->inputs[0];
+    av_unused const AVFilterLink *overlay = ctx->inputs[0];
+    av_unused int cpu_flags = av_get_cpu_flags();
+    av_unused int main_has_alpha = s->main_has_alpha;
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE4(cpu_flags) &&
         (s->format == OVERLAY_FORMAT_YUV444 ||
          s->format == OVERLAY_FORMAT_GBRP) &&
@@ -65,4 +66,5 @@ av_cold void ff_overlay_init_x86(AVFilterContext *ctx)
         s->blend_row[1] = ff_overlay_row_22_sse4;
         s->blend_row[2] = ff_overlay_row_22_sse4;
     }
+#endif /* HAVE_X86ASM */
 }

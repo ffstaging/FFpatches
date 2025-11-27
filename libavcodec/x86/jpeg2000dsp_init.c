@@ -33,7 +33,8 @@ void ff_rct_int_avx2 (void *src0, void *src1, void *src2, int csize);
 
 av_cold void ff_jpeg2000dsp_init_x86(Jpeg2000DSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
+#if HAVE_X86ASM
     if (EXTERNAL_SSE(cpu_flags)) {
         c->mct_decode[FF_DWT97] = ff_ict_float_sse;
     }
@@ -57,4 +58,5 @@ av_cold void ff_jpeg2000dsp_init_x86(Jpeg2000DSPContext *c)
     if (EXTERNAL_AVX2_FAST(cpu_flags)) {
         c->mct_decode[FF_DWT53] = ff_rct_int_avx2;
     }
+#endif /* HAVE_X86ASM */
 }

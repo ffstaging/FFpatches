@@ -60,8 +60,9 @@ void ff_bwdif_filter_line_12bit_avx512icl(void *dst, const void *prev, const voi
 
 av_cold void ff_bwdif_init_x86(BWDIFDSPContext *bwdif, int bit_depth)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (bit_depth <= 8) {
         if (EXTERNAL_SSE2(cpu_flags))
             bwdif->filter_line = ff_bwdif_filter_line_sse2;
@@ -81,4 +82,5 @@ av_cold void ff_bwdif_init_x86(BWDIFDSPContext *bwdif, int bit_depth)
         if (ARCH_X86_64 && EXTERNAL_AVX512ICL(cpu_flags))
             bwdif->filter_line = ff_bwdif_filter_line_12bit_avx512icl;
     }
+#endif /* HAVE_X86ASM */
 }

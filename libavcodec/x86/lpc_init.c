@@ -105,16 +105,18 @@ static void lpc_compute_autocorr_sse2(const double *data, ptrdiff_t len, int lag
 
 av_cold void ff_lpc_init_x86(LPCContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
 #if HAVE_SSE2_INLINE
     if (INLINE_SSE2_SLOW(cpu_flags))
         c->lpc_compute_autocorr = lpc_compute_autocorr_sse2;
 #endif
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags))
         c->lpc_apply_welch_window = ff_lpc_apply_welch_window_sse2;
 
     if (EXTERNAL_AVX2(cpu_flags))
         c->lpc_apply_welch_window = ff_lpc_apply_welch_window_avx2;
+#endif
 }

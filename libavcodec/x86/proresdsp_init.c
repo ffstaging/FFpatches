@@ -32,7 +32,7 @@ void ff_prores_idct_put_10_avx (uint16_t *dst, ptrdiff_t linesize,
 
 av_cold void ff_proresdsp_init_x86(ProresDSPContext *dsp, int bits_per_raw_sample)
 {
-#if ARCH_X86_64
+#if HAVE_X86ASM && ARCH_X86_64
     int cpu_flags = av_get_cpu_flags();
 
     if (bits_per_raw_sample == 10) {
@@ -46,5 +46,5 @@ av_cold void ff_proresdsp_init_x86(ProresDSPContext *dsp, int bits_per_raw_sampl
             dsp->idct_put = ff_prores_idct_put_10_avx;
         }
     }
-#endif /* ARCH_X86_64 */
+#endif /* HAVE_X86ASM && ARCH_X86_64 */
 }

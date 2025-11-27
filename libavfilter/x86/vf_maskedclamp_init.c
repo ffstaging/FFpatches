@@ -34,8 +34,9 @@ void ff_maskedclamp16_sse4(const uint8_t *bsrc, uint8_t *dst,
 
 av_cold void ff_maskedclamp_init_x86(MaskedClampDSPContext *dsp, int depth)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags) && depth <= 8) {
         dsp->maskedclamp = ff_maskedclamp8_sse2;
     }
@@ -43,4 +44,5 @@ av_cold void ff_maskedclamp_init_x86(MaskedClampDSPContext *dsp, int depth)
     if (EXTERNAL_SSE4(cpu_flags) && depth > 8) {
         dsp->maskedclamp = ff_maskedclamp16_sse4;
     }
+#endif /* HAVE_X86ASM */
 }

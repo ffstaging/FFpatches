@@ -27,9 +27,11 @@ float ff_compute_distance_ssd_sse(const float *f1, const float *f2,
 
 av_cold void ff_anlmdn_init_x86(AudioNLMDNDSPContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE(cpu_flags)) {
         s->compute_distance_ssd = ff_compute_distance_ssd_sse;
     }
+#endif /* HAVE_X86ASM */
 }

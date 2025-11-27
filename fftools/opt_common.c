@@ -152,8 +152,9 @@ static int warned_cfg = 0;
 #define SHOW_CONFIG   4
 #define SHOW_COPYRIGHT 8
 
-#define PRINT_LIB_INFO(libname, LIBNAME, flags, level)                  \
-    if (CONFIG_##LIBNAME) {                                             \
+#define PRINT_LIB_INFO_0(libname, LIBNAME, flags, level)
+#define PRINT_LIB_INFO_1(libname, LIBNAME, flags, level)                \
+    {                                                                   \
         const char *indent = flags & INDENT? "  " : "";                 \
         if (flags & SHOW_VERSION) {                                     \
             unsigned int version = libname##_version();                 \
@@ -180,6 +181,13 @@ static int warned_cfg = 0;
             }                                                           \
         }                                                               \
     }                                                                   \
+
+#define PRINT_LIB_INFO_2(cfg, libname, LIBNAME, flags, level)           \
+    PRINT_LIB_INFO_ ## cfg(libname, LIBNAME, flags, level)
+#define PRINT_LIB_INFO_3(cfg, libname, LIBNAME, flags, level)           \
+    PRINT_LIB_INFO_2(cfg, libname, LIBNAME, flags, level)
+#define PRINT_LIB_INFO(libname, LIBNAME, flags, level)                  \
+    PRINT_LIB_INFO_3(CONFIG_ ## LIBNAME, libname, LIBNAME, flags, level)
 
 static void print_all_libs_info(int flags, int level)
 {

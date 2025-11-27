@@ -35,7 +35,9 @@ void ff_scale_samples_s32_avx(uint8_t *dst, const uint8_t *src, int len,
 
 av_cold void ff_volume_init_x86(VolumeContext *vol)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
+
+#if HAVE_X86ASM
     enum AVSampleFormat sample_fmt = av_get_packed_sample_fmt(vol->sample_fmt);
 
     if (sample_fmt == AV_SAMPLE_FMT_S16) {
@@ -57,4 +59,5 @@ av_cold void ff_volume_init_x86(VolumeContext *vol)
             vol->samples_align = 8;
         }
     }
+#endif /* HAVE_X86ASM */
 }

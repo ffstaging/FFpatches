@@ -18,6 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/attributes.h"
 #include "libavutil/x86/cpu.h"
 
 #include "libavfilter/stereo3d.h"
@@ -29,9 +30,11 @@ void ff_anaglyph_sse4(uint8_t *dst, uint8_t *lsrc, uint8_t *rsrc,
 
 void ff_stereo3d_init_x86(Stereo3DDSPContext *dsp)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE4_EXTERNAL
     if (EXTERNAL_SSE4(cpu_flags)) {
         dsp->anaglyph = ff_anaglyph_sse4;
     }
+#endif /* HAVE_SSE4_EXTERNAL */
 }

@@ -38,9 +38,9 @@ void ff_cfhdenc_vert_filter_sse2(const int16_t *input, int16_t *low, int16_t *hi
 
 av_cold void ff_cfhdencdsp_init_x86(CFHDEncDSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
-#if ARCH_X86_64
+#if HAVE_SSE2_EXTERNAL && ARCH_X86_64
     if (EXTERNAL_SSE2(cpu_flags)) {
         c->horiz_filter = ff_cfhdenc_horiz_filter_sse2;
         c->vert_filter = ff_cfhdenc_vert_filter_sse2;

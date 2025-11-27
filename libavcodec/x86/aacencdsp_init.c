@@ -36,8 +36,9 @@ void ff_aac_quantize_bands_avx(int *out, const float *in, const float *scaled,
 
 av_cold void ff_aacenc_dsp_init_x86(AACEncDSPContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE(cpu_flags))
         s->abs_pow34   = ff_abs_pow34_sse;
 
@@ -46,4 +47,5 @@ av_cold void ff_aacenc_dsp_init_x86(AACEncDSPContext *s)
 
     if (EXTERNAL_AVX_FAST(cpu_flags))
         s->quant_bands = ff_aac_quantize_bands_avx;
+#endif /* HAVE_X86ASM */
 }

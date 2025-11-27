@@ -31,7 +31,8 @@ double ff_evaluate_lls_sse2(LLSModel *m, const double *var, int order);
 
 av_cold void ff_init_lls_x86(LLSModel *m)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
+#if HAVE_X86ASM
     if (EXTERNAL_SSE2(cpu_flags)) {
         m->update_lls = ff_update_lls_sse2;
         if (m->indep_count >= 4)
@@ -43,4 +44,5 @@ av_cold void ff_init_lls_x86(LLSModel *m)
     if (EXTERNAL_FMA3_FAST(cpu_flags)) {
         m->update_lls = ff_update_lls_fma3;
     }
+#endif /* HAVE_X86ASM */
 }

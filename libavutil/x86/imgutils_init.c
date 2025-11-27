@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "libavutil/attributes.h"
 #include "libavutil/cpu.h"
 #include "libavutil/error.h"
 #include "libavutil/imgutils_internal.h"
@@ -34,14 +35,16 @@ int ff_image_copy_plane_uc_from_x86(uint8_t       *dst, ptrdiff_t dst_linesize,
                                     const uint8_t *src, ptrdiff_t src_linesize,
                                     ptrdiff_t bytewidth, int height)
 {
-    int cpu_flags = av_get_cpu_flags();
-    ptrdiff_t bw_aligned = FFALIGN(bytewidth, 64);
+    av_unused int cpu_flags = av_get_cpu_flags();
+    ptrdiff_t av_unused bw_aligned = FFALIGN(bytewidth, 64);
 
+#if HAVE_SSE4_EXTERNAL
     if (EXTERNAL_SSE4(cpu_flags) &&
         bw_aligned <= dst_linesize && bw_aligned <= src_linesize)
         ff_image_copy_plane_uc_from_sse4(dst, dst_linesize, src, src_linesize,
                                          bw_aligned, height);
     else
+#endif /* HAVE_SSE4_EXTERNAL */
         return AVERROR(ENOSYS);
 
     return 0;

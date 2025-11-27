@@ -47,8 +47,9 @@ void ff_w3fdif_scale_sse2(uint8_t *out_pixel, const int32_t *work_pixel,
 
 av_cold void ff_w3fdif_init_x86(W3FDIFDSPContext *dsp, int depth)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_SSE2_EXTERNAL
     if (EXTERNAL_SSE2(cpu_flags) && depth <= 8) {
         dsp->filter_simple_low   = ff_w3fdif_simple_low_sse2;
         dsp->filter_simple_high  = ff_w3fdif_simple_high_sse2;
@@ -56,7 +57,10 @@ av_cold void ff_w3fdif_init_x86(W3FDIFDSPContext *dsp, int depth)
         dsp->filter_scale        = ff_w3fdif_scale_sse2;
     }
 
-    if (ARCH_X86_64 && EXTERNAL_SSE2(cpu_flags) && depth <= 8) {
+#if ARCH_X86_64
+    if (EXTERNAL_SSE2(cpu_flags) && depth <= 8) {
         dsp->filter_complex_high = ff_w3fdif_complex_high_sse2;
     }
+#endif
+#endif /* HAVE_SSE2_EXTERNAL */
 }

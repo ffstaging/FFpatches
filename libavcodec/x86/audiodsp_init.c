@@ -41,8 +41,9 @@ void ff_vector_clipf_sse(float *dst, const float *src,
 
 av_cold void ff_audiodsp_init_x86(AudioDSPContext *c)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE(cpu_flags))
         c->vector_clipf = ff_vector_clipf_sse;
 
@@ -59,4 +60,5 @@ av_cold void ff_audiodsp_init_x86(AudioDSPContext *c)
 
     if (EXTERNAL_AVX2_FAST(cpu_flags))
         c->scalarproduct_int16 = ff_scalarproduct_int16_avx2;
+#endif /* HAVE_X86ASM */
 }

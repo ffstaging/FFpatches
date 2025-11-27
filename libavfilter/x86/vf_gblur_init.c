@@ -40,8 +40,9 @@ void ff_verti_slice_avx512(float *buffer, int width, int height, int column_begi
 
 av_cold void ff_gblur_init_x86(GBlurContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_X86ASM
     if (EXTERNAL_SSE(cpu_flags)) {
         s->postscale_slice = ff_postscale_slice_sse;
     }
@@ -71,4 +72,5 @@ av_cold void ff_gblur_init_x86(GBlurContext *s)
         }
     }
 #endif
+#endif /* HAVE_X86ASM */
 }

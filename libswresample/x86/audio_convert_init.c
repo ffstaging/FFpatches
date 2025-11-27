@@ -52,6 +52,7 @@ av_cold void swri_audio_convert_init_x86(struct AudioConvert *ac,
             ac->simd_f =  ff_int32_to_int16_a_ ## cap;\
     }
 
+#if HAVE_X86ASM
 MULTI_CAPS_FUNC(SSE2, sse2)
 
     if(EXTERNAL_SSE(mm_flags)) {
@@ -172,4 +173,5 @@ MULTI_CAPS_FUNC(SSE2, sse2)
         if(   out_fmt == AV_SAMPLE_FMT_S32  && in_fmt == AV_SAMPLE_FMT_FLT || out_fmt == AV_SAMPLE_FMT_S32P && in_fmt == AV_SAMPLE_FMT_FLTP)
             ac->simd_f =  ff_float_to_int32_a_avx2;
     }
+#endif /* HAVE_X86ASM */
 }

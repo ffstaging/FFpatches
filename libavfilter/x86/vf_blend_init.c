@@ -102,9 +102,10 @@ BLEND_FUNC(xor_16, avx2)
 
 av_cold void ff_blend_init_x86(FilterParams *param, int depth)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
     if (depth == 8) {
+#if HAVE_SSE2_EXTERNAL
         if (EXTERNAL_SSE2(cpu_flags) && param->opacity == 1) {
             switch (param->mode) {
             case BLEND_ADDITION:     param->blend = ff_blend_addition_sse2;     break;
@@ -127,6 +128,8 @@ av_cold void ff_blend_init_x86(FilterParams *param, int depth)
             case BLEND_NEGATION:     param->blend = ff_blend_negation_sse2;     break;
             }
         }
+#endif
+#if HAVE_SSSE3_EXTERNAL
         if (EXTERNAL_SSSE3(cpu_flags) && param->opacity == 1) {
             switch (param->mode) {
             case BLEND_DIFFERENCE: param->blend = ff_blend_difference_ssse3; break;
@@ -134,7 +137,9 @@ av_cold void ff_blend_init_x86(FilterParams *param, int depth)
             case BLEND_NEGATION:   param->blend = ff_blend_negation_ssse3;   break;
             }
         }
+#endif
 
+#if HAVE_AVX2_EXTERNAL
         if (EXTERNAL_AVX2_FAST(cpu_flags) && param->opacity == 1) {
             switch (param->mode) {
             case BLEND_ADDITION:     param->blend = ff_blend_addition_avx2;     break;
@@ -156,8 +161,9 @@ av_cold void ff_blend_init_x86(FilterParams *param, int depth)
             case BLEND_NEGATION:     param->blend = ff_blend_negation_avx2;     break;
             }
         }
+#endif
     } else if (depth == 16) {
-#if ARCH_X86_64
+#if HAVE_SSE2_EXTERNAL && ARCH_X86_64
         if (EXTERNAL_SSE2(cpu_flags) && param->opacity == 1) {
             switch (param->mode) {
             case BLEND_ADDITION: param->blend = ff_blend_addition_16_sse2; break;
@@ -168,6 +174,8 @@ av_cold void ff_blend_init_x86(FilterParams *param, int depth)
             case BLEND_XOR:      param->blend = ff_blend_xor_16_sse2;      break;
             }
         }
+#endif
+#if HAVE_SSE4_EXTERNAL && ARCH_X86_64
         if (EXTERNAL_SSE4(cpu_flags) && param->opacity == 1) {
             switch (param->mode) {
             case BLEND_GRAINMERGE:   param->blend = ff_blend_grainmerge_16_sse4;   break;
@@ -180,6 +188,8 @@ av_cold void ff_blend_init_x86(FilterParams *param, int depth)
             case BLEND_PHOENIX:      param->blend = ff_blend_phoenix_16_sse4;      break;
             }
         }
+#endif
+#if HAVE_AVX2_EXTERNAL && ARCH_X86_64
         if (EXTERNAL_AVX2_FAST(cpu_flags) && param->opacity == 1) {
             switch (param->mode) {
             case BLEND_ADDITION:     param->blend = ff_blend_addition_16_avx2;     break;
@@ -198,6 +208,6 @@ av_cold void ff_blend_init_x86(FilterParams *param, int depth)
             case BLEND_XOR:          param->blend = ff_blend_xor_16_avx2;          break;
             }
         }
-#endif /* ARCH_X86_64 */
+#endif
     }
 }

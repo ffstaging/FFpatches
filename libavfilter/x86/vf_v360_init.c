@@ -43,8 +43,9 @@ void ff_remap2_16bit_line_avx2(uint8_t *dst, int width, const uint8_t *src, ptrd
 
 av_cold void ff_v360_init_x86(V360Context *s, int depth)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_AVX2_EXTERNAL
     if (EXTERNAL_AVX2_FAST(cpu_flags) && s->interp == NEAREST && depth <= 8)
         s->remap_line = ff_remap1_8bit_line_avx2;
 
@@ -68,4 +69,5 @@ av_cold void ff_v360_init_x86(V360Context *s, int depth)
                                           s->interp == MITCHELL) && depth <= 8)
         s->remap_line = ff_remap4_8bit_line_avx2;
 #endif
+#endif /* HAVE_AVX2_EXTERNAL */
 }

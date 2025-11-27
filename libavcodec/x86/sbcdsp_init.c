@@ -42,11 +42,13 @@ void ff_sbc_calc_scalefactors_mmx(int32_t sb_sample_f[16][2][8],
 
 av_cold void ff_sbcdsp_init_x86(SBCDSPContext *s)
 {
-    int cpu_flags = av_get_cpu_flags();
+    av_unused int cpu_flags = av_get_cpu_flags();
 
+#if HAVE_MMX_EXTERNAL
     if (EXTERNAL_MMX(cpu_flags)) {
         s->sbc_analyze_4 = ff_sbc_analyze_4_mmx;
         s->sbc_analyze_8 = ff_sbc_analyze_8_mmx;
         s->sbc_calc_scalefactors = ff_sbc_calc_scalefactors_mmx;
     }
+#endif /* HAVE_X86ASM */
 }

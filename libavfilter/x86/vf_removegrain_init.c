@@ -54,6 +54,7 @@ av_cold void ff_removegrain_init_x86(RemoveGrainContext *rg)
     int i;
 
     for (i = 0; i < rg->nb_planes; i++) {
+#if HAVE_SSE2_EXTERNAL
         if (EXTERNAL_SSE2(cpu_flags))
             switch (rg->mode[i]) {
                 case 1: rg->fl[i] = ff_rg_fl_mode_1_sse2; break;
@@ -83,6 +84,7 @@ av_cold void ff_removegrain_init_x86(RemoveGrainContext *rg)
                 case 24: rg->fl[i] = ff_rg_fl_mode_24_sse2; break;
 #endif /* ARCH_x86_64 */
             }
+#endif /* HAVE_SSE2_EXTERNAL */
     }
 #endif /* CONFIG_GPL */
 }

@@ -30,9 +30,10 @@ void ff_hflip_short_avx2(const uint8_t *src, uint8_t *dst, int w);
 
 av_cold void ff_hflip_init_x86(FlipContext *s, int step[4], int nb_planes)
 {
-    int cpu_flags = av_get_cpu_flags();
-    int i;
+    av_unused int cpu_flags = av_get_cpu_flags();
+    av_unused int i;
 
+#if HAVE_X86ASM
     for (i = 0; i < nb_planes; i++) {
         if (step[i] == 1) {
             if (EXTERNAL_SSSE3(cpu_flags)) {
@@ -50,4 +51,5 @@ av_cold void ff_hflip_init_x86(FlipContext *s, int step[4], int nb_planes)
             }
         }
     }
+#endif /* HAVE_X86ASM */
 }
