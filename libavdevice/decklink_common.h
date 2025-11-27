@@ -29,6 +29,23 @@
 #define IDeckLinkProfileAttributes IDeckLinkAttributes
 #endif
 
+#if BLACKMAGIC_DECKLINK_API_VERSION < 0x0e030000
+#define IDeckLinkInput_v14_2_1 IDeckLinkInput
+#define IDeckLinkInputCallback_v14_2_1 IDeckLinkInputCallback
+#define IDeckLinkMemoryAllocator_v14_2_1 IDeckLinkMemoryAllocator
+#define IDeckLinkOutput_v14_2_1 IDeckLinkOutput
+#define IDeckLinkVideoFrame_v14_2_1 IDeckLinkVideoFrame
+#define IDeckLinkVideoInputFrame_v14_2_1 IDeckLinkVideoInputFrame
+#define IDeckLinkVideoOutputCallback_v14_2_1 IDeckLinkVideoOutputCallback
+#define IID_IDeckLinkInput_v14_2_1 IID_IDeckLinkInput
+#define IID_IDeckLinkInputCallback_v14_2_1 IID_IDeckLinkInputCallback
+#define IID_IDeckLinkMemoryAllocator_v14_2_1 IID_IDeckLinkMemoryAllocator
+#define IID_IDeckLinkOutput_v14_2_1 IID_IDeckLinkOutput
+#define IID_IDeckLinkVideoFrame_v14_2_1 IID_IDeckLinkVideoFrame
+#define IID_IDeckLinkVideoInputFrame_v14_2_1 IID_IDeckLinkVideoInputFrame
+#define IID_IDeckLinkVideoOutputCallback_v14_2_1 IID_IDeckLinkVideoOutputCallback
+#endif
+
 extern "C" {
 #include "libavutil/mem.h"
 #include "libavcodec/packet_internal.h"
@@ -93,8 +110,8 @@ typedef struct DecklinkPacketQueue {
 struct decklink_ctx {
     /* DeckLink SDK interfaces */
     IDeckLink *dl;
-    IDeckLinkOutput *dlo;
-    IDeckLinkInput *dli;
+    IDeckLinkOutput_v14_2_1 *dlo;
+    IDeckLinkInput_v14_2_1 *dli;
     IDeckLinkConfiguration *cfg;
     IDeckLinkProfileAttributes *attr;
     decklink_output_callback *output_callback;
@@ -247,5 +264,7 @@ unsigned long long ff_decklink_packet_queue_size(DecklinkPacketQueue *q);
 int ff_decklink_packet_queue_put(DecklinkPacketQueue *q, AVPacket *pkt);
 int ff_decklink_packet_queue_get(DecklinkPacketQueue *q, AVPacket *pkt, int block);
 int64_t ff_decklink_packet_queue_peekpts(DecklinkPacketQueue *q);
+
+bool ff_decklink_equal_iid(const REFIID& riid1, const REFIID& riid2);
 
 #endif /* AVDEVICE_DECKLINK_COMMON_H */

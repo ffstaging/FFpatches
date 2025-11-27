@@ -25,8 +25,14 @@ extern "C" {
 #include "libavformat/internal.h"
 }
 
+#include <DeckLinkAPIVersion.h>
 #include <DeckLinkAPI.h>
+#if BLACKMAGIC_DECKLINK_API_VERSION >= 0x0e030000
+#include <DeckLinkAPI_v14_2_1.h>
+#endif
+
 #ifdef _WIN32
+#include <guiddef.h>
 #include <DeckLinkAPI_i.c>
 #else
 /* The file provided by the SDK is known to be missing prototypes, which doesn't
@@ -512,8 +518,8 @@ int ff_decklink_list_devices(AVFormatContext *avctx,
         return AVERROR(EIO);
 
     while (ret == 0 && iter->Next(&dl) == S_OK) {
-        IDeckLinkOutput *output_config;
-        IDeckLinkInput *input_config;
+        IDeckLinkOutput_v14_2_1 *output_config;
+        IDeckLinkInput_v14_2_1 *input_config;
         const char *display_name = NULL;
         const char *unique_name = NULL;
         AVDeviceInfo *new_device = NULL;
@@ -527,14 +533,14 @@ int ff_decklink_list_devices(AVFormatContext *avctx,
             goto next;
 
         if (show_outputs) {
-            if (dl->QueryInterface(IID_IDeckLinkOutput, (void **)&output_config) == S_OK) {
+            if (dl->QueryInterface(IID_IDeckLinkOutput_v14_2_1, (void **)&output_config) == S_OK) {
                 output_config->Release();
                 add = 1;
             }
         }
 
         if (show_inputs) {
-            if (dl->QueryInterface(IID_IDeckLinkInput, (void **)&input_config) == S_OK) {
+            if (dl->QueryInterface(IID_IDeckLinkInput_v14_2_1, (void **)&input_config) == S_OK) {
                 input_config->Release();
                 add = 1;
             }
@@ -703,4 +709,14 @@ int ff_decklink_init_device(AVFormatContext *avctx, const char* name)
     }
 
     return 0;
+}
+
+bool ff_decklink_equal_iid(const REFIID& riid1, const REFIID& riid2)
+{
+#ifdef _WIN32
+    return IsEqualIID(riid1, riid2);
+#else
+    /* There is no guiddef.h in Linux builds, so we cannot use IsEqualIID() */
+    return memcmp(&riid1, &riid2, sizeof(REFIID)) == 0;
+#endif
 }
