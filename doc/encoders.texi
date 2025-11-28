@@ -1661,7 +1661,7 @@ The wrapper also has some specific options:
 @table @option
 
 @item cpu-used
-Set the quality/encoding speed tradeoff.  Valid range is from 0 to 8,
+Set the quality/encoding speed tradeoff.  Valid range is from 0 to 12,
 higher numbers indicating greater speed and lower quality.  The default
 value is 1, which will be slow and high quality.
 
