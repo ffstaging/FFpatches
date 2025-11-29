@@ -56,14 +56,18 @@ av_cold void ff_init_scantable_permutation(uint8_t *idct_permutation,
         for (i = 0; i < 64; i++)
             idct_permutation[i] = (i & 0x38) | ((i & 6) >> 1) | ((i & 1) << 2);
         break;
+#if ARCH_PPC || ARCH_X86
     case FF_IDCT_PERM_TRANSPOSE:
         for (i = 0; i < 64; i++)
             idct_permutation[i] = ((i & 7) << 3) | (i >> 3);
         break;
+#endif
+#if ARCH_ARM || ARCH_AARCH64
     case FF_IDCT_PERM_PARTTRANS:
         for (i = 0; i < 64; i++)
             idct_permutation[i] = (i & 0x24) | ((i & 3) << 3) | ((i >> 3) & 3);
         break;
+#endif
     default:
         av_log(NULL, AV_LOG_ERROR,
                "Internal error, IDCT permutation not set\n");
