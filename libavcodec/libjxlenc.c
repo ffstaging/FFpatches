@@ -56,6 +56,9 @@ typedef struct LibJxlEncodeContext {
     float distance;
     int modular;
     int xyb;
+    int decoding_speed;
+    int lf_frames;
+    int photon_noise;
     uint8_t *buffer;
     size_t buffer_size;
     JxlPixelFormat jxl_fmt;
@@ -528,6 +531,24 @@ static int libjxl_preprocess_frame(AVCodecContext *avctx, const AVFrame *frame, 
         return AVERROR_EXTERNAL;
     }
 
+    if (JxlEncoderFrameSettingsSetOption(ctx->options, JXL_ENC_FRAME_SETTING_DECODING_SPEED, ctx->decoding_speed)
+            != JXL_ENC_SUCCESS) {
+        av_log(avctx, AV_LOG_ERROR, "Failed to set faster decoding option: %d\n", ctx->decoding_speed);
+        return AVERROR_EXTERNAL;
+    }
+
+    if (JxlEncoderFrameSettingsSetOption(ctx->options, JXL_ENC_FRAME_SETTING_PROGRESSIVE_DC, ctx->lf_frames)
+            != JXL_ENC_SUCCESS) {
+        av_log(avctx, AV_LOG_ERROR, "Failed to set lf frames: %d\n", ctx->lf_frames);
+        return AVERROR_EXTERNAL;
+    }
+
+    if (JxlEncoderFrameSettingsSetOption(ctx->options, JXL_ENC_FRAME_SETTING_PHOTON_NOISE, ctx->photon_noise)
+            != JXL_ENC_SUCCESS) {
+        av_log(avctx, AV_LOG_ERROR, "Failed to set photon noise: %d\n", ctx->photon_noise);
+        return AVERROR_EXTERNAL;
+    }
+
     jxl_fmt->endianness = JXL_NATIVE_ENDIAN;
     if (frame->linesize[0] >= 0) {
         jxl_fmt->align = frame->linesize[0];
@@ -757,6 +778,15 @@ static const AVOption libjxl_encode_options[] = {
     { "modular",       "Force modular mode",                               OFFSET(modular),    AV_OPT_TYPE_INT,    { .i64 =    0 },    0,     1, VE },
     { "xyb",           "Use XYB-encoding for lossy images",                OFFSET(xyb),
         AV_OPT_TYPE_INT,   { .i64 =    1 },    0,     1, VE },
+    { "decoding_speed", "Enable faster decoding at cost of density",       OFFSET(decoding_speed),
+        AV_OPT_TYPE_INT,   { .i64 =    0 },    0,     4, VE },
+    { "lf_frames",     "The number of progressive LF Frames. "
+                        "(-1 for encoder chooses)",                        OFFSET(lf_frames),
+        AV_OPT_TYPE_INT,   { .i64 =   -1 },   -1,     2, VE },
+    { "photon_noise",  "Add photon noise, in ISO film units. Mimics film "
+                        "of the given value, e.g. ISO800. (default = 0, "
+                        "i.e. no noise)",                                  OFFSET(photon_noise),
+        AV_OPT_TYPE_INT,   { .i64 =    0 },    0, 16000, VE },
     { NULL },
 };
 
