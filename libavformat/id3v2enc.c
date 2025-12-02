@@ -25,6 +25,7 @@
 #include "libavutil/dict.h"
 #include "libavutil/intreadwrite.h"
 #include "avformat.h"
+#include "avlanguage.h"
 #include "avio.h"
 #include "avio_internal.h"
 #include "id3v2.h"
@@ -56,6 +57,48 @@ static void id3v2_encode_string(AVIOContext *pb, const uint8_t *str,
         put = avio_put_str;
 
     put(pb, str);
+}
+
+/**
+ * Write a comment frame according to encoding (only UTF-8 or UTF-16+BOM
+ * supported).
+ * @return number of bytes written or a negative error code.
+ */
+static int id3v2_put_comm(ID3v2EncContext *id3, AVIOContext *avioc, const char *lang, const char *descr,
+                          const char *comment, enum ID3v2Encoding enc)
+{
+    int len, ret;
+    uint8_t *pb;
+    AVIOContext *dyn_buf;
+    if ((ret = avio_open_dyn_buf(&dyn_buf)) < 0)
+        return ret;
+
+    /* check if the strings are ASCII-only and use UTF16 only if
+     * they're not */
+    if (enc == ID3v2_ENCODING_UTF16BOM && string_is_ascii(comment) &&
+        (!descr || string_is_ascii(descr)))
+        enc = ID3v2_ENCODING_ISO8859;
+
+    avio_w8(dyn_buf, enc);
+    avio_write(dyn_buf, lang && strlen(lang) == 3 ? lang : "und", 3);
+    if (descr)
+        id3v2_encode_string(dyn_buf, descr, enc);
+    else
+        avio_w8(dyn_buf, 0);
+    id3v2_encode_string(dyn_buf, comment, enc);
+    len = avio_get_dyn_buf(dyn_buf, &pb);
+
+    avio_wb32(avioc, MKBETAG('C', 'O', 'M', 'M'));
+    /* ID3v2.3 frame size is not sync-safe */
+    if (id3->version == 3)
+        avio_wb32(avioc, len);
+    else
+        id3v2_put_size(avioc, len);
+    avio_wb16(avioc, 0);
+    avio_write(avioc, pb, len);
+
+    ffio_free_dyn_buf(&dyn_buf);
+    return len + ID3v2_HEADER_SIZE;
 }
 
 /**
@@ -221,7 +264,13 @@ static int write_metadata(AVIOContext *pb, AVDictionary **metadata,
                           ID3v2EncContext *id3, int enc)
 {
     const AVDictionaryEntry *t = NULL;
+    const char *lang = NULL;
+    const AVDictionaryEntry *lang_tag;
     int ret;
+
+    lang_tag = av_dict_get(*metadata, "language", NULL, 0);
+    if (lang_tag)
+        lang = ff_convert_lang_to(lang_tag->value, AV_LANG_ISO639_2_BIBL);
 
     ff_metadata_conv(metadata, ff_id3v2_34_metadata_conv, NULL);
     if (id3->version == 3)
@@ -230,6 +279,15 @@ static int write_metadata(AVIOContext *pb, AVDictionary **metadata,
         ff_metadata_conv(metadata, ff_id3v2_4_metadata_conv, NULL);
 
     while ((t = av_dict_iterate(*metadata, t))) {
+        if (!strncmp(t->key, "COMM", 4)) {
+            ret = id3v2_put_comm(id3, pb, lang, NULL, t->value, enc);
+            if (ret < 0)
+                return ret;
+
+            id3->len += ret;
+            continue;
+        }
+
         if ((ret = id3v2_check_write_tag(id3, pb, t, ff_id3v2_tags, enc)) > 0) {
             id3->len += ret;
             continue;

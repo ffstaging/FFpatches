@@ -44,6 +44,7 @@
 #include "id3v2.h"
 
 const AVMetadataConv ff_id3v2_34_metadata_conv[] = {
+    { "COMM", "comment"      },
     { "TALB", "album"        },
     { "TCOM", "composer"     },
     { "TCON", "genre"        },
