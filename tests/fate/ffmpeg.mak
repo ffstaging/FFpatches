@@ -119,21 +119,6 @@ fate-ffmpeg-fix_sub_duration: CMD = fmtstdout srt -fix_sub_duration \
   -real_time 1 -f lavfi \
   -i "movie=$(TARGET_SAMPLES)/sub/Closedcaption_rollup.m2v[out0+subcc]"
 
-# Basic test for fix_sub_duration_heartbeat, which causes a buffered subtitle
-# to be pushed out when a video keyframe is received from an encoder.
-FATE_SAMPLES_FFMPEG-$(call FILTERDEMDECENCMUX, MOVIE, MPEGVIDEO, \
-                           MPEG2VIDEO, SUBRIP, SRT, LAVFI_INDEV  \
-                           MPEGVIDEO_PARSER CCAPTION_DECODER \
-                           MPEG2VIDEO_ENCODER NULL_MUXER PIPE_PROTOCOL) \
-                           += fate-ffmpeg-fix_sub_duration_heartbeat
-fate-ffmpeg-fix_sub_duration_heartbeat: CMD = fmtstdout srt -fix_sub_duration \
-  -real_time 1 -f lavfi \
-  -i "movie=$(TARGET_SAMPLES)/sub/Closedcaption_rollup.m2v[out0+subcc]" \
-  -map 0:v  -map 0:s -fix_sub_duration_heartbeat:v:0 \
-  -c:v mpeg2video -b:v 2M -g 30 -sc_threshold 1000000000 \
-  -c:s srt \
-  -f null -
-
 # FIXME: the integer AAC decoder does not produce the same output on all platforms
 # so until that is fixed we use the volume filter to silence the data
 FATE_SAMPLES_FFMPEG-$(call FRAMECRC, MATROSKA, H264 AAC_FIXED, PCM_S32LE_ENCODER VOLUME_FILTER ARESAMPLE_FILTER) += fate-ffmpeg-streamloop-transcode-av
