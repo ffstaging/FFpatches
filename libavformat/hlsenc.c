@@ -229,6 +229,7 @@ typedef struct HLSContext {
     char *iv;
     char *key_basename;
     int encrypt_started;
+    int auto_iv;
 
     char *key_info_file;
     char key_file[LINE_BUFFER_SIZE + 1];
@@ -664,6 +665,7 @@ static int do_encrypt(AVFormatContext *s, VariantStream *vs)
         uint8_t iv[16] = { 0 };
         char buf[33];
 
+        hls->auto_iv = !hls->iv ? 1 : 0;
         if (!hls->iv) {
             AV_WB64(iv + 8, vs->sequence);
         } else {
@@ -733,6 +735,8 @@ static int hls_encryption_start(AVFormatContext *s,  VariantStream *vs)
 
     ff_get_line(pb, vs->iv_string, sizeof(vs->iv_string));
     vs->iv_string[strcspn(vs->iv_string, "\r\n")] = '\0';
+
+    hls->auto_iv = !*vs->iv_string ? 1 : 0;
 
     ff_format_io_close(s, &pb);
 
@@ -1585,9 +1589,9 @@ static int hls_window(AVFormatContext *s, int last, VariantStream *vs)
     }
     for (en = vs->segments; en; en = en->next) {
         if ((hls->encrypt || hls->key_info_file) && (!key_uri || strcmp(en->key_uri, key_uri) ||
-                                    av_strcasecmp(en->iv_string, iv_string))) {
+                                    (av_strcasecmp(en->iv_string, iv_string) && !hls->auto_iv))) {
             avio_printf(byterange_mode ? hls->m3u8_out : vs->out, "#EXT-X-KEY:METHOD=AES-128,URI=\"%s\"", en->key_uri);
-            if (*en->iv_string)
+            if (*en->iv_string && !hls->auto_iv)
                 avio_printf(byterange_mode ? hls->m3u8_out : vs->out, ",IV=0x%s", en->iv_string);
             avio_printf(byterange_mode ? hls->m3u8_out : vs->out, "\n");
             key_uri = en->key_uri;
@@ -1779,7 +1783,7 @@ static int hls_start(AVFormatContext *s, VariantStream *vs)
             vs->encrypt_started = 1;
         }
         err = av_strlcpy(iv_string, vs->iv_string, sizeof(iv_string));
-        if (!err) {
+        if (!err || c->auto_iv) {
             snprintf(iv_string, sizeof(iv_string), "%032"PRIx64, vs->sequence);
             memset(vs->iv_string, 0, sizeof(vs->iv_string));
             memcpy(vs->iv_string, iv_string, sizeof(iv_string));
