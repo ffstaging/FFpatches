@@ -2360,7 +2360,8 @@ static inline int tile_codeblocks(const Jpeg2000DecoderContext *s, Jpeg2000Tile 
                                                                                                   \
                 x   = tile->comp[compno].coord[0][0] -                                            \
                       ff_jpeg2000_ceildiv(s->image_offset_x, s->cdx[compno]);                     \
-                dst = line + x * pixelsize + compno*!planar;                                      \
+                dst = line + x * pixelsize +                                                      \
+                      (s->cdef[compno] ? s->cdef[compno] - 1 : compno) * !planar;                 \
                                                                                                   \
                 if (codsty->transform == FF_DWT97) {                                              \
                     for (; x < w; x++) {                                                          \
