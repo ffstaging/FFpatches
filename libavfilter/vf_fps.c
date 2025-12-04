@@ -96,6 +96,7 @@ typedef struct FPSContext {
     int frames_out;            ///< number of frames on output
     int dup;                   ///< number of frames duplicated
     int drop;                  ///< number of framed dropped
+    int max_fill;              ///< number of frames to fill when gap in timestamp
 } FPSContext;
 
 #define OFFSET(x) offsetof(FPSContext, x)
@@ -113,6 +114,8 @@ static const AVOption fps_options[] = {
     { "eof_action", "action performed for last frame", OFFSET(eof_action), AV_OPT_TYPE_INT, { .i64 = EOF_ACTION_ROUND }, 0, EOF_ACTION_NB-1, V|F, .unit = "eof_action" },
         { "round", "round similar to other frames",  0, AV_OPT_TYPE_CONST, { .i64 = EOF_ACTION_ROUND }, 0, 0, V|F, .unit = "eof_action" },
         { "pass",  "pass through last frame",        0, AV_OPT_TYPE_CONST, { .i64 = EOF_ACTION_PASS  }, 0, 0, V|F, .unit = "eof_action" },
+        // default max fill arbitrarily set to 6s @ 60fps
+        { "max_fill", "Max frames to fill when timestamp jumps forward", OFFSET(max_fill), AV_OPT_TYPE_INT, { .i64 = 360 }, -1, INT_MAX, V|F, "Maximum fill" },
     { NULL }
 };
 
@@ -221,8 +224,7 @@ static int config_props(AVFilterLink* outlink)
         return ret;
     }
 
-    av_log(ctx, AV_LOG_VERBOSE, "fps=%d/%d\n", ol->frame_rate.num, ol->frame_rate.den);
-
+    av_log(ctx, AV_LOG_VERBOSE, "fps=%d/%d max_fill=%d\n", ol->frame_rate.num, ol->frame_rate.den, s->max_fill);
     return 0;
 }
 
@@ -288,7 +290,8 @@ static int write_frame(AVFilterContext *ctx, FPSContext *s, AVFilterLink *outlin
      * - If we have status (EOF) set, drop frames when we hit the
      *   status timestamp. */
     if ((s->frames_count == 2 && s->frames[1]->pts <= s->next_pts) ||
-        (s->status            && s->status_pts     <= s->next_pts)) {
+        (s->status            && s->status_pts     <= s->next_pts) ||
+        (s->max_fill > 0 && s->cur_frame_out >= s->max_fill)) {
 
         frame = shift_frame(ctx, s);
         av_frame_free(&frame);
@@ -366,6 +369,8 @@ static int activate(AVFilterContext *ctx)
         /* Couldn't generate a frame, so schedule us to perform another step */
         if (again && ff_inoutlink_check_flow(inlink, outlink))
             ff_filter_set_ready(ctx, 100);
+        else if (AVERROR_EOF == s->status) /* EOF and not filling frames */
+            ff_outlink_set_status(outlink, s->status, s->next_pts);
         return ret;
     }
 
