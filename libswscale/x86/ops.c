@@ -184,20 +184,41 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
         .setup = ff_sws_setup_q,                                                \
     );
 
-/* 2x2 matrix fits inside SwsOpPriv directly; save an indirect in this case */
-static_assert(sizeof(SwsOpPriv) >= sizeof(float[2][2]), "2x2 dither matrix too large");
 static int setup_dither(const SwsOp *op, SwsOpPriv *out)
 {
-    const int size = 1 << op->dither.size_log2;
-    float *matrix = out->f32;
-    if (size > 2) {
-        matrix = out->ptr = av_mallocz(size * size * sizeof(*matrix));
-        if (!matrix)
-            return AVERROR(ENOMEM);
+    /* 1x1 matrix / single constant */
+    if (!op->dither.size_log2) {
+        const AVRational k = op->dither.matrix[0];
+        out->f32[0] = (float) k.num / k.den;
+        return 0;
     }
+
+    const int size = 1 << op->dither.size_log2;
+    int max_offset = 0;
+    for (int i = 0; i < 4; i++) {
+        const int offset = op->dither.y_offset[i] & (size - 1);
+        max_offset = FFMAX(max_offset, offset);
+    }
+
+    /* Allocate extra rows to allow over-reading for row offsets */
+    const int stride = size * sizeof(float);
+    const int num_rows = size + max_offset;
+    float *matrix = out->ptr = av_mallocz(num_rows * stride);
+    if (!matrix)
+        return AVERROR(ENOMEM);
 
     for (int i = 0; i < size * size; i++)
         matrix[i] = (float) op->dither.matrix[i].num / op->dither.matrix[i].den;
+
+    for (int i = size; i < num_rows; i++)
+        memcpy(&matrix[i * size], &matrix[(i - size) * size], stride);
+
+    /* Store relative pointer offset to each row inside extra space */
+    static_assert(sizeof(out->ptr) <= sizeof(uint16_t[4]), ">8 byte pointers not supported");
+    assert(max_offset * stride <= UINT16_MAX);
+    uint16_t *offset = &out->u16[4];
+    for (int i = 0; i < 4; i++)
+        offset[i] = (op->dither.y_offset[i] & (size - 1)) * stride;
 
     return 0;
 }
@@ -206,7 +227,7 @@ static int setup_dither(const SwsOp *op, SwsOpPriv *out)
     DECL_COMMON_PATTERNS(F32, dither##SIZE##EXT,                                \
         .op    = SWS_OP_DITHER,                                                 \
         .setup = setup_dither,                                                  \
-        .free  = (1 << SIZE) > 2 ? av_free : NULL,                              \
+        .free  = (SIZE) ? av_free : NULL,                                       \
         .dither_size = SIZE,                                                    \
     );
 

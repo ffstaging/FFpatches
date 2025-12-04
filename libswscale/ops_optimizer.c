@@ -40,7 +40,6 @@ static bool op_type_is_independent(SwsOpType op)
     case SWS_OP_LSHIFT:
     case SWS_OP_RSHIFT:
     case SWS_OP_CONVERT:
-    case SWS_OP_DITHER:
     case SWS_OP_MIN:
     case SWS_OP_MAX:
     case SWS_OP_SCALE:
@@ -53,6 +52,7 @@ static bool op_type_is_independent(SwsOpType op)
     case SWS_OP_LINEAR:
     case SWS_OP_PACK:
     case SWS_OP_UNPACK:
+    case SWS_OP_DITHER:
         return false;
     case SWS_OP_TYPE_NB:
         break;
