@@ -25,6 +25,7 @@
 #include "bswap.h"
 #include "crc.h"
 #include "error.h"
+#include "mem.h"
 
 #if CONFIG_HARDCODED_TABLES
 static const AVCRC av_crc_table[AV_CRC_MAX][257] = {
@@ -411,5 +412,76 @@ uint32_t av_crc(const AVCRC *ctx, uint32_t crc,
     while (buffer < end)
         crc = ctx[((uint8_t) crc) ^ *buffer++] ^ (crc >> 8);
 
+    return crc;
+}
+
+struct CRCPreset {
+    uint64_t poly;
+    int bits;
+    int le;
+} crc_presets[AV_CRC_MAX] = {
+    [AV_CRC_8_ATM]      = {               0x07,  8, 0 },
+    [AV_CRC_8_EBU]      = {               0x1D,  8, 0 },
+    [AV_CRC_16_ANSI]    = {             0x8005, 16, 0 },
+    [AV_CRC_16_ANSI_LE] = {             0xA001, 16, 1 },
+    [AV_CRC_16_CCITT]   = {             0x1021, 16, 0 },
+    [AV_CRC_24_IEEE]    = {           0x864CFB, 24, 0 },
+    [AV_CRC_32_IEEE]    = {         0x04C11DB7, 32, 0 },
+    [AV_CRC_32_IEEE_LE] = {         0xEDB88320, 32, 1 },
+};
+
+void av_crc_preset(AVCRCId crc, uint64_t *poly, int *bits, int *le)
+{
+    if (crc >= AV_CRC_MAX) {
+        *poly = *bits = *le = 0;
+        return;
+    }
+
+    *poly = crc_presets[crc].poly;
+    *bits = crc_presets[crc].bits;
+    *le = crc_presets[crc].le;
+}
+
+static uint64_t av_crc_wrapper(const uint8_t *ctx, uint64_t crc,
+                               const uint8_t *buffer, size_t length)
+{
+    return av_crc((const AVCRC *)ctx, crc, buffer, length);
+}
+
+int av_crc2_init(uint8_t **ctx, av_crc_fn *fn,
+                 uint64_t poly, int bits, enum AVCRCFlags flags)
+{
+    *ctx = av_malloc(4096);
+    if (!(*ctx))
+        return AVERROR(ENOMEM);
+
+    int err = av_crc_init((uint32_t *)(*ctx), flags & AV_CRC_FLAG_LE,
+                          bits, poly, 4096);
+    if (err < 0) {
+        av_freep(ctx);
+        return err;
+    }
+
+    *fn = av_crc_wrapper;
+
+    return 0;
+}
+
+uint64_t av_crc_calc(AVCRCId crc_id, uint64_t crc,
+                     uint8_t *buffer, size_t length)
+{
+    uint64_t poly;
+    int bits, le;
+    av_crc_preset(crc_id, &poly, &bits, &le);
+    if (!poly)
+        return 0;
+
+    uint8_t *ctx;
+    av_crc_fn fn;
+    av_crc2_init(&ctx, &fn, poly, bits,
+                 AV_CRC_FLAG_UNALIGNED | (le ? AV_CRC_FLAG_LE : 0));
+
+    crc = fn(ctx, crc, buffer, length);
+    av_free(&ctx);
     return crc;
 }

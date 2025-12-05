@@ -90,10 +90,68 @@ const AVCRC *av_crc_get_table(AVCRCId crc_id);
  * @param length length of the buffer
  * @return CRC updated with the data from the given block
  *
- * @see av_crc_init() "le" parameter
+x * @see av_crc_init() "le" parameter
  */
 uint32_t av_crc(const AVCRC *ctx, uint32_t crc,
                 const uint8_t *buffer, size_t length) av_pure;
+
+/**
+ * Function pointer to a function to perform a round of CRC calculations on a buffer.
+ *
+ * @note Using a different context than the one allocated during av_crc2_init()
+ * is not allowed.
+ *
+ * @param ctx the transform context
+ * @param crc the current CRC state
+ * @param buffer the buffer on which to perform CRC
+ * @param length the length of the buffer
+ *
+ * The buffer array must be aligned to the maximum required by the CPU
+ * architecture unless the AV_CRC_UNALIGNED flag was set in av_crc2_init().
+ */
+typedef uint64_t (*av_crc_fn)(const uint8_t *ctx, uint64_t crc,
+                              const uint8_t *buffer, size_t length);
+
+/**
+ * Get the parameters of a common CRC algorithm.
+ */
+void av_crc_preset(AVCRCId crc, uint64_t *poly, int *bits, int *le);
+
+enum AVCRCFlags {
+    /**
+     * Specifies that the pointer to perform the CRC on is not guaranteed to be aligned.
+     */
+    AV_CRC_FLAG_UNALIGNED = 1 << 0,
+
+    /**
+     * The lowest bit represents the coefficient for the highest
+     * exponent of the corresponding polynomial (both for poly and actual CRC).
+     * If set, you must bitswap the CRC parameter and the result of av_crc_fn
+     * if you need the standard representation (can be simplified in
+     * most cases to e.g. bswap16):
+     * av_bswap32(crc << (32-bits))
+     */
+    AV_CRC_FLAG_LE = 1 << 1,
+};
+
+/**
+ * Initialize a context and a function pointer for a CRC algorithm.
+ *
+ * @param ctx a pointer to where a CRC context will be set
+ *            NOTE: must be freed using av_free()
+ * @param fn a function pointer where the function to perform a CRC will be set
+ * @param bits the length of the polynomial
+ * @param poly the polynomial for the CRC
+ * @param flags the set of flags to use
+ */
+int av_crc2_init(uint8_t **ctx, av_crc_fn *fn,
+                 uint64_t poly, int bits, enum AVCRCFlags flags);
+
+/**
+ * Convenience wrapper function to perform a well-known CRC algorithm on a function.
+ * Guaranteed to not require new allocations.
+ */
+uint64_t av_crc_calc(AVCRCId crc_id, uint64_t crc, uint8_t *buffer, size_t length);
 
 /**
  * @}
