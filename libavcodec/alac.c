@@ -267,7 +267,9 @@ static int decode_element(AVCodecContext *avctx, AVFrame *frame, int ch_index,
         output_samples = get_bits_long(gb, 32);
     else
         output_samples = alac->max_samples_per_frame;
-    if (!output_samples || output_samples > alac->max_samples_per_frame) {
+    if (!output_samples) 
+        return 0;
+    if (output_samples > alac->max_samples_per_frame) {
         av_log(avctx, AV_LOG_ERROR, "invalid samples per frame: %"PRIu32"\n",
                output_samples);
         return AVERROR_INVALIDDATA;
