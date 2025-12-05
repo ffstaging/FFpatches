@@ -399,8 +399,12 @@ static int scalable_channel_layout_config(void *s, AVIOContext *pb,
             av_channel_layout_copy(&ch_layout, &ff_iamf_expanded_scalable_ch_layouts[expanded_loudspeaker_layout]);
         } else if (loudspeaker_layout < 10) {
             av_channel_layout_copy(&ch_layout, &ff_iamf_scalable_ch_layouts[loudspeaker_layout]);
-            if (i)
-                ch_layout.u.mask &= ~av_channel_layout_subset(&audio_element->element->layers[i-1]->ch_layout, UINT64_MAX);
+            if (i) {
+                uint64_t mask = av_channel_layout_subset(&audio_element->element->layers[i-1]->ch_layout, UINT64_MAX);
+                if ((ch_layout.u.mask & mask) != mask)
+                    return AVERROR_INVALIDDATA;
+                ch_layout.u.mask &= ~mask;
+            }
         } else
             ch_layout = (AVChannelLayout){ .order = AV_CHANNEL_ORDER_UNSPEC,
                                                           .nb_channels = substream_count +
