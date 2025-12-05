@@ -280,6 +280,7 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *p,
                         int *got_frame, AVPacket *avpkt)
 {
     DPXDecContext *dpx = avctx->priv_data;
+    dpx->unpadded_10bit = 0;
 
     enum AVPixelFormat pix_fmt;
     const uint8_t *buf = avpkt->data;
