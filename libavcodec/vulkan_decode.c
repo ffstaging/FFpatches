@@ -1089,7 +1089,7 @@ static void free_profile_data(AVHWFramesContext *hwfc)
 int ff_vk_frame_params(AVCodecContext *avctx, AVBufferRef *hw_frames_ctx)
 {
     VkFormat vkfmt = VK_FORMAT_UNDEFINED;
-    int err, dedicated_dpb;
+    int err, dedicated_dpb, num_imgs = 1;
     AVHWFramesContext *frames_ctx = (AVHWFramesContext*)hw_frames_ctx->data;
     AVVulkanFramesContext *hwfc = frames_ctx->hwctx;
     FFVulkanDecodeContext *dec = avctx->internal->hwaccel_priv_data;
@@ -1141,6 +1141,20 @@ int ff_vk_frame_params(AVCodecContext *avctx, AVBufferRef *hw_frames_ctx)
             /* mpv has issues with bgr0 mapping, so just remap it */
             frames_ctx->sw_format = AV_PIX_FMT_RGB0;
             break;
+        case AV_PIX_FMT_YUV422P10: /* ProRes needs to clear the input image, which is not possible on YUV formats */
+        case AV_PIX_FMT_YUV444P10:
+        case AV_PIX_FMT_YUV422P12:
+        case AV_PIX_FMT_YUV444P12:
+            vkfmt = VK_FORMAT_R16_UNORM;
+            num_imgs = 3;
+            break;
+        case AV_PIX_FMT_YUVA422P10: /* Ditto */
+        case AV_PIX_FMT_YUVA444P10:
+        case AV_PIX_FMT_YUVA422P12:
+        case AV_PIX_FMT_YUVA444P12:
+            vkfmt = VK_FORMAT_R16_UNORM;
+            num_imgs = 4;
+            break;
         default:
             break;
         }
@@ -1151,11 +1165,13 @@ int ff_vk_frame_params(AVCodecContext *avctx, AVBufferRef *hw_frames_ctx)
     frames_ctx->height = FFALIGN(avctx->coded_height, 1 << pdesc->log2_chroma_h);
     frames_ctx->format = AV_PIX_FMT_VULKAN;
 
-    hwfc->format[0]    = vkfmt;
-    hwfc->tiling       = VK_IMAGE_TILING_OPTIMAL;
-    hwfc->usage        = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                         VK_IMAGE_USAGE_STORAGE_BIT      |
-                         VK_IMAGE_USAGE_SAMPLED_BIT;
+    for (int i = 0; i < num_imgs; ++i)
+        hwfc->format[i] = vkfmt;
+
+    hwfc->tiling = VK_IMAGE_TILING_OPTIMAL;
+    hwfc->usage  = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                   VK_IMAGE_USAGE_STORAGE_BIT      |
+                   VK_IMAGE_USAGE_SAMPLED_BIT;
 
     if (prof) {
         FFVulkanDecodeShared *ctx;
