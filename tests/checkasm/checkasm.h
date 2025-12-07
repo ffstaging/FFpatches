@@ -93,6 +93,7 @@ void checkasm_check_bswapdsp(void);
 void checkasm_check_cavsdsp(void);
 void checkasm_check_colordetect(void);
 void checkasm_check_colorspace(void);
+void checkasm_check_crc(void);
 void checkasm_check_dcadsp(void);
 void checkasm_check_diracdsp(void);
 void checkasm_check_exrdsp(void);
@@ -199,6 +200,7 @@ extern uint64_t bench_runs;
 
 /* Decide whether or not the specified function needs to be tested */
 #define check_func(func, ...) (checkasm_save_context(), func_ref = checkasm_check_func((func_new = func), __VA_ARGS__))
+#define check_opaque(opaque, ...) (checkasm_save_context(), checkasm_check_func(opaque, __VA_ARGS__))
 
 /* Declare the function prototype. The first argument is the return value, the remaining
  * arguments are the function parameters. Naming parameters is optional. */
@@ -214,9 +216,14 @@ extern uint64_t bench_runs;
 
 /* Call the reference function */
 #define call_ref(...)\
+    call_ref_ext((func_type *)func_ref, __VA_ARGS__)
+
+#define call_ref_ext(func, ...) \
     (checkasm_set_signal_handler_state(1),\
-     ((func_type *)func_ref)(__VA_ARGS__));\
+     (func)(__VA_ARGS__));\
     checkasm_set_signal_handler_state(0)
+
+#define call_new(...) call_new_ext(((func_type *)func_new), __VA_ARGS__)
 
 #if ARCH_X86 && HAVE_X86ASM
 /* Verifies that clobbered callee-saved registers are properly saved and restored
@@ -249,10 +256,10 @@ void checkasm_stack_clobber(uint64_t clobber, ...);
         ((cpu_flags) & av_get_cpu_flags()) ? (void *)checkasm_checked_call_emms : \
                                              (void *)checkasm_checked_call;
 #define CLOB (UINT64_C(0xdeadbeefdeadbeef))
-#define call_new(...) (checkasm_set_signal_handler_state(1),\
+#define call_new_ext(func, ...) (checkasm_set_signal_handler_state(1),\
                        checkasm_stack_clobber(CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,\
                                               CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB),\
-                       checked_call(func_new, 0, 0, 0, 0, 0, __VA_ARGS__));\
+                       checked_call((func), 0, 0, 0, 0, 0, __VA_ARGS__));\
                       checkasm_set_signal_handler_state(0)
 #elif ARCH_X86_32
 #define declare_new(ret, ...) ret (*checked_call)(void *, __VA_ARGS__) = (void *)checkasm_checked_call;
@@ -260,9 +267,9 @@ void checkasm_stack_clobber(uint64_t clobber, ...);
 #define declare_new_emms(cpu_flags, ret, ...) ret (*checked_call)(void *, __VA_ARGS__) = \
         ((cpu_flags) & av_get_cpu_flags()) ? (void *)checkasm_checked_call_emms :        \
                                              (void *)checkasm_checked_call;
-#define call_new(...)\
+#define call_new_ext(func, ...)\
     (checkasm_set_signal_handler_state(1),\
-     checked_call(func_new, __VA_ARGS__));\
+     checked_call((func), __VA_ARGS__));\
     checkasm_set_signal_handler_state(0)
 #endif
 #elif ARCH_ARM && HAVE_ARMV5TE_EXTERNAL
@@ -275,9 +282,9 @@ extern void (*checkasm_checked_call)(void *func, int dummy, ...);
 #define declare_new(ret, ...) ret (*checked_call)(void *, int dummy, __VA_ARGS__, \
                                                   int, int, int, int, int, int, int, int, \
                                                   int, int, int, int, int, int, int) = (void *)checkasm_checked_call;
-#define call_new(...) \
+#define call_new_ext(func, ...) \
     (checkasm_set_signal_handler_state(1),\
-     checked_call(func_new, 0, __VA_ARGS__, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0));\
+     checked_call((func), 0, __VA_ARGS__, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0));\
     checkasm_set_signal_handler_state(0)
 #elif ARCH_AARCH64 && !defined(__APPLE__)
 void checkasm_stack_clobber(uint64_t clobber, ...);
@@ -287,10 +294,10 @@ void checkasm_checked_call(void *func, ...);
                                                   int, int, int, int, int, int, int)\
                               = (void *)checkasm_checked_call;
 #define CLOB (UINT64_C(0xdeadbeefdeadbeef))
-#define call_new(...) (checkasm_set_signal_handler_state(1),\
+#define call_new_ext(func, ...) (checkasm_set_signal_handler_state(1),\
                        checkasm_stack_clobber(CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,\
                                               CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB,CLOB),\
-                      checked_call(func_new, 0, 0, 0, 0, 0, 0, 0, __VA_ARGS__,\
+                      checked_call((func), 0, 0, 0, 0, 0, 0, 0, __VA_ARGS__,\
                                    7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0));\
                      checkasm_set_signal_handler_state(0)
 #elif ARCH_RISCV
@@ -300,15 +307,15 @@ void *checkasm_get_wrapper(void);
 #if HAVE_RV && (__riscv_xlen == 64) && defined (__riscv_d)
 #define declare_new(ret, ...) \
     ret (*checked_call)(__VA_ARGS__) = checkasm_get_wrapper();
-#define call_new(...) \
+#define call_new_ext(func, ...) \
     (checkasm_set_signal_handler_state(1),\
-     checkasm_set_function(func_new), checked_call(__VA_ARGS__));\
+     checkasm_set_function(func), checked_call(__VA_ARGS__));\
     checkasm_set_signal_handler_state(0)
 #else
 #define declare_new(ret, ...)
-#define call_new(...)\
+#define call_new_ext(func, ...)\
     (checkasm_set_signal_handler_state(1),\
-     ((func_type *)func_new)(__VA_ARGS__));\
+     (func)(__VA_ARGS__));\
     checkasm_set_signal_handler_state(0)
 #endif
 #else
@@ -316,9 +323,9 @@ void *checkasm_get_wrapper(void);
 #define declare_new_float(ret, ...)
 #define declare_new_emms(cpu_flags, ret, ...)
 /* Call the function */
-#define call_new(...)\
+#define call_new_ext(func, ...)\
     (checkasm_set_signal_handler_state(1),\
-     ((func_type *)func_new)(__VA_ARGS__));\
+     (func)(__VA_ARGS__));\
     checkasm_set_signal_handler_state(0)
 #endif
 
@@ -373,12 +380,12 @@ typedef struct CheckasmPerf {
     } while (0)
 
 /* Benchmark the function */
-#define bench_new(...)\
+#define bench(func, ...)\
     do {\
         if (checkasm_bench_func()) {\
             struct CheckasmPerf *perf = checkasm_get_perf_context();\
             av_unused const int sysfd = perf->sysfd;\
-            func_type *tfunc = func_new;\
+            func_type *tfunc = func;\
             uint64_t tsum = 0;\
             uint64_t ti, tcount = 0;\
             uint64_t t = 0; \
@@ -401,10 +408,12 @@ typedef struct CheckasmPerf {
         }\
     } while (0)
 #else
-#define bench_new(...) while(0)
+#define bench(func, ...) while(0)
 #define PERF_START(t)  while(0)
 #define PERF_STOP(t)   while(0)
 #endif
+
+#define bench_new(...) bench(func_new, __VA_ARGS__)
 
 #define BUF_RECT(type, name, w, h) \
     LOCAL_ALIGNED_32(type, name##_buf, [((h)+32)*(FFALIGN(w,64)+64) + 64]); \
