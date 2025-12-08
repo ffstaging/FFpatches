@@ -129,7 +129,6 @@ static void PREFIX_h264_chroma_mc8_altivec(uint8_t * dst, const uint8_t * src,
     const vec_s16 v32ss = vec_sl(vec_splat_s16(1),vec_splat_u16(5));
     const vec_u16 v6us = vec_splat_u16(6);
 
-    vec_u8 vsrcperm0, vsrcperm1;
     vec_u8 vsrc0uc, vsrc1uc;
     vec_s16 vsrc0ssH, vsrc1ssH;
     vec_u8 vsrc2uc, vsrc3uc;
@@ -138,8 +137,8 @@ static void PREFIX_h264_chroma_mc8_altivec(uint8_t * dst, const uint8_t * src,
 #if HAVE_BIGENDIAN
     register int loadSecond = (((unsigned long)src) % 16) <= 7 ? 0 : 1;
     register int reallyBadAlign = (((unsigned long)src) % 16) == 15 ? 1 : 0;
-    vsrcperm0 = vec_lvsl(0, src);
-    vsrcperm1 = vec_lvsl(1, src);
+    vec_u8 vsrcperm0 = vec_lvsl(0, src);
+    vec_u8 vsrcperm1 = vec_lvsl(1, src);
 #endif
 
     if (((unsigned long)dst) % 16 == 0) {
@@ -204,7 +203,6 @@ static void PREFIX_no_rnd_vc1_chroma_mc8_altivec(uint8_t *dst, const uint8_t *sr
     const vec_s16 v28ss = vec_sub(vec_sl(vec_splat_s16(1),vec_splat_u16(5)),vec_splat_s16(4));
     const vec_u16 v6us  = vec_splat_u16(6);
 
-    vec_u8 vsrcperm0, vsrcperm1;
     vec_u8 vsrc0uc, vsrc1uc;
     vec_s16 vsrc0ssH, vsrc1ssH;
     vec_u8 vsrc2uc, vsrc3uc;
@@ -213,8 +211,8 @@ static void PREFIX_no_rnd_vc1_chroma_mc8_altivec(uint8_t *dst, const uint8_t *sr
 #if HAVE_BIGENDIAN
     register int loadSecond     = (((unsigned long)src) % 16) <= 7 ? 0 : 1;
     register int reallyBadAlign = (((unsigned long)src) % 16) == 15 ? 1 : 0;
-    vsrcperm0 = vec_lvsl(0, src);
-    vsrcperm1 = vec_lvsl(1, src);
+    vec_u8 vsrcperm0 = vec_lvsl(0, src);
+    vec_u8 vsrcperm1 = vec_lvsl(1, src);
 #endif
 
     if (((unsigned long)dst) % 16 == 0) {
