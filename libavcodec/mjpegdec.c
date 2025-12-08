@@ -2221,6 +2221,13 @@ int ff_mjpeg_find_marker(MJpegDecodeContext *s,
     int start_code;
     start_code = find_marker(buf_ptr, buf_end);
 
+    /* for hardware decoders we can just hand the raw scan to the accelerator */
+    if (s->avctx->hwaccel) {
+        *unescaped_buf_ptr  = *buf_ptr;
+        *unescaped_buf_size = buf_end - *buf_ptr;
+        return start_code;
+    }
+
     av_fast_padded_malloc(&s->buffer, &s->buffer_size, buf_end - *buf_ptr);
     if (!s->buffer)
         return AVERROR(ENOMEM);
@@ -2560,6 +2567,12 @@ eoi_parser:
             if ((ret = ff_mjpeg_decode_sos(s, NULL, 0, NULL)) < 0 &&
                 (avctx->err_recognition & AV_EF_EXPLODE))
                 goto fail;
+
+            /* hardware decoders consume the raw scan directly */
+            if (avctx->hwaccel) {
+                buf_ptr = buf_end;
+                goto eoi_parser;
+            }
             break;
         case DRI:
             if ((ret = mjpeg_decode_dri(s)) < 0)
