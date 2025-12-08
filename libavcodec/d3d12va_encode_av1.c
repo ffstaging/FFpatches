@@ -580,8 +580,28 @@ static int d3d12va_encode_av1_init_sequence_params(AVCodecContext *avctx)
     }
 
     if (!(support.SupportFlags & D3D12_VIDEO_ENCODER_SUPPORT_FLAG_GENERAL_SUPPORT_OK)) {
-        av_log(avctx, AV_LOG_ERROR, "Driver does not support some request D3D12VA AV1 features. %#x\n",
+        av_log(avctx, AV_LOG_ERROR, "Driver does not support requested features. ValidationFlags: %#x\n",
                support.ValidationFlags);
+
+        if (support.ValidationFlags & D3D12_VIDEO_ENCODER_VALIDATION_FLAG_CODEC_NOT_SUPPORTED)
+            av_log(avctx, AV_LOG_ERROR, "  - Codec not supported\n");
+        if (support.ValidationFlags & D3D12_VIDEO_ENCODER_VALIDATION_FLAG_INPUT_FORMAT_NOT_SUPPORTED)
+            av_log(avctx, AV_LOG_ERROR, "  - Input format not supported\n");
+        if (support.ValidationFlags & D3D12_VIDEO_ENCODER_VALIDATION_FLAG_CODEC_CONFIGURATION_NOT_SUPPORTED)
+            av_log(avctx, AV_LOG_ERROR, "  - Codec configuration not supported\n");
+        if (support.ValidationFlags & D3D12_VIDEO_ENCODER_VALIDATION_FLAG_RATE_CONTROL_MODE_NOT_SUPPORTED)
+            av_log(avctx, AV_LOG_ERROR, "  - Rate control mode not supported\n");
+        if (support.ValidationFlags & D3D12_VIDEO_ENCODER_VALIDATION_FLAG_RATE_CONTROL_CONFIGURATION_NOT_SUPPORTED)
+            av_log(avctx, AV_LOG_ERROR, "  - Rate control configuration not supported\n");
+        if (support.ValidationFlags & D3D12_VIDEO_ENCODER_VALIDATION_FLAG_INTRA_REFRESH_MODE_NOT_SUPPORTED)
+            av_log(avctx, AV_LOG_ERROR, "  - Intra refresh mode not supported\n");
+        if (support.ValidationFlags & D3D12_VIDEO_ENCODER_VALIDATION_FLAG_SUBREGION_LAYOUT_MODE_NOT_SUPPORTED)
+            av_log(avctx, AV_LOG_ERROR, "  - Subregion layout mode not supported\n");
+        if (support.ValidationFlags & D3D12_VIDEO_ENCODER_VALIDATION_FLAG_RESOLUTION_NOT_SUPPORTED_IN_LIST)
+            av_log(avctx, AV_LOG_ERROR, "  - Resolution not supported\n");
+        if (support.ValidationFlags & D3D12_VIDEO_ENCODER_VALIDATION_FLAG_GOP_STRUCTURE_NOT_SUPPORTED)
+            av_log(avctx, AV_LOG_ERROR, "  - GOP structure not supported\n");
+
         return AVERROR(EINVAL);
     }
 
