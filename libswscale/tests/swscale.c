@@ -223,6 +223,21 @@ error:
     return ret;
 }
 
+static void print_test(int level, const AVFrame *src, const AVFrame *dst,
+                       struct mode mode, const float ssim[4])
+{
+    av_log(NULL, level, "%-14s %dx%d -> %-14s %3dx%3d, flags=0x%08x dither=%u\n",
+           av_get_pix_fmt_name(src->format), src->width, src->height,
+           av_get_pix_fmt_name(dst->format), dst->width, dst->height,
+           mode.flags, mode.dither);
+
+    /* Make the SSIM dump just slightly more verbose - not enough to
+     * bump it to the next category, but enough to be selectively opted
+     * out of if the user really wants to. */
+    av_log(NULL, level + 4, "  SSIM {Y=%f U=%f V=%f A=%f}\n",
+           ssim[0], ssim[1], ssim[2], ssim[3]);
+}
+
 /* Runs a series of ref -> src -> dst -> out, and compares out vs ref */
 static int run_test(enum AVPixelFormat src_fmt, enum AVPixelFormat dst_fmt,
                     int dst_w, int dst_h, struct mode mode, struct options opts,
@@ -292,26 +307,18 @@ static int run_test(enum AVPixelFormat src_fmt, enum AVPixelFormat dst_fmt,
     }
 
     get_ssim(ssim, out, ref, comps);
-    av_log(NULL, AV_LOG_INFO, "%s %dx%d -> %s %3dx%3d, flags=0x%x dither=%u\n",
-           av_get_pix_fmt_name(src->format), src->width, src->height,
-           av_get_pix_fmt_name(dst->format), dst->width, dst->height,
-           mode.flags, mode.dither);
-
-    av_log(NULL, AV_LOG_VERBOSE - 4, "  SSIM {Y=%f U=%f V=%f A=%f}\n",
-           ssim[0], ssim[1], ssim[2], ssim[3]);
-
     loss = get_loss(ssim);
+
     if (loss - expected_loss > 1e-4 && dst_w >= ref->width && dst_h >= ref->height) {
         const int bad = loss - expected_loss > 1e-2;
         const int level = bad ? AV_LOG_ERROR : AV_LOG_WARNING;
-        av_log(NULL, level, "%s %dx%d -> %s %3dx%3d, flags=0x%x dither=%u\n",
-               av_get_pix_fmt_name(src->format), src->width, src->height,
-               av_get_pix_fmt_name(dst->format), dst->width, dst->height,
-               mode.flags, mode.dither);
+        print_test(level, src, dst, mode, ssim);
         av_log(NULL, level, "  loss %g is %s by %g, expected loss %g\n",
                loss, bad ? "WORSE" : "worse", loss - expected_loss, expected_loss);
         if (bad)
             goto error;
+    } else {
+        print_test(AV_LOG_INFO, src, dst, mode, ssim);
     }
 
     if (!ssim_ref && sws_isSupportedInput(src->format) && sws_isSupportedOutput(dst->format)) {
@@ -367,12 +374,12 @@ static int run_test(enum AVPixelFormat src_fmt, enum AVPixelFormat dst_fmt,
         }
 
         if (av_log_get_level() >= AV_LOG_INFO) {
-            printf("  time=%"PRId64" us, ref=%"PRId64" us, speedup=%.3fx %s%s\033[0m\n",
+            printf("  time=%6"PRId64" us, ref=%6"PRId64" us, speedup=%6.3fx %s%s\033[0m\n",
                    time / opts.iters, time_ref / opts.iters, ratio,
                    speedup_color(ratio), ratio >= 1.0 ? "faster" : "slower");
         }
     } else if (opts.bench) {
-        av_log(NULL, AV_LOG_INFO, "  time=%"PRId64" us\n", time / opts.iters);
+        av_log(NULL, AV_LOG_INFO, "  time=%6"PRId64" us\n", time / opts.iters);
     }
 
     fflush(stdout);
@@ -509,6 +516,11 @@ int main(int argc, char **argv)
     AVLFG rand;
     int ret = -1;
 
+    const AVClass *sws_class = sws_get_class();
+    const AVOption *flags_opt = av_opt_find(&sws_class, "sws_flags", NULL, 0,
+                                            AV_OPT_SEARCH_FAKE_OBJ);
+    av_assert0(flags_opt);
+
     for (int i = 1; i < argc; i += 2) {
         if (!strcmp(argv[i], "-help") || !strcmp(argv[i], "--help")) {
             fprintf(stderr,
@@ -576,7 +588,11 @@ int main(int argc, char **argv)
             opts.w = 1920;
             opts.h = 1080;
         } else if (!strcmp(argv[i], "-flags")) {
-            opts.flags = strtol(argv[i + 1], NULL, 0);
+            ret = av_opt_eval_flags(&sws_class, flags_opt, argv[i + 1], &opts.flags);
+            if (ret < 0) {
+                fprintf(stderr, "invalid flags %s\n", argv[i + 1]);
+                goto error;
+            }
         } else if (!strcmp(argv[i], "-dither")) {
             opts.dither = atoi(argv[i + 1]);
         } else if (!strcmp(argv[i], "-unscaled")) {
