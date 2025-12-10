@@ -98,6 +98,12 @@ typedef struct Interval {
     int enabled;               ///< current time detected inside this interval
 } Interval;
 
+typedef enum {
+    CMD_MODE_GRAPH = 0,
+    CMD_MODE_FORWARD,
+    CMD_MODE_BACKWARD
+} SendCmdMode;
+
 typedef struct SendCmdContext {
     const AVClass *class;
     Interval *intervals;
@@ -105,6 +111,8 @@ typedef struct SendCmdContext {
 
     char *commands_filename;
     char *commands_str;
+
+    int   mode;
 } SendCmdContext;
 
 #define OFFSET(x) offsetof(SendCmdContext, x)
@@ -114,6 +122,10 @@ static const AVOption options[] = {
     { "c",        "set commands", OFFSET(commands_str), AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, FLAGS },
     { "filename", "set commands file",  OFFSET(commands_filename), AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, FLAGS },
     { "f",        "set commands file",  OFFSET(commands_filename), AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, FLAGS },
+    { "mode",     "set command propagation mode", OFFSET(mode), AV_OPT_TYPE_INT, {.i64=CMD_MODE_GRAPH}, CMD_MODE_GRAPH, CMD_MODE_BACKWARD, FLAGS, "mode" },
+        { "graph",    "graph send command mode", 0, AV_OPT_TYPE_CONST, {.i64=CMD_MODE_GRAPH},    0, 0, FLAGS, "mode" },
+        { "forward",  "forward traversal mode",  0, AV_OPT_TYPE_CONST, {.i64=CMD_MODE_FORWARD},  0, 0, FLAGS, "mode" },
+        { "backward", "backward traversal mode", 0, AV_OPT_TYPE_CONST, {.i64=CMD_MODE_BACKWARD}, 0, 0, FLAGS, "mode" },
     { NULL }
 };
 
@@ -530,6 +542,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *ref)
             for (j = 0; flags && j < interval->nb_commands; j++) {
                 Command *cmd = &interval->commands[j];
                 char *cmd_arg = cmd->arg;
+                int send_flags = 0;
                 char buf[1024];
 
                 if (cmd->flags & flags) {
@@ -561,16 +574,56 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *ref)
                             return AVERROR(ENOMEM);
                         }
                     }
+
+                    if (s->mode == CMD_MODE_GRAPH)
+                        send_flags = AVFILTER_CMD_FLAG_ONE;
+                    else if (s->mode == CMD_MODE_FORWARD)
+                        send_flags = AVFILTER_CMD_FLAG_FORWARD;
+                    else if (s->mode == CMD_MODE_BACKWARD)
+                        send_flags = AVFILTER_CMD_FLAG_BACKWARD;
+
                     av_log(ctx, AV_LOG_VERBOSE,
-                           "Processing command #%d target:%s command:%s arg:%s\n",
-                           cmd->index, cmd->target, cmd->command, cmd_arg);
-                    ret = avfilter_graph_send_command(inl->graph,
-                                                      cmd->target, cmd->command, cmd_arg,
-                                                      buf, sizeof(buf),
-                                                      AVFILTER_CMD_FLAG_ONE);
+                            "Processing command #%d target:%s command:%s arg:%s\n",
+                            cmd->index, cmd->target, cmd->command, cmd_arg);
+
+                    if (s->mode == CMD_MODE_GRAPH) {
+                        ret = avfilter_graph_send_command(inl->graph,
+                                                          cmd->target, cmd->command, cmd_arg,
+                                                          buf, sizeof(buf),
+                                                          send_flags);
+                    } else {
+                        AVFilterContext *start_filter = NULL;
+
+                        if (cmd->target && cmd->target[0]) {
+                            for (int k = 0; k < inl->graph->nb_filters; k++) {
+                                AVFilterContext *filter = inl->graph->filters[k];
+
+                                if (filter->name && strcmp(filter->name, cmd->target) == 0) {
+                                    start_filter = filter;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!start_filter) {
+                            av_log(ctx, AV_LOG_ERROR,
+                                "Cannot find target filter instance '%s' for command #%d in non-GRAPH mode\n",
+                                cmd->target ? cmd->target : "(null)", j);
+
+                            if (cmd->flags & COMMAND_FLAG_EXPR)
+                                av_freep(&cmd_arg);
+
+                            continue;
+                        }
+
+                        ret = avfilter_process_command(start_filter, cmd->command,
+                                                       cmd_arg, buf, sizeof(buf), send_flags);
+                    }
+
                     av_log(ctx, AV_LOG_VERBOSE,
-                           "Command reply for command #%d: ret:%s res:%s\n",
-                           cmd->index, av_err2str(ret), buf);
+                        "Command reply for command #%d: ret:%s res:%s\n",
+                        cmd->index, av_err2str(ret), buf);
+
                     if (cmd->flags & COMMAND_FLAG_EXPR)
                         av_freep(&cmd_arg);
                 }

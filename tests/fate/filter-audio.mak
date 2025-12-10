@@ -451,3 +451,45 @@ FATE_AFILTER-yes := $(if $(call FRAMECRC), $(FATE_AFILTER-yes))
 FATE_SAMPLES_AVCONV += $(FATE_AFILTER_SAMPLES-yes)
 FATE_FFMPEG += $(FATE_AFILTER-yes)
 fate-afilter: $(FATE_AFILTER-yes) $(FATE_AFILTER_SAMPLES-yes)
+
+# FATE tests for sendcmd/asendcmd with new propagation modes
+
+# Test 'graph' mode: commands affect multiple filters in a graph,
+# demonstrating cross-filter parameter propagation.
+FATE_AFILTER-$(call FILTERDEMDECENCMUX, ASENDCMD VOLUME ANULL AMIX, WAV, PCM_S16LE, PCM_S16LE, WAV) += fate-filter-sendcmd-graph
+fate-filter-sendcmd-graph: tests/data/filtergraphs/sendcmd-graph
+fate-filter-sendcmd-graph: CMD = ffmpeg \
+	-f lavfi -i "sine=frequency=440:sample_rate=44100:duration=5" \
+	-f lavfi -i "sine=frequency=880:sample_rate=44100:duration=5" \
+	-filter_complex_script $(TARGET_PATH)/tests/data/filtergraphs/sendcmd-graph \
+	-map "[mixout]" -t 5 -f framecrc -
+
+tests/data/filtergraphs/sendcmd-graph: TAG = GEN
+tests/data/filtergraphs/sendcmd-graph: ffmpeg$(PROGSSUF)$(EXESUF) | tests/data/filtergraphs
+	$(M)echo '[0:a]asendcmd=mode=graph:commands=0.0 volume volume 0.5,anull,volume=precision=fixed:volume=1.0[a1];[1:a]asendcmd=mode=graph:commands=0.0 volume volume 0.3,anull,volume=precision=fixed:volume=1.0[a2];[a1][a2]amix=inputs=2[mixout]' > $(TARGET_PATH)/tests/data/filtergraphs/sendcmd-graph
+
+# Test 'forward' mode: command propagates forward to filters downstream.
+FATE_AFILTER-$(call FILTERDEMDECENCMUX, ASENDCMD VOLUME ADELAY AMIX, WAV, PCM_S16LE, PCM_S16LE, WAV) += fate-filter-sendcmd-forward
+fate-filter-sendcmd-forward: tests/data/filtergraphs/sendcmd-forward
+fate-filter-sendcmd-forward: CMD = ffmpeg \
+	-f lavfi -i "sine=frequency=440:sample_rate=44100:duration=5" \
+	-f lavfi -i "sine=frequency=880:sample_rate=44100:duration=5" \
+	-filter_complex_script $(TARGET_PATH)/tests/data/filtergraphs/sendcmd-forward \
+	-map "[mixout]" -t 5 -f framecrc -
+
+tests/data/filtergraphs/sendcmd-forward: TAG = GEN
+tests/data/filtergraphs/sendcmd-forward: ffmpeg$(PROGSSUF)$(EXESUF) | tests/data/filtergraphs
+	$(M)echo '[0:a]asendcmd=mode=forward:commands=0.0 volume volume 0.5,volume=precision=fixed:volume=1.0,aformat=sample_fmts=fltp,adelay=1000,volume=precision=fixed:volume=1.0[a1];[1:a]volume=precision=fixed:volume=1.0,aformat=sample_fmts=fltp,adelay=2000,volume=precision=fixed:volume=1.0[a2];[a1][a2]amix=inputs=2[mixout]' > $(TARGET_PATH)/tests/data/filtergraphs/sendcmd-forward
+
+# Test 'backward' mode: command propagates backward to upstream filters.
+FATE_AFILTER-$(call FILTERDEMDECENCMUX, ASENDCMD VOLUME ADELAY AMIX, WAV, PCM_S16LE, PCM_S16LE, WAV) += fate-filter-sendcmd-backward
+fate-filter-sendcmd-backward: tests/data/filtergraphs/sendcmd-backward
+fate-filter-sendcmd-backward: CMD = ffmpeg \
+	-f lavfi -i "sine=frequency=440:sample_rate=44100:duration=5" \
+	-f lavfi -i "sine=frequency=880:sample_rate=44100:duration=5" \
+	-filter_complex_script $(TARGET_PATH)/tests/data/filtergraphs/sendcmd-backward \
+	-map "[mixout]" -t 5 -f framecrc -
+
+tests/data/filtergraphs/sendcmd-backward: TAG = GEN
+tests/data/filtergraphs/sendcmd-backward: ffmpeg$(PROGSSUF)$(EXESUF) | tests/data/filtergraphs
+	$(M)echo '[0:a]volume=precision=fixed:volume=1.0,aformat=sample_fmts=fltp,adelay=1000,volume=precision=fixed:volume=1.0[a1];[1:a]volume=precision=fixed:volume=1.0,aformat=sample_fmts=fltp,adelay=2000,volume=precision=fixed:volume=1.0[a2];[a1][a2]amix=inputs=2,asendcmd=mode=backward:commands=0.0 volume volume 0.3[mixout]' > $(TARGET_PATH)/tests/data/filtergraphs/sendcmd-backward
