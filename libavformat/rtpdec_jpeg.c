@@ -353,9 +353,25 @@ static int jpeg_parse_packet(AVFormatContext *ctx, PayloadContext *jpeg,
     }
 
     if (off != avio_tell(jpeg->frame) - jpeg->hdr_size) {
-        av_log(ctx, AV_LOG_ERROR,
-               "Missing packets; dropping frame.\n");
-        return AVERROR(EAGAIN);
+        /* The fragment offset may include the quant table data. Allow the
+         * offset to differ by the size of the quant header and table.
+         */
+
+        // Default to 2 * 64 byte tables for 8 bit precision.
+        int qtable_len =  128;
+
+        // Use the q table len value stored in the ctx
+        if (q > 127 && q < 255)
+            qtable_len = jpeg->qtables_len[q-128];
+
+        // account for MBZ, Precision, and Length bytes.
+        qtable_len += 4;
+
+        if (off != (avio_tell(jpeg->frame) - (jpeg->hdr_size - qtable_len))) {
+            av_log(ctx, AV_LOG_ERROR,
+                "Missing packets; dropping frame.\n");
+            return AVERROR(EAGAIN);
+        }
     }
 
     /* Copy data to frame buffer. */
