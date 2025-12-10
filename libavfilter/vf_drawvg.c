@@ -242,6 +242,8 @@ struct VGSParameter {
 // for the arguments.
 #define MAX_PROC_ARGS (MAX_COMMAND_PARAMS - 2)
 
+#define VGS_MAX_RECURSION_DEPTH 1024
+
 // Definition of each command.
 
 struct VGSCommandSpec {
@@ -435,6 +437,7 @@ struct VGSParser {
 
     const char **proc_names;
     int proc_names_count;
+    int depth; ///< Current recursion depth while parsing subprograms.
 
     // Store the variable names for the default ones (from `vgs_default_vars`)
     // and the variables created with `setvar`.
@@ -1232,6 +1235,7 @@ static void vgs_parser_init(struct VGSParser *parser, const char *source) {
 
     parser->proc_names = NULL;
     parser->proc_names_count = 0;
+    parser->depth = 0;
 
     memset(parser->var_names, 0, sizeof(parser->var_names));
     for (int i = 0; i < VAR_U0; i++)
@@ -1264,11 +1268,20 @@ static int vgs_parse(
     int subprogram
 ) {
     struct VGSParserToken token;
+    int ret = 0;
 
     memset(program, 0, sizeof(*program));
 
+    parser->depth++;
+    if (parser->depth > VGS_MAX_RECURSION_DEPTH) {
+        av_log(log_ctx, AV_LOG_ERROR,
+               "Exceeded maximum drawvg block nesting depth (%d)\n",
+               VGS_MAX_RECURSION_DEPTH);
+        ret = AVERROR(EINVAL);
+        goto out;
+    }
+
     for (;;) {
-        int ret;
         const struct VGSCommandSpec *cmd;
 
         ret = vgs_parser_next_token(log_ctx, parser, &token, 1);
@@ -1286,7 +1299,7 @@ static int vgs_parse(
                 FFSWAP(int, program->proc_names_count, parser->proc_names_count);
             }
 
-            return 0;
+            goto out;
 
         case TOKEN_WORD:
             // The token must be a valid command.
@@ -1304,21 +1317,26 @@ static int vgs_parse(
             if (!subprogram)
                 goto invalid_token;
 
-            return 0;
+            goto out;
 
         default:
             goto invalid_token;
         }
     }
 
-    return AVERROR_BUG; /* unreachable */
+    ret = AVERROR_BUG; /* unreachable */
+    goto out;
 
 invalid_token:
     vgs_log_invalid_token(log_ctx, parser, &token, "Expected command.");
 
 fail:
     vgs_free(program);
-    return AVERROR(EINVAL);
+    ret = AVERROR(EINVAL);
+
+out:
+    parser->depth--;
+    return ret;
 }
 
 /*
