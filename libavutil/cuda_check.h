@@ -33,16 +33,22 @@ static inline int ff_cuda_check(void *avctx,
                                 void *cuGetErrorName_fn, void *cuGetErrorString_fn,
                                 CUresult err, const char *func)
 {
-    const char *err_name;
-    const char *err_string;
+    const char *err_name = NULL;
+    const char *err_string = NULL;
+    CUresult get_err;
 
     av_log(avctx, AV_LOG_TRACE, "Calling %s\n", func);
 
     if (err == CUDA_SUCCESS)
         return 0;
 
-    ((cuda_check_GetErrorName *)cuGetErrorName_fn)(err, &err_name);
-    ((cuda_check_GetErrorString *)cuGetErrorString_fn)(err, &err_string);
+    get_err = ((cuda_check_GetErrorName *)cuGetErrorName_fn)(err, &err_name);
+    if (get_err != CUDA_SUCCESS)
+        err_name = NULL;
+
+    get_err = ((cuda_check_GetErrorString *)cuGetErrorString_fn)(err, &err_string);
+    if (get_err != CUDA_SUCCESS)
+        err_string = NULL;
 
     av_log(avctx, AV_LOG_ERROR, "%s failed", func);
     if (err_name && err_string)
