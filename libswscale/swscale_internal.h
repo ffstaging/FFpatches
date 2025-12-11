@@ -69,6 +69,8 @@
 
 #define RETCODE_USE_CASCADE -12345
 
+#define SWS_ACCEL_BE_ALTIVEC (AV_HAVE_BIGENDIAN && LIBSWSCALE_VERSION_MAJOR < 10)
+
 typedef struct SwsInternal SwsInternal;
 
 static inline SwsInternal *sws_internal(const SwsContext *sws)

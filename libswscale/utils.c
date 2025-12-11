@@ -548,7 +548,6 @@ static av_cold int initFilter(int16_t **outFilter, int32_t **filterPos,
     }
 
     // Note the +1 is for the MMX scaler which reads over the end
-    /* align at 16 for AltiVec (needed by hScale_altivec_real) */
     if (!FF_ALLOCZ_TYPED_ARRAY(*outFilter, *outFilterSize * (dstW + 3)))
         goto nomem;
 
@@ -980,7 +979,7 @@ int sws_setColorspaceDetails(SwsContext *sws, const int inv_table[4],
                                  contrast, saturation);
         // FIXME factorize
 
-#if ARCH_PPC
+#if ARCH_PPC && !HAVE_BIGENDIAN
         ff_yuv2rgb_init_tables_ppc(c, inv_table, brightness,
                                    contrast, saturation);
 #endif

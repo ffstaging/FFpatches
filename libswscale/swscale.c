@@ -695,7 +695,7 @@ void ff_sws_init_scale(SwsInternal *c)
 {
     sws_init_swscale(c);
 
-#if ARCH_PPC
+#if ARCH_PPC && !HAVE_BIGENDIAN
     ff_sws_init_swscale_ppc(c);
 #elif ARCH_X86
     ff_sws_init_swscale_x86(c);
