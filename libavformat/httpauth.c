@@ -101,16 +101,34 @@ void ff_http_auth_handle_header(HTTPAuthState *state, const char *key,
                                state);
         } else if (av_stristart(value, "Digest ", &p) &&
                    state->auth_type <= HTTP_AUTH_DIGEST) {
-            state->auth_type = HTTP_AUTH_DIGEST;
-            memset(&state->digest_params, 0, sizeof(DigestParams));
-            state->realm[0] = 0;
-            state->stale = 0;
-            ff_parse_key_value(p, (ff_parse_key_val_cb) handle_digest_params,
-                               state);
-            choose_qop(state->digest_params.qop,
-                       sizeof(state->digest_params.qop));
-            if (!av_strcasecmp(state->digest_params.stale, "true"))
-                state->stale = 1;
+            /* Handle multiple Digest authentication headers by preferring MD5 over SHA-256
+             * or updating if we haven't set digest auth yet */
+            const char *alg_start = strstr(p, "algorithm=");
+            int is_md5 = 1; /* Default to MD5 if no algorithm specified */
+            
+            if (alg_start) {
+                alg_start += 10; /* Skip "algorithm=" */
+                if (av_strncasecmp(alg_start, "\"MD5\"", 5) == 0 || av_strncasecmp(alg_start, "MD5", 3) == 0) {
+                    is_md5 = 1;
+                } else if (av_strncasecmp(alg_start, "\"SHA-256\"", 9) == 0 || av_strncasecmp(alg_start, "SHA-256", 7) == 0) {
+                    is_md5 = 0;
+                }
+            }
+            
+            /* Prefer MD5 over SHA-256, or set if not already set */
+            if (state->auth_type < HTTP_AUTH_DIGEST || 
+                (is_md5 && av_strcasecmp(state->digest_params.algorithm, "MD5") != 0)) {
+                state->auth_type = HTTP_AUTH_DIGEST;
+                memset(&state->digest_params, 0, sizeof(DigestParams));
+                state->realm[0] = 0;
+                state->stale = 0;
+                ff_parse_key_value(p, (ff_parse_key_val_cb) handle_digest_params,
+                                    state);
+                choose_qop(state->digest_params.qop,
+                            sizeof(state->digest_params.qop));
+                if (!av_strcasecmp(state->digest_params.stale, "true"))
+                    state->stale = 1;
+            }
         }
     } else if (!av_strcasecmp(key, "Authentication-Info")) {
         ff_parse_key_value(value, (ff_parse_key_val_cb) handle_digest_update,
@@ -221,8 +239,11 @@ static char *make_digest_auth(HTTPAuthState *state, const char *username,
     av_strlcatf(authstr, len, ", response=\"%s\"",  response);
 
     // we are violating the RFC and use "" because all others seem to do that too.
+	// Always include algorithm for better compatibility
     if (digest->algorithm[0])
         av_strlcatf(authstr, len, ", algorithm=\"%s\"",  digest->algorithm);
+    else
+        av_strlcatf(authstr, len, ", algorithm=\"MD5\"");
 
     if (digest->opaque[0])
         av_strlcatf(authstr, len, ", opaque=\"%s\"", digest->opaque);
