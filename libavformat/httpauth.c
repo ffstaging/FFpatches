@@ -92,25 +92,57 @@ void ff_http_auth_handle_header(HTTPAuthState *state, const char *key,
 {
     if (!av_strcasecmp(key, "WWW-Authenticate") || !av_strcasecmp(key, "Proxy-Authenticate")) {
         const char *p;
+        av_log(NULL, AV_LOG_DEBUG, "Processing auth header: %s: %s\n", key, value);
+        
         if (av_stristart(value, "Basic ", &p) &&
             state->auth_type <= HTTP_AUTH_BASIC) {
+            av_log(NULL, AV_LOG_DEBUG, "Setting Basic authentication\n");
             state->auth_type = HTTP_AUTH_BASIC;
             state->realm[0] = 0;
             state->stale = 0;
             ff_parse_key_value(p, (ff_parse_key_val_cb) handle_basic_params,
                                state);
-        } else if (av_stristart(value, "Digest ", &p) &&
-                   state->auth_type <= HTTP_AUTH_DIGEST) {
-            state->auth_type = HTTP_AUTH_DIGEST;
-            memset(&state->digest_params, 0, sizeof(DigestParams));
-            state->realm[0] = 0;
-            state->stale = 0;
-            ff_parse_key_value(p, (ff_parse_key_val_cb) handle_digest_params,
-                               state);
-            choose_qop(state->digest_params.qop,
-                       sizeof(state->digest_params.qop));
-            if (!av_strcasecmp(state->digest_params.stale, "true"))
-                state->stale = 1;
+        } else if (av_stristart(value, "Digest ", &p)) {
+            /* Handle multiple Digest authentication headers by preferring MD5 over SHA-256
+             * or updating if we haven't set digest auth yet */
+            if (state->auth_type <= HTTP_AUTH_DIGEST) {
+                const char *alg_start = strstr(p, "algorithm=");
+                int is_md5 = 1; /* Default to MD5 if no algorithm specified */
+                
+                if (alg_start) {
+                    alg_start += 10; /* Skip "algorithm=" */
+                    if (av_strncasecmp(alg_start, "\"MD5\"", 5) == 0 || av_strncasecmp(alg_start, "MD5", 3) == 0) {
+                        is_md5 = 1;
+                    } else if (av_strncasecmp(alg_start, "\"SHA-256\"", 9) == 0 || av_strncasecmp(alg_start, "SHA-256", 7) == 0) {
+                        is_md5 = 0;
+                    }
+                }
+                
+                av_log(NULL, AV_LOG_DEBUG, "Digest auth: algorithm=%s, is_md5=%d, current_auth_type=%d\n", 
+                       alg_start ? alg_start : "none", is_md5, state->auth_type);
+                
+                /* Prefer MD5 over SHA-256, or set if not already set */
+                if (state->auth_type < HTTP_AUTH_DIGEST || 
+                    (is_md5 && av_strcasecmp(state->digest_params.algorithm, "MD5") != 0)) {
+                    av_log(NULL, AV_LOG_DEBUG, "Setting Digest authentication with algorithm preference\n");
+                    state->auth_type = HTTP_AUTH_DIGEST;
+                    memset(&state->digest_params, 0, sizeof(DigestParams));
+                    state->realm[0] = 0;
+                    state->stale = 0;
+                    ff_parse_key_value(p, (ff_parse_key_val_cb) handle_digest_params,
+                                       state);
+                    choose_qop(state->digest_params.qop,
+                               sizeof(state->digest_params.qop));
+                    if (!av_strcasecmp(state->digest_params.stale, "true"))
+                        state->stale = 1;
+                    
+                    av_log(NULL, AV_LOG_DEBUG, "Digest params: realm=%s, nonce=%s, algorithm=%s, qop=%s\n",
+                           state->realm, state->digest_params.nonce, 
+                           state->digest_params.algorithm, state->digest_params.qop);
+                } else {
+                    av_log(NULL, AV_LOG_DEBUG, "Skipping digest auth header (already have better)\n");
+                }
+            }
         }
     } else if (!av_strcasecmp(key, "Authentication-Info")) {
         ff_parse_key_value(value, (ff_parse_key_val_cb) handle_digest_update,
@@ -220,9 +252,11 @@ static char *make_digest_auth(HTTPAuthState *state, const char *username,
     av_strlcatf(authstr, len, ", uri=\"%s\"",       uri);
     av_strlcatf(authstr, len, ", response=\"%s\"",  response);
 
-    // we are violating the RFC and use "" because all others seem to do that too.
+    // Always include algorithm for better compatibility
     if (digest->algorithm[0])
         av_strlcatf(authstr, len, ", algorithm=\"%s\"",  digest->algorithm);
+    else
+        av_strlcatf(authstr, len, ", algorithm=\"MD5\"");
 
     if (digest->opaque[0])
         av_strlcatf(authstr, len, ", opaque=\"%s\"", digest->opaque);
@@ -245,8 +279,14 @@ char *ff_http_auth_create_response(HTTPAuthState *state, const char *auth,
     /* Clear the stale flag, we assume the auth is ok now. It is reset
      * by the server headers if there's a new issue. */
     state->stale = 0;
-    if (!auth || !strchr(auth, ':'))
+    
+    av_log(NULL, AV_LOG_DEBUG, "Creating auth response: auth_type=%d, auth=%s, path=%s, method=%s\n",
+           state->auth_type, auth ? "[provided]" : "[null]", path ? path : "[null]", method ? method : "[null]");
+    
+    if (!auth || !strchr(auth, ':')) {
+        av_log(NULL, AV_LOG_DEBUG, "No valid auth credentials provided\n");
         return NULL;
+    }
 
     if (state->auth_type == HTTP_AUTH_BASIC) {
         int auth_b64_len, len;
@@ -269,17 +309,30 @@ char *ff_http_auth_create_response(HTTPAuthState *state, const char *auth,
         av_base64_encode(ptr, auth_b64_len, decoded_auth, strlen(decoded_auth));
         av_strlcat(ptr, "\r\n", len - (ptr - authstr));
         av_free(decoded_auth);
+        av_log(NULL, AV_LOG_DEBUG, "Created Basic auth response\n");
     } else if (state->auth_type == HTTP_AUTH_DIGEST) {
         char *username = ff_urldecode(auth, 0), *password;
 
-        if (!username)
+        if (!username) {
+            av_log(NULL, AV_LOG_DEBUG, "Failed to decode username\n");
             return NULL;
+        }
 
         if ((password = strchr(username, ':'))) {
             *password++ = 0;
+            av_log(NULL, AV_LOG_DEBUG, "Creating digest auth for user: %s\n", username);
             authstr = make_digest_auth(state, username, password, path, method);
+            if (authstr) {
+                av_log(NULL, AV_LOG_DEBUG, "Created Digest auth response: %s\n", authstr);
+            } else {
+                av_log(NULL, AV_LOG_DEBUG, "Failed to create Digest auth response\n");
+            }
+        } else {
+            av_log(NULL, AV_LOG_DEBUG, "No password found in auth string\n");
         }
         av_free(username);
+    } else {
+        av_log(NULL, AV_LOG_DEBUG, "Unknown auth type: %d\n", state->auth_type);
     }
     return authstr;
 }
