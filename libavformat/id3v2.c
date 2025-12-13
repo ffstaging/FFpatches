@@ -280,10 +280,8 @@ static int decode_str(AVFormatContext *s, AVIOContext *pb, int encoding,
         case 0xfeff:
             break;
         case 0: // empty string without bom
-            ffio_free_dyn_buf(&dynbuf);
-            *dst = NULL;
-            *maxread = left;
-            return 0;
+            *maxread = 0;
+            break;
         default:
             av_log(s, AV_LOG_ERROR, "Incorrect BOM value: 0x%x\n", bom);
             ffio_free_dyn_buf(&dynbuf);
