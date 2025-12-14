@@ -371,9 +371,9 @@ static void read_ttag(AVFormatContext *s, AVIOContext *pb, int taglen,
 static void read_uslt(AVFormatContext *s, AVIOContext *pb, int taglen,
                       AVDictionary **metadata)
 {
-    uint8_t lang[4];
+    char lang[4];
     uint8_t *descriptor = NULL; // 'Content descriptor'
-    uint8_t *text;
+    uint8_t *text = NULL;
     char *key;
     int encoding;
     int ok = 0;
@@ -389,29 +389,54 @@ static void read_uslt(AVFormatContext *s, AVIOContext *pb, int taglen,
     lang[3] = '\0';
     taglen -= 3;
 
-    if (decode_str(s, pb, encoding, &descriptor, &taglen) < 0 || taglen < 0)
-        goto error;
-
-    if (decode_str(s, pb, encoding, &text, &taglen) < 0 || taglen < 0)
-        goto error;
-
-    // FFmpeg does not support hierarchical metadata, so concatenate the keys.
-    key = av_asprintf("lyrics-%s%s%s", descriptor[0] ? (char *)descriptor : "",
-                                       descriptor[0] ? "-" : "",
-                                       lang);
-    if (!key) {
-        av_free(text);
-        goto error;
+    // Empty descriptor can be one or two
+    // \000 characters depending on the implementation's
+    // choice. We can consume all \000 charaters. If that
+    // consumes all the remaining one, text is also empty
+    // which is correct.
+    if (!*pb->buf_ptr) {
+        while (taglen > 0 && !*pb->buf_ptr) {
+            avio_r8(pb);
+            taglen--;
+        }
+        descriptor = av_strdup("");
+        if (!descriptor)
+            goto error;
+    } else {
+        if (decode_str(s, pb, encoding, &descriptor, &taglen) < 0 || taglen < 0)
+            goto error;
+        // String should be null-terminated and followed by a \000 text separator.
+        if (taglen <= 0 || *pb->buf_ptr)
+            goto error;
+        avio_r8(pb);
+        taglen--;
     }
 
-    av_dict_set(metadata, key, text,
-                AV_DICT_DONT_STRDUP_KEY | AV_DICT_DONT_STRDUP_VAL);
+    if (!taglen || !*pb->buf_ptr) {
+        text = av_strdup("");
+        if (!text)
+            goto error;
+    } else {
+        if (decode_str(s, pb, encoding, &text, &taglen) < 0 || taglen < 0)
+            goto error;
+    }
+
+    // FFmpeg does not support hierarchical metadata, so concatenate the keys.
+    key = av_asprintf("lyrics%s%s%s%s", descriptor[0] || strlen(lang) == 3 ? "-" : "",
+                                        descriptor[0] ? (char *)descriptor : "",
+                                        descriptor[0] ? "-" : "",
+                                        strlen(lang) == 3 ? lang : "");
+    if (!key)
+        goto error;
+
+    av_dict_set(metadata, key, text, AV_DICT_DONT_STRDUP_KEY);
 
     ok = 1;
 error:
     if (!ok)
         av_log(s, AV_LOG_ERROR, "Error reading lyrics, skipped\n");
     av_free(descriptor);
+    av_free(text);
 }
 
 /**
