@@ -51,6 +51,15 @@ typedef struct SvtJpegXsDecodeContext {
     int proxy_mode;
 } SvtJpegXsDecodeContext;
 
+static av_always_inline int map_svt_err(SvtJxsErrorType_t err)
+{
+    if (err == SvtJxsErrorDecoderConfigChange)
+        return AVERROR_INPUT_CHANGED;
+    if (err != SvtJxsErrorNone)
+        return AVERROR_EXTERNAL;
+    return 0;
+}
+
 static int set_pix_fmt(AVCodecContext* avctx, const svt_jpeg_xs_image_config_t *config)
 {
     int ret = 0;
@@ -109,7 +118,7 @@ static int svt_jpegxs_dec_decode(AVCodecContext* avctx, AVFrame* picture, int* g
             avpkt->data, avpkt->size, NULL, &svt_dec->frame_size, 1 /*quick search*/, svt_dec->decoder.proxy_mode);
         if (err) {
             av_log(avctx, AV_LOG_ERROR, "svt_jpeg_xs_decoder_get_single_frame_size_with_proxy failed, err=%d\n", err);
-            return err;
+            return map_svt_err(err);
         }
         if (avpkt->size < svt_dec->frame_size) {
             svt_dec->chunk_decoding = 1;
@@ -129,7 +138,7 @@ static int svt_jpegxs_dec_decode(AVCodecContext* avctx, AVFrame* picture, int* g
                                        &svt_dec->decoder, avpkt->data, avpkt->size, &svt_dec->config);
         if (err) {
             av_log(avctx, AV_LOG_ERROR, "svt_jpeg_xs_decoder_init failed, err=%d\n", err);
-            return err;
+            return map_svt_err(err);
         }
 
         ret = set_pix_fmt(avctx, &svt_dec->config);
@@ -151,12 +160,14 @@ static int svt_jpegxs_dec_decode(AVCodecContext* avctx, AVFrame* picture, int* g
         return 0;
 
     if (svt_dec->chunk_decoding) {
+        if (svt_dec->buffer_filled_len >= svt_dec->frame_size)
+            return AVERROR_INVALIDDATA;
+
+        if (avpkt->size > svt_dec->frame_size - svt_dec->buffer_filled_len)
+            return AVERROR_INVALIDDATA;
+
         uint8_t* bitstrream_addr = svt_dec->bitstream_buffer + svt_dec->buffer_filled_len;
-        int bytes_to_copy = avpkt->size;
-        //Do not copy more data than allocation
-        if ((bytes_to_copy + svt_dec->buffer_filled_len) > svt_dec->frame_size) {
-            bytes_to_copy = svt_dec->frame_size - svt_dec->buffer_filled_len;
-        }
+        const int bytes_to_copy = avpkt->size;
 
         memcpy(bitstrream_addr, avpkt->data, bytes_to_copy);
         svt_dec->buffer_filled_len += avpkt->size;
@@ -190,7 +201,9 @@ static int svt_jpegxs_dec_decode(AVCodecContext* avctx, AVFrame* picture, int* g
     err = svt_jpeg_xs_decoder_send_frame(&svt_dec->decoder, &dec_input, 1 /*blocking*/);
     if (err) {
         av_log(avctx, AV_LOG_ERROR, "svt_jpeg_xs_decoder_send_frame failed, err=%d\n", err);
-        return err;
+        if (svt_dec->chunk_decoding)
+            svt_dec->buffer_filled_len = 0;
+        return map_svt_err(err);
     }
 
     err = svt_jpeg_xs_decoder_get_frame(&svt_dec->decoder, &dec_output, 1 /*blocking*/);
@@ -200,7 +213,9 @@ static int svt_jpegxs_dec_decode(AVCodecContext* avctx, AVFrame* picture, int* g
     }
     if (err) {
         av_log(avctx, AV_LOG_ERROR, "svt_jpeg_xs_decoder_get_frame failed, err=%d\n", err);
-        return err;
+        if (svt_dec->chunk_decoding)
+            svt_dec->buffer_filled_len = 0;
+        return map_svt_err(err);
     }
 
     if (dec_output.user_prv_ctx_ptr != avpkt) {
