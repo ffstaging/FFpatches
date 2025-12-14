@@ -42,6 +42,8 @@ void ff_vvc_put_luma_h16_12_neon(int16_t *dst, const uint8_t *_src, const ptrdif
                                  const int height, const int8_t *hf, const int8_t *vf, const int width);
 void ff_vvc_put_luma_h_x16_12_neon(int16_t *dst, const uint8_t *_src, const ptrdiff_t _src_stride,
                                    const int height, const int8_t *hf, const int8_t *vf, const int width);
+void ff_vvc_put_luma_h_8_sme(int16_t *dst, const uint8_t *_src, const ptrdiff_t _src_stride,
+                             const int height, const int8_t *hf, const int8_t *vf, const int width);
 
 void ff_alf_classify_sum_neon(int *sum0, int *sum1, int16_t *grad, uint32_t gshift, uint32_t steps);
 
@@ -250,6 +252,10 @@ void ff_vvc_dsp_init_aarch64(VVCDSPContext *const c, const int bd)
             c->inter.put[1][4][1][1] = ff_vvc_put_epel_hv32_8_neon_i8mm;
             c->inter.put[1][5][1][1] = ff_vvc_put_epel_hv64_8_neon_i8mm;
             c->inter.put[1][6][1][1] = ff_vvc_put_epel_hv128_8_neon_i8mm;
+        }
+        if (have_sme(cpu_flags)) {
+            c->inter.put[0][5][0][1] =
+            c->inter.put[0][6][0][1] = ff_vvc_put_luma_h_8_sme;
         }
     } else if (bd == 10) {
         c->inter.avg = ff_vvc_avg_10_neon;
