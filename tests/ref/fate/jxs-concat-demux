@@ -1,0 +1,7 @@
+#tb 0: 1/25
+#media_type 0: video
+#codec_id 0: jpegxs
+#dimensions 0: 256x256
+#sar 0: 0/1
+0,          0,          0,        1,   131072, 0x75165e30
+0,          1,          1,        1,   131072, 0x75165e30
