@@ -60,6 +60,12 @@ static int a64_write_header(AVFormatContext *s)
     return 0;
 }
 
+static const AVCodecTag codec_a64_tags[] = {
+    { AV_CODEC_ID_A64_MULTI,  0 },
+    { AV_CODEC_ID_A64_MULTI5, 0 },
+    { AV_CODEC_ID_NONE, 0 }
+};
+
 const FFOutputFormat ff_a64_muxer = {
     .p.name         = "a64",
     .p.long_name    = NULL_IF_CONFIG_SMALL("a64 - video for Commodore 64"),
@@ -67,6 +73,7 @@ const FFOutputFormat ff_a64_muxer = {
     .p.video_codec  = AV_CODEC_ID_A64_MULTI,
     .p.audio_codec    = AV_CODEC_ID_NONE,
     .p.subtitle_codec = AV_CODEC_ID_NONE,
+    .p.codec_tag      = (const AVCodecTag* const []){ codec_a64_tags, 0 },
     .flags_internal   = FF_OFMT_FLAG_MAX_ONE_OF_EACH,
     .write_header   = a64_write_header,
     .write_packet   = ff_raw_write_packet,
