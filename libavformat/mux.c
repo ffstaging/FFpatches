@@ -294,6 +294,20 @@ static int init_muxer(AVFormatContext *s, AVDictionary **options)
                 goto fail;
             }
         }
+        if (of->flags_internal & FF_OFMT_FLAG_CODEC_ID_LIST) {
+            const enum AVCodecID *codec_list = of->codec_list;
+            av_assert2(codec_list && *codec_list != AV_CODEC_ID_NONE);
+            while (1) {
+                if (par->codec_id == *codec_list)
+                    break;
+                if (*++codec_list == AV_CODEC_ID_NONE) {
+                    av_log(s, AV_LOG_ERROR, "%s muxer does not support codec %s\n",
+                           of->p.name, avcodec_get_name(par->codec_id));
+                    ret = AVERROR(EINVAL);
+                    goto fail;
+                }
+            }
+        }
 
         desc = avcodec_descriptor_get(par->codec_id);
         if (desc && desc->props & AV_CODEC_PROP_REORDER)

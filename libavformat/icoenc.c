@@ -24,6 +24,7 @@
  * Microsoft Windows ICO muxer
  */
 
+#include "libavutil/avassert.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/mem.h"
 
@@ -66,8 +67,7 @@ static int ico_check_attributes(AVFormatContext *s, const AVCodecParameters *p)
             return AVERROR(EINVAL);
         }
     } else {
-        av_log(s, AV_LOG_ERROR, "Unsupported codec %s\n", avcodec_get_name(p->codec_id));
-        return AVERROR(EINVAL);
+        av_unreachable("Already checked via codec_list");
     }
 
     if (p->width > 256 ||
@@ -207,4 +207,6 @@ const FFOutputFormat ff_ico_muxer = {
     .write_trailer  = ico_write_trailer,
     .deinit         = ico_deinit,
     .p.flags        = AVFMT_NOTIMESTAMPS,
+    .flags_internal = FF_OFMT_FLAG_CODEC_ID_LIST,
+    OFMT_CODEC_LIST(AV_CODEC_ID_BMP, AV_CODEC_ID_PNG),
 };

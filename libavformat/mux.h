@@ -57,6 +57,11 @@ struct AVDeviceInfoList;
  * are disallowed.
  */
 #define FF_OFMT_FLAG_ONLY_DEFAULT_CODECS            (1 << 3)
+/**
+ * If this flag is set, it means that FFOutputFormat.codec_list
+ * is set; otherwise, the union is in query_codec state (which may be NULL).
+ */
+#define FF_OFMT_FLAG_CODEC_ID_LIST                  (1 << 4)
 
 typedef struct FFOutputFormat {
     /**
@@ -101,14 +106,27 @@ typedef struct FFOutputFormat {
      */
     int (*interleave_packet)(AVFormatContext *s, AVPacket *pkt,
                              int flush, int has_packet);
-    /**
-     * Test if the given codec can be stored in this container.
-     *
-     * @return 1 if the codec is supported, 0 if it is not.
-     *         A negative number if unknown.
-     *         MKTAG('A', 'P', 'I', 'C') if the codec is only supported as AV_DISPOSITION_ATTACHED_PIC
-     */
-    int (*query_codec)(enum AVCodecID id, int std_compliance);
+    union {
+        /**
+         * Test if the given codec can be stored in this container.
+         * The union is in this state when the FF_OFMT_FLAG_CODEC_ID_LIST flag
+         * is not set.
+         *
+         * @return 1 if the codec is supported, 0 if it is not.
+         *         A negative number if unknown.
+         *         MKTAG('A', 'P', 'I', 'C') if the codec is only supported as AV_DISPOSITION_ATTACHED_PIC
+         */
+        int (*query_codec)(enum AVCodecID id, int std_compliance);
+        /**
+         * A list of supported codecs by this muxer.
+         * The union is in this state iff the FF_OFMT_FLAG_CODEC_ID_LIST flag
+         * is set; in this case, any codec not in this list can't be muxed by
+         * this muxer at all.
+         * The list is delimited by AV_CODEC_ID_NONE which must never be
+         * the only entry in this list.
+         */
+        const enum AVCodecID *codec_list;
+    };
 
     void (*get_output_timestamp)(AVFormatContext *s, int stream,
                                  int64_t *dts, int64_t *wall);
@@ -168,6 +186,9 @@ static inline const FFOutputFormat *ffofmt(const AVOutputFormat *fmt)
 {
     return (const FFOutputFormat*)fmt;
 }
+
+#define OFMT_CODEC_LIST(...) \
+    .codec_list = (const enum AVCodecID []){ __VA_ARGS__, AV_CODEC_ID_NONE }
 
 /**
  * Add packet to an AVFormatContext's packet_buffer list, determining its

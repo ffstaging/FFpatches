@@ -106,10 +106,9 @@ static int get_audio_codec_id(enum AVCodecID codec_id)
     case AV_CODEC_ID_PCM_S8_PLANAR:
     case AV_CODEC_ID_PCM_S16BE_PLANAR:
         return 0;
+    default:
     case AV_CODEC_ID_ADPCM_ADX:
         return 2;
-    default:
-        return -1;
     }
 }
 
@@ -123,22 +122,10 @@ static int film_init(AVFormatContext *format_context)
 
     for (int i = 0; i < format_context->nb_streams; i++) {
         AVStream *st = format_context->streams[i];
-        if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
-            if (get_audio_codec_id(st->codecpar->codec_id) < 0) {
-                av_log(format_context, AV_LOG_ERROR,
-                       "Incompatible audio stream format.\n");
-                return AVERROR(EINVAL);
-            }
+        if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
             film->audio_index = i;
-        }
 
         if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-            if (st->codecpar->codec_id != AV_CODEC_ID_CINEPAK &&
-                st->codecpar->codec_id != AV_CODEC_ID_RAWVIDEO) {
-                av_log(format_context, AV_LOG_ERROR,
-                       "Incompatible video stream format.\n");
-                return AVERROR(EINVAL);
-            }
             if (st->codecpar->format != AV_PIX_FMT_RGB24) {
                 av_log(format_context, AV_LOG_ERROR,
                        "Pixel format must be rgb24.\n");
@@ -280,7 +267,11 @@ const FFOutputFormat ff_segafilm_muxer = {
     .p.audio_codec  = AV_CODEC_ID_PCM_S16BE_PLANAR,
     .p.video_codec  = AV_CODEC_ID_CINEPAK,
     .p.subtitle_codec = AV_CODEC_ID_NONE,
-    .flags_internal   = FF_OFMT_FLAG_MAX_ONE_OF_EACH,
+    .flags_internal   = FF_OFMT_FLAG_MAX_ONE_OF_EACH | 
+                        FF_OFMT_FLAG_CODEC_ID_LIST,
+    OFMT_CODEC_LIST(AV_CODEC_ID_CINEPAK, AV_CODEC_ID_RAWVIDEO,
+                    AV_CODEC_ID_PCM_S8_PLANAR, AV_CODEC_ID_PCM_S16BE_PLANAR,
+                    AV_CODEC_ID_ADPCM_ADX),
     .init           = film_init,
     .write_trailer  = film_write_header,
     .write_packet   = film_write_packet,

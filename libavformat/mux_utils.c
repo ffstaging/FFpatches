@@ -34,7 +34,14 @@ int avformat_query_codec(const AVOutputFormat *ofmt, enum AVCodecID codec_id,
 {
     if (ofmt) {
         unsigned int codec_tag;
-        if (ffofmt(ofmt)->query_codec)
+        if (ffofmt(ofmt)->flags_internal & FF_OFMT_FLAG_CODEC_ID_LIST) {
+            const enum AVCodecID *codec_list = ffofmt(ofmt)->codec_list;
+            do {
+                if (codec_id == *codec_list)
+                    return 1;
+            } while (*++codec_list != AV_CODEC_ID_NONE);
+            return 0;
+        } else if (ffofmt(ofmt)->query_codec)
             return ffofmt(ofmt)->query_codec(codec_id, std_compliance);
         else if (ofmt->codec_tag)
             return !!av_codec_get_tag2(ofmt->codec_tag, codec_id, &codec_tag);

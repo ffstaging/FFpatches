@@ -43,12 +43,6 @@ static int lrc_write_header(AVFormatContext *s)
 {
     const AVDictionaryEntry *metadata_item;
 
-    if(s->streams[0]->codecpar->codec_id != AV_CODEC_ID_SUBRIP &&
-       s->streams[0]->codecpar->codec_id != AV_CODEC_ID_TEXT) {
-        av_log(s, AV_LOG_ERROR, "Unsupported subtitle codec: %s\n",
-               avcodec_get_name(s->streams[0]->codecpar->codec_id));
-        return AVERROR(EINVAL);
-    }
     avpriv_set_pts_info(s->streams[0], 64, 1, AV_TIME_BASE);
 
     ff_standardize_creation_time(s);
@@ -157,9 +151,11 @@ const FFOutputFormat ff_lrc_muxer = {
     .p.video_codec    = AV_CODEC_ID_NONE,
     .p.audio_codec    = AV_CODEC_ID_NONE,
     .p.subtitle_codec = AV_CODEC_ID_SUBRIP,
-    .flags_internal   = FF_OFMT_FLAG_MAX_ONE_OF_EACH,
+    .flags_internal   = FF_OFMT_FLAG_MAX_ONE_OF_EACH |
+                        FF_OFMT_FLAG_CODEC_ID_LIST,
     .priv_data_size = sizeof(LRCSubtitleContext),
     .write_header   = lrc_write_header,
     .write_packet   = lrc_write_packet,
     .p.priv_class   = &lrcenc_class,
+    OFMT_CODEC_LIST(AV_CODEC_ID_SUBRIP, AV_CODEC_ID_TEXT),
 };

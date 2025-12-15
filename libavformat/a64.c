@@ -19,6 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/avassert.h"
 #include "libavutil/intreadwrite.h"
 #include "libavcodec/codec_id.h"
 #include "libavcodec/codec_par.h"
@@ -54,7 +55,7 @@ static int a64_write_header(AVFormatContext *s)
         header[4] = 3;
         break;
     default:
-        return AVERROR_INVALIDDATA;
+        av_unreachable("Already checked via codec_list");
     }
     avio_write(s->pb, header, 2);
     return 0;
@@ -67,7 +68,8 @@ const FFOutputFormat ff_a64_muxer = {
     .p.video_codec  = AV_CODEC_ID_A64_MULTI,
     .p.audio_codec    = AV_CODEC_ID_NONE,
     .p.subtitle_codec = AV_CODEC_ID_NONE,
-    .flags_internal   = FF_OFMT_FLAG_MAX_ONE_OF_EACH,
+    .flags_internal   = FF_OFMT_FLAG_MAX_ONE_OF_EACH | FF_OFMT_FLAG_CODEC_ID_LIST,
+    OFMT_CODEC_LIST(AV_CODEC_ID_A64_MULTI, AV_CODEC_ID_A64_MULTI5),
     .write_header   = a64_write_header,
     .write_packet   = ff_raw_write_packet,
 };

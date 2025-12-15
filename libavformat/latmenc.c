@@ -93,10 +93,6 @@ static int latm_write_header(AVFormatContext *s)
 
     if (par->codec_id == AV_CODEC_ID_AAC_LATM)
         return 0;
-    if (par->codec_id != AV_CODEC_ID_AAC && par->codec_id != AV_CODEC_ID_MP4ALS) {
-        av_log(s, AV_LOG_ERROR, "Only AAC, LATM and ALS are supported\n");
-        return AVERROR(EINVAL);
-    }
 
     if (par->extradata_size > 0 &&
         latm_decode_extradata(s, par->extradata, par->extradata_size) < 0)
@@ -269,7 +265,9 @@ const FFOutputFormat ff_latm_muxer = {
     .p.audio_codec  = AV_CODEC_ID_AAC,
     .p.video_codec  = AV_CODEC_ID_NONE,
     .p.subtitle_codec = AV_CODEC_ID_NONE,
-    .flags_internal   = FF_OFMT_FLAG_MAX_ONE_OF_EACH,
+    .flags_internal   = FF_OFMT_FLAG_MAX_ONE_OF_EACH |
+                        FF_OFMT_FLAG_CODEC_ID_LIST,
+    OFMT_CODEC_LIST(AV_CODEC_ID_AAC_LATM, AV_CODEC_ID_AAC, AV_CODEC_ID_MP4ALS),
     .write_header   = latm_write_header,
     .write_packet   = latm_write_packet,
     .p.priv_class   = &latm_muxer_class,
