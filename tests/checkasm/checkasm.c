@@ -181,6 +181,9 @@ static const struct {
     #if CONFIG_H264QPEL
         { "h264qpel", checkasm_check_h264qpel },
     #endif
+    #if CONFIG_CABAC
+        { "cabac", checkasm_check_cabac },
+    #endif
     #if CONFIG_HEVC_DECODER
         { "hevc_add_res", checkasm_check_hevc_add_res },
         { "hevc_deblock", checkasm_check_hevc_deblock },

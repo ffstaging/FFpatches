@@ -29,6 +29,13 @@
 #include "hevc.h"
 #include "hevcdec.h"
 
+#if ARCH_WASM
+#include "libavcodec/wasm/cabac.h"
+#define get_cabac              ff_get_cabac_wasm
+#define get_cabac_bypass       ff_get_cabac_bypass_wasm
+#define get_cabac_bypass_sign  ff_get_cabac_bypass_sign_wasm
+#endif
+
 #define CABAC_MAX_BIN 31
 
 // ELEM(NAME, NUM_BINS)

@@ -112,6 +112,7 @@ void checkasm_check_hevc_deblock(void);
 void checkasm_check_hevc_idct(void);
 void checkasm_check_hevc_pel(void);
 void checkasm_check_hevc_sao(void);
+void checkasm_check_cabac(void);
 void checkasm_check_hpeldsp(void);
 void checkasm_check_huffyuvdsp(void);
 void checkasm_check_idctdsp(void);
