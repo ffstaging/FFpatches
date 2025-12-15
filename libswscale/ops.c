@@ -110,6 +110,7 @@ void ff_sws_apply_op_q(const SwsOp *op, AVRational x[4])
     int shift[4];
 
     switch (op->op) {
+    case SWS_OP_ASSUME:
     case SWS_OP_READ:
     case SWS_OP_WRITE:
         return;
@@ -416,6 +417,13 @@ void ff_sws_op_list_print(void *log, int lev, const SwsOpList *ops)
         switch (op->op) {
         case SWS_OP_INVALID:
             av_log(log, lev, "SWS_OP_INVALID\n");
+            break;
+        case SWS_OP_ASSUME:
+            av_log(log, lev, "%-20s: x <= {%s %s %s %s}\n", "SWS_OP_ASSUME",
+                    op->c.q4[0].den ? PRINTQ(op->c.q4[0]) : "_",
+                    op->c.q4[1].den ? PRINTQ(op->c.q4[1]) : "_",
+                    op->c.q4[2].den ? PRINTQ(op->c.q4[2]) : "_",
+                    op->c.q4[3].den ? PRINTQ(op->c.q4[3]) : "_");
             break;
         case SWS_OP_READ:
         case SWS_OP_WRITE:
