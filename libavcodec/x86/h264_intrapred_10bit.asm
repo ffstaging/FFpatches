@@ -1117,3 +1117,189 @@ cglobal pred16x16_128_dc_10, 2,3
     dec       r2d
     jg .loop
     RET
+
+;-----------------------------------------------------------------------------
+; AVX2 versions of pred16x16 10-bit functions
+; For 10-bit: 16 pixels * 2 bytes = 32 bytes = 1 YMM register (perfect match\!)
+;-----------------------------------------------------------------------------
+
+%if HAVE_AVX2_EXTERNAL
+
+;-----------------------------------------------------------------------------
+; void ff_pred16x16_vertical_10_avx2(pixel *src, ptrdiff_t stride)
+;-----------------------------------------------------------------------------
+INIT_YMM avx2
+cglobal pred16x16_vertical_10, 2, 4
+    sub        r0, r1
+    movu       m0, [r0]              ; Load all 16 pixels (32 bytes) from top row
+    mov       r2d, 4
+    lea        r3, [r1*3]
+.loop:
+    movu  [r0+r1*1], m0
+    movu  [r0+r1*2], m0
+    movu  [r0+r3  ], m0
+    lea        r0, [r0+r1*2]
+    movu  [r0+r1*2], m0
+    lea        r0, [r0+r1*2]
+    dec       r2d
+    jg .loop
+    RET
+
+;-----------------------------------------------------------------------------
+; void ff_pred16x16_horizontal_10_avx2(pixel *src, ptrdiff_t stride)
+;-----------------------------------------------------------------------------
+INIT_YMM avx2
+cglobal pred16x16_horizontal_10, 2, 4
+    lea        r2, [r1*3]
+    mov       r3d, 4
+.loop:
+    vpbroadcastw m0, [r0-2]
+    movu      [r0], m0
+    vpbroadcastw m0, [r0+r1-2]
+    movu  [r0+r1], m0
+    vpbroadcastw m0, [r0+r1*2-2]
+    movu  [r0+r1*2], m0
+    vpbroadcastw m0, [r0+r2-2]
+    movu  [r0+r2], m0
+    lea        r0, [r0+r1*4]
+    dec       r3d
+    jg .loop
+    RET
+
+;-----------------------------------------------------------------------------
+; void ff_pred16x16_dc_10_avx2(pixel *src, ptrdiff_t stride)
+; DC = (sum of 16 top pixels + sum of 16 left pixels + 16) >> 5
+;-----------------------------------------------------------------------------
+INIT_YMM avx2
+cglobal pred16x16_dc_10, 2, 6
+    mov        r5, r0                ; Save dest pointer
+    sub        r0, r1
+    movu       m0, [r0]              ; Load top row (32 bytes)
+    vextracti128 xm1, m0, 1          ; Get high 128 bits
+    paddw     xm0, xm1               ; Sum to 8 words
+    phaddw    xm0, xm0               ; 4 words
+    phaddw    xm0, xm0               ; 2 words
+    phaddw    xm0, xm0               ; 1 word (top sum in low word)
+    movd      r3d, xm0
+    and       r3d, 0xFFFF            ; Keep only low 16 bits
+
+    ; Sum left column using lea-based pointer advancement
+    lea        r0, [r0+r1-2]         ; Point to left pixel of row 0
+    movzx     r4d, word [r0]
+    add       r3d, r4d
+    movzx     r4d, word [r0+r1]
+    add       r3d, r4d
+%rep 7
+    lea        r0, [r0+r1*2]
+    movzx     r4d, word [r0]
+    add       r3d, r4d
+    movzx     r4d, word [r0+r1]
+    add       r3d, r4d
+%endrep
+    add       r3d, 16                ; Rounding
+    shr       r3d, 5                 ; Divide by 32
+
+    movd      xm0, r3d
+    vpbroadcastw m0, xm0             ; Broadcast to all 16 words
+
+    ; Fill all 16 rows
+    mov       r3d, 4
+    lea        r4, [r1*3]
+.loop:
+    movu  [r5+r1*0], m0
+    movu  [r5+r1*1], m0
+    movu  [r5+r1*2], m0
+    movu  [r5+r4  ], m0
+    lea        r5, [r5+r1*4]
+    dec       r3d
+    jg .loop
+    RET
+
+;-----------------------------------------------------------------------------
+; void ff_pred16x16_top_dc_10_avx2(pixel *src, ptrdiff_t stride)
+; DC = (sum of 16 top pixels + 8) >> 4
+;-----------------------------------------------------------------------------
+INIT_YMM avx2
+cglobal pred16x16_top_dc_10, 2, 4
+    sub        r0, r1
+    movu       m0, [r0]              ; Load top row
+    vextracti128 xm1, m0, 1
+    paddw     xm0, xm1
+    phaddw    xm0, xm0
+    phaddw    xm0, xm0
+    phaddw    xm0, xm0
+    paddw     xm0, [pw_8]            ; Add 8 for rounding
+    psrlw     xm0, 4                 ; Divide by 16
+    vpbroadcastw m0, xm0
+
+    mov       r2d, 4
+    lea        r3, [r1*3]
+.loop:
+    movu  [r0+r1*1], m0
+    movu  [r0+r1*2], m0
+    movu  [r0+r3  ], m0
+    lea        r0, [r0+r1*2]
+    movu  [r0+r1*2], m0
+    lea        r0, [r0+r1*2]
+    dec       r2d
+    jg .loop
+    RET
+
+;-----------------------------------------------------------------------------
+; void ff_pred16x16_left_dc_10_avx2(pixel *src, ptrdiff_t stride)
+; DC = (sum of 16 left pixels + 8) >> 4
+;-----------------------------------------------------------------------------
+INIT_YMM avx2
+cglobal pred16x16_left_dc_10, 2, 5
+    mov        r4, r0                ; Save dest pointer
+
+    ; Sum left column using lea-based pointer advancement
+    sub        r0, 2                 ; Point to left pixel of row 0
+    movzx     r2d, word [r0]
+    movzx     r3d, word [r0+r1]
+%rep 7
+    lea        r0, [r0+r1*2]
+    movzx     eax, word [r0]
+    add       r2d, eax
+    movzx     eax, word [r0+r1]
+    add       r3d, eax
+%endrep
+    lea       r2d, [r2+r3+8]         ; Sum with rounding
+    shr       r2d, 4                 ; Divide by 16
+
+    movd      xm0, r2d
+    vpbroadcastw m0, xm0
+
+    ; Fill all 16 rows
+    mov       r2d, 4
+    lea        r3, [r1*3]
+.loop:
+    movu  [r4+r1*0], m0
+    movu  [r4+r1*1], m0
+    movu  [r4+r1*2], m0
+    movu  [r4+r3  ], m0
+    lea        r4, [r4+r1*4]
+    dec       r2d
+    jg .loop
+    RET
+
+;-----------------------------------------------------------------------------
+; void ff_pred16x16_128_dc_10_avx2(pixel *src, ptrdiff_t stride)
+; Fill with constant 512 (1 << 9 for 10-bit midpoint)
+;-----------------------------------------------------------------------------
+INIT_YMM avx2
+cglobal pred16x16_128_dc_10, 2, 4
+    vpbroadcastw m0, [pw_512]
+    mov       r2d, 4
+    lea        r3, [r1*3]
+.loop:
+    movu  [r0+r1*0], m0
+    movu  [r0+r1*1], m0
+    movu  [r0+r1*2], m0
+    movu  [r0+r3  ], m0
+    lea        r0, [r0+r1*4]
+    dec       r2d
+    jg .loop
+    RET
+
+%endif ; HAVE_AVX2_EXTERNAL
