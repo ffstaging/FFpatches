@@ -31,6 +31,8 @@ int main(void){
         for(b=3; b<256*256*256; b+=27118){
             AVInteger ai= av_int2i(a);
             AVInteger bi= av_int2i(b);
+            AVInteger nai= av_int2i(-a);
+            AVInteger nbi= av_int2i(-b);
 
             av_assert0(av_i2int(ai) == a);
             av_assert0(av_i2int(bi) == b);
@@ -43,6 +45,12 @@ int main(void){
             av_assert0(av_i2int(av_shr_i(ai,-17)) == a<<17);
             av_assert0(av_log2_i(ai) == av_log2(a));
             av_assert0(av_i2int(av_div_i(ai,bi)) == a/b);
+            av_assert0(av_i2int(av_idiv_i(ai , bi)) ==  a/b);
+            av_assert0(av_i2int(av_idiv_i(nai, bi)) == -a/b);
+            av_assert0(av_i2int(av_idiv_i(ai ,nbi)) == -a/b);
+            av_assert0(av_i2int(av_idiv_i(nai,nbi)) ==  a/b);
+            av_assert0(av_i2int(av_abs_i( ai)) == a);
+            av_assert0(av_i2int(av_abs_i(nai)) == a);
         }
     }
     return 0;

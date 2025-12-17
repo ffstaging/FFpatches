@@ -83,4 +83,14 @@ AVInteger av_int2i(int64_t a) av_const;
  */
 int64_t av_i2int(AVInteger a) av_const;
 
+/**
+ * returns |a|
+ */
+AVInteger av_abs_i(AVInteger a) av_const;
+
+/**
+ * signed division
+ */
+AVInteger av_idiv_i(AVInteger a, AVInteger b) av_const;
+
 #endif /* AVUTIL_INTEGER_H */

@@ -53,6 +53,21 @@ AVInteger av_sub_i(AVInteger a, AVInteger b){
     return a;
 }
 
+static AVInteger neg_i(AVInteger a) {
+    int i, carry=0;
+    for(i=0; i<AV_INTEGER_SIZE; i++){
+        carry= (carry>>16) - a.v[i];
+        a.v[i]= carry;
+    }
+    return a;
+}
+
+AVInteger av_abs_i(AVInteger a){
+    if ((int16_t)a.v[AV_INTEGER_SIZE-1] < 0)
+        a = neg_i(a);
+    return a;
+}
+
 int av_log2_i(AVInteger a){
     int i;
 
@@ -144,6 +159,15 @@ AVInteger av_div_i(AVInteger a, AVInteger b){
     AVInteger quot;
     av_mod_i(&quot, a, b);
     return quot;
+}
+
+AVInteger av_idiv_i(AVInteger a, AVInteger b){
+    int flip = (int16_t)(a.v[AV_INTEGER_SIZE-1]^b.v[AV_INTEGER_SIZE-1]) < 0;
+    a = av_div_i(av_abs_i(a), av_abs_i(b));
+    if (flip)
+        a = neg_i(a);
+
+    return a;
 }
 
 AVInteger av_int2i(int64_t a){
