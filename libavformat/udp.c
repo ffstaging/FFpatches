@@ -879,9 +879,10 @@ static int udp_open(URLContext *h, const char *uri, int flags)
         if (getsockopt(udp_fd, SOL_SOCKET, SO_RCVBUF, &tmp, &len) < 0) {
             ff_log_net_error(h, AV_LOG_WARNING, "getsockopt(SO_RCVBUF)");
         } else {
-            av_log(h, AV_LOG_DEBUG, "end receive buffer size reported is %d\n", tmp);
-            if(tmp < s->buffer_size)
-                av_log(h, AV_LOG_WARNING, "attempted to set receive buffer to size %d but it only ended up set as %d\n", s->buffer_size, tmp);
+            /* setsockopt doubles requested value, getsockopt returns the doubled value */
+            av_log(h, AV_LOG_DEBUG, "end receive buffer size reported is %d\n", tmp / 2);
+            if(tmp / 2 < s->buffer_size)
+                av_log(h, AV_LOG_WARNING, "attempted to set receive buffer to size %d but it only ended up set as %d\n", s->buffer_size, tmp / 2);
         }
 
         /* make the socket non-blocking */
