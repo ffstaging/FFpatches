@@ -11,6 +11,24 @@ tools/target_enc_%_fuzzer.o: tools/target_enc_fuzzer.c
 tools/target_bsf_%_fuzzer.o: tools/target_bsf_fuzzer.c
 	$(COMPILE_C) -DFFMPEG_BSF=$*
 
+tools/target_avfilter_%_fuzzer.o: tools/target_avfilter_fuzzer.c
+	$(COMPILE_C) -DFFMPEG_FILTER=$*
+
+tools/target_avutil_fuzzer.o: tools/target_avutil_fuzzer.c
+	$(COMPILE_C)
+
+tools/target_avutil_opt_fuzzer.o: tools/target_avutil_fuzzer.c
+	$(COMPILE_C) -DFFMPEG_AVUTIL_OPT
+
+tools/target_mux_%_fuzzer.o: tools/target_mux_fuzzer.c
+	$(COMPILE_C) -DFFMPEG_MUXER=$*
+
+tools/target_cli_fuzzer.o: tools/target_cli_fuzzer.c
+	$(COMPILE_C)
+
+tools/target_network_fuzzer.o: tools/target_network_fuzzer.c
+	$(COMPILE_C)
+
 tools/target_dem_%_fuzzer.o: tools/target_dem_fuzzer.c
 	$(COMPILE_C) -DFFMPEG_DEMUXER=$* -DIO_FLAT=0
 
