@@ -4637,25 +4637,43 @@ static int mov_merge_tts_data(MOVContext *mov, AVStream *st, int flags)
     int ctts = sc->ctts_data && (flags & MOV_MERGE_CTTS);
     int stts = sc->stts_data && (flags & MOV_MERGE_STTS);
     int idx = 0;
+    unsigned int ctts_total_count = 0;
+    unsigned int stts_total_count = 0;
+    unsigned int tts_count = 0;
 
     if (!sc->ctts_data && !sc->stts_data)
         return 0;
+
+    if (sc->ctts_data) {
+      for (unsigned int i = 0; i < sc->ctts_count; i++) {
+        ctts_total_count += sc->ctts_data[i].count;
+      }
+    }
+
+    if (sc->stts_data) {
+      for (unsigned int i = 0; i < sc->stts_count; i++) {
+        stts_total_count += sc->stts_data[i].count;
+      }
+    }
+
+    tts_count = FFMAX(ctts_total_count, stts_total_count);
+
     // Expand time to sample entries such that we have a 1-1 mapping with samples
-    if (!sc->sample_count || sc->sample_count >= UINT_MAX / sizeof(*sc->tts_data))
+    if (!tts_count || tts_count >= UINT_MAX / sizeof(*sc->tts_data))
         return -1;
 
     if (ctts) {
         sc->tts_data = av_fast_realloc(NULL, &sc->tts_allocated_size,
-                                       sc->sample_count * sizeof(*sc->tts_data));
+                                       tts_count * sizeof(*sc->tts_data));
         if (!sc->tts_data)
             return -1;
 
         memset(sc->tts_data, 0, sc->tts_allocated_size);
 
         for (int i = 0; i < sc->ctts_count &&
-                    idx < sc->sample_count; i++)
+                    idx < tts_count; i++)
             for (int j = 0; j < sc->ctts_data[i].count &&
-                        idx < sc->sample_count; j++) {
+                        idx < tts_count; j++) {
                 sc->tts_data[idx].offset = sc->ctts_data[i].offset;
                 sc->tts_data[idx++].count = 1;
             }
@@ -4669,7 +4687,7 @@ static int mov_merge_tts_data(MOVContext *mov, AVStream *st, int flags)
     idx = 0;
     if (stts) {
         MOVTimeToSample *tts_data = av_fast_realloc(sc->tts_data, &sc->tts_allocated_size,
-                                                    sc->sample_count * sizeof(*sc->tts_data));
+                                                    tts_count * sizeof(*sc->tts_data));
         if (!tts_data)
             return -1;
 
@@ -4678,9 +4696,9 @@ static int mov_merge_tts_data(MOVContext *mov, AVStream *st, int flags)
         sc->tts_data = tts_data;
 
         for (int i = 0; i < sc->stts_count &&
-                    idx < sc->sample_count; i++)
+                    idx < tts_count; i++)
             for (int j = 0; j < sc->stts_data[i].count &&
-                        idx < sc->sample_count; j++) {
+                        idx < tts_count; j++) {
                 sc->tts_data[idx].duration = sc->stts_data[i].duration;
                 sc->tts_data[idx++].count = 1;
             }
