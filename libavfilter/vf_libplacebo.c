@@ -451,24 +451,31 @@ static int update_settings(AVFilterContext *ctx)
         .temperature = (s->temperature - 6500.0) / 3500.0,
     };
 
+#if PL_API_VER >= 263
+#define pl_peak_detect_params_extra .percentile = s->percentile,
+#else
+#define pl_peak_detect_params_extra
+#endif
+
     opts->peak_detect_params = *pl_peak_detect_params(
         .smoothing_period = s->smoothing,
         .scene_threshold_low = s->scene_low,
         .scene_threshold_high = s->scene_high,
-#if PL_API_VER >= 263
-        .percentile = s->percentile,
-#endif
+        pl_peak_detect_params_extra
     );
+
+#if PL_API_VER >= 285
+#define pl_color_map_params_extra .contrast_recovery = s->contrast_recovery, .contrast_smoothness = s->contrast_smoothness,
+#else
+#define pl_color_map_params_extra
+#endif
 
     opts->color_map_params = *pl_color_map_params(
         .tone_mapping_function = get_tonemapping_func(s->tonemapping),
         .tone_mapping_param = s->tonemapping_param,
         .inverse_tone_mapping = s->inverse_tonemapping,
         .lut_size = s->tonemapping_lut_size,
-#if PL_API_VER >= 285
-        .contrast_recovery = s->contrast_recovery,
-        .contrast_smoothness = s->contrast_smoothness,
-#endif
+        pl_color_map_params_extra
     );
 
     set_gamut_mode(&opts->color_map_params, gamut_mode);
@@ -484,6 +491,12 @@ static int update_settings(AVFilterContext *ctx)
         .strength = s->cone_str,
     );
 
+#if PL_API_VER >= 277
+#define pl_render_params_extra .corner_rounding = s->corner_rounding,
+#else
+#define pl_render_params_extra
+#endif
+
     opts->params = *pl_render_params(
         .antiringing_strength = s->antiringing,
         .background_transparency = 1.0f - (float) s->fillcolor[3] / UINT8_MAX,
@@ -492,9 +505,7 @@ static int update_settings(AVFilterContext *ctx)
             (float) s->fillcolor[1] / UINT8_MAX,
             (float) s->fillcolor[2] / UINT8_MAX,
         },
-#if PL_API_VER >= 277
-        .corner_rounding = s->corner_rounding,
-#endif
+        pl_render_params_extra
 
         .deinterlace_params = &opts->deinterlace_params,
         .deband_params = s->deband ? &opts->deband_params : NULL,
