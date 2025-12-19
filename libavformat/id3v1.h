@@ -31,7 +31,7 @@
 /**
  * ID3v1 genres
  */
-extern const char * const ff_id3v1_genre_str[ID3v1_GENRE_MAX + 1];
+const char *ff_id3v1_genre_str(int genre);
 
 /**
  * Read an ID3v1 tag

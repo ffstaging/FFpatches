@@ -134,15 +134,17 @@ static int mov_metadata_int8_no_padding(MOVContext *c, AVIOContext *pb,
 static int mov_metadata_gnre(MOVContext *c, AVIOContext *pb,
                              unsigned len, const char *key)
 {
+    const char *gnre;
     short genre;
 
     avio_r8(pb); // unknown
 
     genre = avio_r8(pb);
-    if (genre < 1 || genre > ID3v1_GENRE_MAX)
+    gnre  = ff_id3v1_genre_str(genre - 1);
+    if (genre < 1 || genre > ID3v1_GENRE_MAX || !gnre)
         return 0;
     c->fc->event_flags |= AVFMT_EVENT_FLAG_METADATA_UPDATED;
-    av_dict_set(&c->fc->metadata, key, ff_id3v1_genre_str[genre-1], 0);
+    av_dict_set(&c->fc->metadata, key, gnre, 0);
 
     return 0;
 }

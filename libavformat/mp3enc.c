@@ -52,6 +52,7 @@ static int id3v1_set_string(AVFormatContext *s, const char *key,
 static int id3v1_create_tag(AVFormatContext *s, uint8_t *buf)
 {
     AVDictionaryEntry *tag;
+    const char *genre;
     int i, count = 0;
 
     memset(buf, 0, ID3v1_TAG_SIZE); /* fail safe */
@@ -82,7 +83,10 @@ static int id3v1_create_tag(AVFormatContext *s, uint8_t *buf)
     buf[127] = 0xFF; /* default to unknown genre */
     if ((tag = av_dict_get(s->metadata, "TCON", NULL, 0))) { //genre
         for(i = 0; i <= ID3v1_GENRE_MAX; i++) {
-            if (!av_strcasecmp(tag->value, ff_id3v1_genre_str[i])) {
+            if ((genre = ff_id3v1_genre_str(i)) == NULL)
+                break;
+
+            if (!av_strcasecmp(tag->value, genre)) {
                 buf[127] = i;
                 count++;
                 break;

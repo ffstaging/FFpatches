@@ -20,10 +20,12 @@
  */
 
 #include "id3v1.h"
+
+#if CONFIG_ID3
 #include "libavutil/dict.h"
 
 /* See Genre List at http://id3.org/id3v2.3.0 */
-const char * const ff_id3v1_genre_str[ID3v1_GENRE_MAX + 1] = {
+const char * const id3v1_genre_str[ID3v1_GENRE_MAX + 1] = {
       [0] = "Blues",
       [1] = "Classic Rock",
       [2] = "Country",
@@ -218,6 +220,11 @@ const char * const ff_id3v1_genre_str[ID3v1_GENRE_MAX + 1] = {
     [191] = "Psybient"
 };
 
+const char *ff_id3v1_genre_str(int genre)
+{
+    return (genre < 0 || genre > ID3v1_GENRE_MAX) ? NULL : id3v1_genre_str[genre];
+}
+
 static void get_string(AVFormatContext *s, const char *key,
                        const uint8_t *buf, int buf_size)
 {
@@ -271,7 +278,7 @@ static int parse_tag(AVFormatContext *s, const uint8_t *buf)
     }
     genre = buf[127];
     if (genre <= ID3v1_GENRE_MAX)
-        av_dict_set(&s->metadata, "genre", ff_id3v1_genre_str[genre], 0);
+        av_dict_set(&s->metadata, "genre", ff_id3v1_genre_str(genre), 0);
     return 0;
 }
 
@@ -294,3 +301,14 @@ void ff_id3v1_read(AVFormatContext *s)
         }
     }
 }
+#else
+
+void ff_id3v1_read(AVFormatContext *s)
+{
+}
+
+const char *ff_id3v1_genre_str(int genre)
+{
+    return NULL;
+}
+#endif
