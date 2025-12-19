@@ -32,6 +32,7 @@
 #include "libavcodec/packet.h"
 
 #include "libavutil/avassert.h"
+#include "libavutil/container_fifo.h"
 #include "libavutil/error.h"
 #include "libavutil/fifo.h"
 #include "libavutil/frame.h"
@@ -86,6 +87,8 @@ typedef struct SchDec {
     unsigned         nb_outputs;
 
     SchTask             task;
+    SchWaiter           waiter_in;  // whether allowed to receive packets
+    SchWaiter           waiter_out; // whether allowed to decode packets
     // Queue for receiving input packets, one stream.
     ThreadQueue        *queue;
 
@@ -95,6 +98,9 @@ typedef struct SchDec {
 
     // temporary storage used by sch_dec_send()
     AVFrame            *send_frame;
+
+    // internal queue of undecoded packets used by sch_dec_receive()
+    AVContainerFifo    *overflow;
 } SchDec;
 
 typedef struct SchSyncQueue {
@@ -528,6 +534,7 @@ void sch_free(Scheduler **psch)
         tq_free(&dec->queue);
 
         av_thread_message_queue_free(&dec->queue_end_ts);
+        av_container_fifo_free(&dec->overflow);
 
         for (unsigned j = 0; j < dec->nb_outputs; j++) {
             SchDecOutput *o = &dec->outputs[j];
@@ -539,6 +546,9 @@ void sch_free(Scheduler **psch)
         av_freep(&dec->outputs);
 
         av_frame_free(&dec->send_frame);
+
+        waiter_uninit(&dec->waiter_in);
+        waiter_uninit(&dec->waiter_out);
     }
     av_freep(&sch->dec);
 
@@ -788,6 +798,18 @@ int sch_add_dec(Scheduler *sch, SchThreadFunc func, void *ctx, int send_end_ts)
         if (ret < 0)
             return ret;
     }
+
+    dec->overflow = av_container_fifo_alloc_avpacket(0);
+    if (!dec->overflow)
+        return AVERROR(ENOMEM);
+
+    ret = waiter_init(&dec->waiter_in);
+    if (ret < 0)
+        return ret;
+
+    ret = waiter_init(&dec->waiter_out);
+    if (ret < 0)
+        return ret;
 
     return idx;
 }
@@ -1294,8 +1316,11 @@ static void unchoke_downstream(Scheduler *sch, SchedulerNode *dst)
     switch (dst->type) {
     case SCH_NODE_TYPE_DEC:
         dec = &sch->dec[dst->idx];
-        for (int i = 0; i < dec->nb_outputs; i++)
-            unchoke_downstream(sch, dec->outputs[i].dst);
+        dec->waiter_in.choked_next = 0;
+        if (!dec->waiter_out.choked_next) {
+            for (int i = 0; i < dec->nb_outputs; i++)
+                unchoke_downstream(sch, dec->outputs[i].dst);
+        }
         break;
     case SCH_NODE_TYPE_ENC:
         enc = &sch->enc[dst->idx];
@@ -1326,6 +1351,8 @@ static void unchoke_for_stream(Scheduler *sch, SchedulerNode src)
     while (1) {
         SchFilterGraph *fg;
         SchDemux *demux;
+        SchDec *dec;
+
         switch (src.type) {
         case SCH_NODE_TYPE_DEMUX:
             // fed directly by a demuxer (i.e. not through a filtergraph)
@@ -1337,7 +1364,10 @@ static void unchoke_for_stream(Scheduler *sch, SchedulerNode src)
                 unchoke_downstream(sch, demux->streams[i].dst);
             return;
         case SCH_NODE_TYPE_DEC:
-            src = sch->dec[src.idx].src;
+            dec = &sch->dec[src.idx];
+            dec->waiter_out.choked_next = 0;
+            dec->waiter_in.choked_next = 0;
+            src = dec->src;
             continue;
         case SCH_NODE_TYPE_ENC:
             src = sch->enc[src.idx].src;
@@ -1359,36 +1389,6 @@ static void unchoke_for_stream(Scheduler *sch, SchedulerNode src)
     }
 }
 
-static void choke_demux(const Scheduler *sch, int demux_id, int choked)
-{
-    av_assert1(demux_id < sch->nb_demux);
-    SchDemux *demux = &sch->demux[demux_id];
-
-    for (int i = 0; i < demux->nb_streams; i++) {
-        SchedulerNode *dst = demux->streams[i].dst;
-        SchFilterGraph *fg;
-
-        switch (dst->type) {
-        case SCH_NODE_TYPE_DEC:
-            tq_choke(sch->dec[dst->idx].queue, choked);
-            break;
-        case SCH_NODE_TYPE_ENC:
-            tq_choke(sch->enc[dst->idx].queue, choked);
-            break;
-        case SCH_NODE_TYPE_MUX:
-            break;
-        case SCH_NODE_TYPE_FILTER_IN:
-            fg = &sch->filters[dst->idx];
-            if (fg->nb_inputs == 1)
-                tq_choke(fg->queue, choked);
-            break;
-        default:
-            av_unreachable("Invalid destination node type?");
-            break;
-        }
-    }
-}
-
 static void schedule_update_locked(Scheduler *sch)
 {
     int64_t dts;
@@ -1404,12 +1404,19 @@ static void schedule_update_locked(Scheduler *sch)
     atomic_store(&sch->last_dts, dts);
 
     // initialize our internal state
-    for (unsigned type = 0; type < 2; type++)
-        for (unsigned i = 0; i < (type ? sch->nb_filters : sch->nb_demux); i++) {
-            SchWaiter *w = type ? &sch->filters[i].waiter : &sch->demux[i].waiter;
-            w->choked_prev = atomic_load(&w->choked);
-            w->choked_next = 1;
-        }
+#define RESET_WAITER(field, waiter)                                                      \
+    do {                                                                                 \
+        for (unsigned i = 0; i < sch->nb_##field; i++) {                                 \
+            SchWaiter *w   = &sch->field[i].waiter;                                      \
+            w->choked_prev = atomic_load(&w->choked);                                    \
+            w->choked_next = 1;                                                          \
+        }                                                                                \
+    } while (0)
+
+    RESET_WAITER(demux, waiter);
+    RESET_WAITER(filters, waiter);
+    RESET_WAITER(dec, waiter_in);
+    RESET_WAITER(dec, waiter_out);
 
     // figure out the sources that are allowed to proceed
     for (unsigned i = 0; i < sch->nb_mux; i++) {
@@ -1446,28 +1453,34 @@ static void schedule_update_locked(Scheduler *sch)
     }
 
     // make sure to unchoke at least one source, if still available
-    for (unsigned type = 0; !have_unchoked && type < 2; type++)
-        for (unsigned i = 0; i < (type ? sch->nb_filters : sch->nb_demux); i++) {
-            int exited = type ? sch->filters[i].task_exited : sch->demux[i].task_exited;
-            SchWaiter *w = type ? &sch->filters[i].waiter : &sch->demux[i].waiter;
-            if (!exited) {
-                w->choked_next = 0;
-                have_unchoked  = 1;
-                break;
-            }
-        }
+#define UNCHOKE_ONCE(field)                                                              \
+    do {                                                                                 \
+        for (unsigned i = 0; !have_unchoked && i < sch->nb_##field; i++) {               \
+            SchWaiter *w = &sch->field[i].waiter;                                        \
+            if (!sch->field[i].task_exited) {                                            \
+                w->choked_next = 0;                                                      \
+                have_unchoked  = 1;                                                      \
+                break;                                                                   \
+            }                                                                            \
+        }                                                                                \
+    } while (0)
 
-    for (unsigned type = 0; type < 2; type++) {
-        for (unsigned i = 0; i < (type ? sch->nb_filters : sch->nb_demux); i++) {
-            SchWaiter *w = type ? &sch->filters[i].waiter : &sch->demux[i].waiter;
-            if (w->choked_prev != w->choked_next) {
-                waiter_set(w, w->choked_next);
-                if (!type)
-                    choke_demux(sch, i, w->choked_next);
-            }
-        }
-    }
+    UNCHOKE_ONCE(demux);
+    UNCHOKE_ONCE(filters);
 
+#define UPDATE_WAITER(field, waiter)                                                             \
+    do {                                                                                 \
+        for (unsigned i = 0; i < sch->nb_##field; i++) {                                 \
+            SchWaiter *w = &sch->field[i].waiter;                                        \
+            if (w->choked_prev != w->choked_next)                                        \
+                waiter_set(w, w->choked_next);                                           \
+        }                                                                                \
+    } while (0)
+
+    UPDATE_WAITER(demux, waiter);
+    UPDATE_WAITER(filters, waiter);
+    UPDATE_WAITER(dec, waiter_in);
+    UPDATE_WAITER(dec, waiter_out);
 }
 
 enum {
@@ -2270,6 +2283,16 @@ int sch_dec_receive(Scheduler *sch, unsigned dec_idx, AVPacket *pkt)
     av_assert0(dec_idx < sch->nb_dec);
     dec = &sch->dec[dec_idx];
 
+    int terminate = waiter_wait(sch, &dec->waiter_in);
+    if (terminate)
+        return AVERROR_EXIT;
+
+retry:
+    // Pull a packet from the overflow FIFO while unchoked or expecting EOF ts
+    if (av_container_fifo_can_read(dec->overflow) &&
+        (!atomic_load(&dec->waiter_out.choked) || dec->expect_end_ts))
+        return av_container_fifo_read(dec->overflow, pkt, 0);
+
     // the decoder should have given us post-flush end timestamp in pkt
     if (dec->expect_end_ts) {
         Timestamp ts = (Timestamp){ .ts = pkt->pts, .tb = pkt->time_base };
@@ -2283,10 +2306,25 @@ int sch_dec_receive(Scheduler *sch, unsigned dec_idx, AVPacket *pkt)
     ret = tq_receive(dec->queue, &dummy, pkt);
     av_assert0(dummy <= 0);
 
+    // drain packets from overflow queue before returning EOF
+    if (ret == AVERROR_EOF && av_container_fifo_can_read(dec->overflow))
+        return av_container_fifo_read(dec->overflow, pkt, 0);
+    else if (ret < 0)
+        return ret;
+
     // got a flush packet, on the next call to this function the decoder
-    // will give us post-flush end timestamp
-    if (ret >= 0 && !pkt->data && !pkt->side_data_elems && dec->queue_end_ts)
+    // should give us post-flush end timestamp (after draining overflow fifo)
+    if (!pkt->data && !pkt->side_data_elems && dec->queue_end_ts)
         dec->expect_end_ts = 1;
+
+    // we got a packet, but we're currently choked or have existing overflow
+    // packets; so push it to the FIFO first
+    if (atomic_load(&dec->waiter_out.choked) || av_container_fifo_can_read(dec->overflow)) {
+        ret = av_container_fifo_write(dec->overflow, pkt, 0);
+        if (ret < 0)
+            return ret;
+        goto retry;
+    }
 
     return ret;
 }
@@ -2718,13 +2756,20 @@ int sch_stop(Scheduler *sch, int64_t *finish_ts)
 
     atomic_store(&sch->terminate, 1);
 
+    /* Ensure no other thread is currently in schedule_update_locked while
+     * we are choking all demuxers */
+    pthread_mutex_lock(&sch->schedule_lock);
+
     for (unsigned type = 0; type < 2; type++)
         for (unsigned i = 0; i < (type ? sch->nb_demux : sch->nb_filters); i++) {
             SchWaiter *w = type ? &sch->demux[i].waiter : &sch->filters[i].waiter;
             waiter_set(w, 1);
-            if (type)
-                choke_demux(sch, i, 0); // unfreeze to allow draining
         }
+
+    for (unsigned i = 0; i < sch->nb_dec; i++)
+        waiter_set(&sch->dec[i].waiter_in, 0); // allow draining
+
+    pthread_mutex_unlock(&sch->schedule_lock);
 
     for (unsigned i = 0; i < sch->nb_demux; i++) {
         SchDemux *d = &sch->demux[i];
