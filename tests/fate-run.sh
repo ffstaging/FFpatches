@@ -89,6 +89,11 @@ stddev(){
     do_tiny_psnr "$1" "$2" stddev
 }
 
+fail_stderr(){
+    run "$1" 2>&1
+    exit 0
+}
+
 oneline(){
     printf '%s\n' "$1" | diff -u -b - "$2"
 }
