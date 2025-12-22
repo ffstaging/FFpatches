@@ -673,9 +673,7 @@ static size_t exif_get_ifd_size(const AVExifMetadata *ifd)
     for (size_t i = 0; i < ifd->count; i++) {
         const AVExifEntry *entry = &ifd->entries[i];
         if (entry->type == AV_TIFF_IFD) {
-            /* this is an extra IFD, not an entry, so we don't need to add base tag size */
-            size_t base_size = entry->id > 0xFFECu && entry->id <= 0xFFFCu ? 0 : BASE_TAG_SIZE;
-            total_size += base_size + exif_get_ifd_size(&entry->value.ifd) + entry->ifd_offset;
+            total_size += BASE_TAG_SIZE + exif_get_ifd_size(&entry->value.ifd) + entry->ifd_offset;
         } else {
             size_t payload_size = entry->count * exif_sizes[entry->type];
             total_size += BASE_TAG_SIZE + (payload_size > 4 ? payload_size : 0);
@@ -759,7 +757,6 @@ int av_exif_write(void *logctx, const AVExifMetadata *ifd, AVBufferRef **buffer,
         goto end;
     }
 
-    size = exif_get_ifd_size(ifd);
     switch (header_mode) {
         case AV_EXIF_EXIF00:
             off = 6;
@@ -776,6 +773,44 @@ int av_exif_write(void *logctx, const AVExifMetadata *ifd, AVBufferRef **buffer,
             headsize = 0;
             break;
     }
+
+    int extras = 0;
+    for (uint16_t extra_tag = 0xFFFCu;
+         extra_tag > 0xFFECu && extras < FF_ARRAY_ELEMS(extra_ifds);
+         extra_tag--) {
+        AVExifEntry *extra_entry = NULL;
+
+        ret = av_exif_get_entry(logctx, (AVExifMetadata *) ifd, extra_tag, 0, &extra_entry);
+        if (ret <= 0)
+            continue;
+        av_log(logctx, AV_LOG_DEBUG, "found extra IFD tag: %04x\n", extra_tag);
+        if (extra_entry->type != AV_TIFF_IFD || extra_entry->count != 1) {
+            av_log(logctx, AV_LOG_DEBUG, "invalid extra IFD tag: %04x\n", extra_tag);
+            continue;
+        }
+        if (!ifd_new) {
+            ifd_new = av_exif_clone_ifd(ifd);
+            if (!ifd_new)
+                break;
+            ifd = ifd_new;
+        }
+        /* calling remove_entry will call av_exif_free on the original */
+        AVExifMetadata *cloned = av_exif_clone_ifd(&extra_entry->value.ifd);
+        if (!cloned)
+            break;
+        extra_ifds[extras] = *cloned;
+        /* don't use av_exif_free here, we want to preserve internals */
+        av_free(cloned);
+        ret = av_exif_remove_entry(logctx, ifd_new, extra_tag, 0);
+        if (ret < 0)
+            break;
+
+        extras++;
+    }
+
+    size = exif_get_ifd_size(ifd);
+    for (int i = 0; i < extras; i++)
+        size += exif_get_ifd_size(&extra_ifds[i]);
     buf = av_buffer_alloc(size + off + headsize);
     if (!buf) {
         ret = AVERROR(ENOMEM);
@@ -796,32 +831,6 @@ int av_exif_write(void *logctx, const AVExifMetadata *ifd, AVBufferRef **buffer,
         /* le == 1 always in this case */
         bytestream2_put_be32(&pb, EXIF_II_LONG);
         tput32(&pb, le, 8);
-    }
-
-    int extras;
-    for (extras = 0; extras < FF_ARRAY_ELEMS(extra_ifds); extras++) {
-        AVExifEntry *extra_entry = NULL;
-        uint16_t extra_tag = 0xFFFCu - extras;
-        ret = av_exif_get_entry(logctx, (AVExifMetadata *) ifd, extra_tag, 0, &extra_entry);
-        if (ret <= 0)
-            break;
-        av_log(logctx, AV_LOG_DEBUG, "found extra IFD tag: %04x\n", extra_tag);
-        if (!ifd_new) {
-            ifd_new = av_exif_clone_ifd(ifd);
-            if (!ifd_new)
-                break;
-            ifd = ifd_new;
-        }
-        /* calling remove_entry will call av_exif_free on the original */
-        AVExifMetadata *cloned = av_exif_clone_ifd(&extra_entry->value.ifd);
-        if (!cloned)
-            break;
-        extra_ifds[extras] = *cloned;
-        /* don't use av_exif_free here, we want to preserve internals */
-        av_free(cloned);
-        ret = av_exif_remove_entry(logctx, ifd_new, extra_tag, 0);
-        if (ret < 0)
-            break;
     }
 
     next = bytestream2_tell_p(&pb);
