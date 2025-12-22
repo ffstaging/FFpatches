@@ -896,19 +896,38 @@ int ff_sws_decode_pixfmt(SwsOpList *ops, enum AVPixelFormat fmt)
     SwsReadWriteOp rw_op;
     SwsSwizzleOp swizzle;
     SwsPackOp unpack;
+    SwsComps comps = {0};
     int shift;
 
     RET(fmt_analyze(fmt, &rw_op, &unpack, &swizzle, &shift,
                     &pixel_type, &raw_type));
 
+    /* Generate value range information for simple unpacked formats */
+    if (!(desc->flags & AV_PIX_FMT_FLAG_FLOAT) && !unpack.pattern[0]) {
+        for (int c = 0; c < desc->nb_components; c++) {
+            const int bits = desc->comp[c].depth + shift;
+            const int idx  = swizzle.in[c];
+            comps.min[idx] = Q0;
+            if (bits < 32) /* FIXME: AVRational is limited to INT_MAX */
+                comps.max[idx] = Q((1ULL << bits) - 1);
+        }
+    }
+
+    const int swapped = (desc->flags & AV_PIX_FMT_FLAG_BE) != NATIVE_ENDIAN_FLAG;
+    if (swapped) {
+        for (int i = 0; i < 4; i++)
+            comps.flags[i] |= SWS_COMP_SWAPPED;
+    }
+
     /* TODO: handle subsampled or semipacked input formats */
     RET(ff_sws_op_list_append(ops, &(SwsOp) {
-        .op   = SWS_OP_READ,
-        .type = raw_type,
-        .rw   = rw_op,
+        .op    = SWS_OP_READ,
+        .type  = raw_type,
+        .rw    = rw_op,
+        .comps = comps,
     }));
 
-    if ((desc->flags & AV_PIX_FMT_FLAG_BE) != NATIVE_ENDIAN_FLAG) {
+    if (swapped) {
         RET(ff_sws_op_list_append(ops, &(SwsOp) {
             .op   = SWS_OP_SWAP_BYTES,
             .type = raw_type,
