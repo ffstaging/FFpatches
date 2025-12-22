@@ -310,7 +310,7 @@ static int decode_interrupt_cb(void *ctx)
 
 const AVIOInterruptCB int_cb = { decode_interrupt_cb, NULL };
 
-static void ffmpeg_cleanup(int ret)
+void ffmpeg_cleanup(int ret)
 {
     if ((print_graphs || print_graphs_file) && nb_output_files > 0)
         print_filtergraphs(filtergraphs, nb_filtergraphs, input_files, nb_input_files, output_files, nb_output_files);

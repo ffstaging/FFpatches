@@ -798,6 +798,7 @@ extern int recast_media;
 extern FILE *vstats_file;
 
 void term_init(void);
+void ffmpeg_cleanup(int ret);
 void term_exit(void);
 
 void show_usage(void);

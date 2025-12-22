@@ -26,6 +26,29 @@ tools/target_sws_fuzzer.o: tools/target_sws_fuzzer.c
 tools/target_swr_fuzzer.o: tools/target_swr_fuzzer.c
 	$(COMPILE_C)
 
+tools/target_avutil_fuzzer.o: tools/target_avutil_fuzzer.c
+	$(COMPILE_C)
+
+tools/target_avutil_opt_fuzzer.o: tools/target_avutil_fuzzer.c
+	$(COMPILE_C) -DFFMPEG_AVUTIL_OPT
+
+tools/target_avfilter_%_fuzzer.o: tools/target_avfilter_fuzzer.c
+	$(COMPILE_C) -DFFMPEG_FILTER=$*
+
+tools/target_mux_%_fuzzer.o: tools/target_mux_fuzzer.c
+	$(COMPILE_C) -DFFMPEG_MUXER=$*
+
+tools/target_network_fuzzer.o: tools/target_network_fuzzer.c
+	$(COMPILE_C)
+
+tools/target_cli_fuzzer.o: tools/target_cli_fuzzer.c
+	$(COMPILE_C)
+
+
+
+
+
+
 tools/enc_recon_frame_test$(EXESUF): tools/decode_simple.o
 tools/venc_data_dump$(EXESUF): tools/decode_simple.o
 tools/scale_slice_test$(EXESUF): tools/decode_simple.o
