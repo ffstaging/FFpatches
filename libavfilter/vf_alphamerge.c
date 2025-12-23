@@ -46,12 +46,54 @@ typedef struct AlphaMergeContext {
     FFFrameSync fs;
 } AlphaMergeContext;
 
+typedef struct ThreadData {
+    AVFrame *main_buf;
+    AVFrame *alpha_buf;
+} ThreadData;
+
+static int alphamerge_slice(AVFilterContext *ctx, void *arg, int jobnr, int nb_jobs)
+{
+    AlphaMergeContext *s = ctx->priv;
+    ThreadData *td = arg;
+    AVFrame *main_buf = td->main_buf;
+    AVFrame *alpha_buf = td->alpha_buf;
+    
+    int slice_start, slice_end, y, x;
+    uint8_t *pin, *pout;
+    int main_linesize, alpha_linesize;
+
+    slice_start = (main_buf->height * jobnr) / nb_jobs;
+    slice_end   = (main_buf->height * (jobnr+1)) / nb_jobs;
+
+    if (s->is_packed_rgb) {
+        for (y = slice_start; y < slice_end; y++) {
+            pin = alpha_buf->data[0] + y * alpha_buf->linesize[0];
+            pout = main_buf->data[0] + y * main_buf->linesize[0] + s->rgba_map[A];
+            for (x = 0; x < main_buf->width; x++) {
+                *pout = *pin;
+                pin += 1;
+                pout += 4;
+            }
+        }
+    } else {
+        main_linesize = main_buf->linesize[A];
+        alpha_linesize = alpha_buf->linesize[Y];
+        av_image_copy_plane(main_buf->data[A] + slice_start * main_linesize,
+                            main_linesize,
+                            alpha_buf->data[Y] + slice_start * alpha_linesize,
+                            alpha_linesize,
+                            FFMIN(main_linesize, alpha_linesize),
+                            slice_end - slice_start);
+    }
+    return 0;
+}
+
 static int do_alphamerge(FFFrameSync *fs)
 {
     AVFilterContext *ctx = fs->parent;
     AVFilterLink *outlink = ctx->outputs[0];
-    AlphaMergeContext *s = ctx->priv;
     AVFrame *main_buf, *alpha_buf;
+    ThreadData td;
     int ret;
 
     ret = ff_framesync_dualinput_get_writable(fs, &main_buf, &alpha_buf);
@@ -67,25 +109,10 @@ static int do_alphamerge(FFFrameSync *fs)
                av_color_range_name(alpha_buf->color_range));
     }
 
-    if (s->is_packed_rgb) {
-        int x, y;
-        uint8_t *pin, *pout;
-        for (y = 0; y < main_buf->height; y++) {
-            pin = alpha_buf->data[0] + y * alpha_buf->linesize[0];
-            pout = main_buf->data[0] + y * main_buf->linesize[0] + s->rgba_map[A];
-            for (x = 0; x < main_buf->width; x++) {
-                *pout = *pin;
-                pin += 1;
-                pout += 4;
-            }
-        }
-    } else {
-        const int main_linesize = main_buf->linesize[A];
-        const int alpha_linesize = alpha_buf->linesize[Y];
-        av_image_copy_plane(main_buf->data[A], main_linesize,
-                            alpha_buf->data[Y], alpha_linesize,
-                            FFMIN(main_linesize, alpha_linesize), alpha_buf->height);
-    }
+    td.main_buf = main_buf;
+    td.alpha_buf = alpha_buf;
+    ff_filter_execute(ctx, alphamerge_slice, &td, NULL,
+                      FFMIN(main_buf->height, ff_filter_get_nb_threads(ctx)));
 
     return ff_filter_frame(ctx->outputs[0], main_buf);
 }
@@ -210,7 +237,7 @@ const FFFilter ff_vf_alphamerge = {
     .p.description  = NULL_IF_CONFIG_SMALL("Copy the luma value of the second "
                       "input into the alpha channel of the first input."),
     .p.priv_class   = &alphamerge_class,
-    .p.flags        = AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL,
+    .p.flags        = AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL | AVFILTER_FLAG_SLICE_THREADS,
     .preinit        = alphamerge_framesync_preinit,
     .priv_size      = sizeof(AlphaMergeContext),
     .init           = init,
