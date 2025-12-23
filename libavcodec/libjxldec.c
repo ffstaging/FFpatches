@@ -450,9 +450,8 @@ static int libjxl_receive_frame(AVCodecContext *avctx, AVFrame *frame)
                     av_log(avctx, AV_LOG_ERROR, "Unexpected end of JXL codestream\n");
                     return AVERROR_INVALIDDATA;
                 } else if (ctx->frame_complete) {
-                    libjxl_finalize_frame(avctx, frame, ctx->frame);
                     ctx->jret = JXL_DEC_SUCCESS;
-                    return 0;
+                    goto success;
                 }
                 return AVERROR_EOF;
             }
@@ -584,6 +583,7 @@ static int libjxl_receive_frame(AVCodecContext *avctx, AVFrame *frame)
                 continue;
             }
         case JXL_DEC_SUCCESS:
+success:
             av_log(avctx, AV_LOG_DEBUG, "SUCCESS event emitted\n");
             /*
              * this event will be fired when the zero-length EOF
