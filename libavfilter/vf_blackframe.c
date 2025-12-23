@@ -32,6 +32,7 @@
 
 #include "libavutil/internal.h"
 #include "libavutil/opt.h"
+#include "libavutil/mem.h"
 #include "avfilter.h"
 #include "filters.h"
 #include "video.h"
@@ -45,6 +46,14 @@ typedef struct BlackFrameContext {
     unsigned int last_keyframe; ///< frame number of the last received key-frame
 } BlackFrameContext;
 
+typedef struct ThreadData {
+    const uint8_t *data; // Pointer to the image data
+    int linesize;        // How wide is the memory line
+    int bthresh;         // The black threshold
+    int width;           // Image width
+    unsigned int *counts; // POINTER to the array where threads write results
+} ThreadData;
+
 static const enum AVPixelFormat pix_fmts[] = {
     AV_PIX_FMT_YUV410P, AV_PIX_FMT_YUV420P, AV_PIX_FMT_GRAY8, AV_PIX_FMT_NV12,
     AV_PIX_FMT_NV21, AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUV422P, AV_PIX_FMT_YUV411P,
@@ -55,22 +64,72 @@ static const enum AVPixelFormat pix_fmts[] = {
     snprintf(buf, sizeof(buf), format, value);  \
     av_dict_set(metadata, key, buf, 0)
 
+static int blackframe_slice(AVFilterContext *ctx, void *arg, int jobnr, int nb_jobs)
+{
+    ThreadData *td = arg;
+    // --- C90 HARD FIX: ALL DECLARATIONS AT THE VERY TOP ---
+    int slice_start, slice_end, x, y;
+    const uint8_t *p;
+    unsigned int local_nblack = 0;
+    // ------------------------------------------------------
+
+    // Safety check
+    if (!td || !td->data || !td->counts) return 0;
+
+    slice_start = (ctx->inputs[0]->h * jobnr) / nb_jobs;
+    slice_end   = (ctx->inputs[0]->h * (jobnr+1)) / nb_jobs;
+    
+    p = td->data + slice_start * td->linesize;
+
+    for (y = slice_start; y < slice_end; y++) {
+        for (x = 0; x < td->width; x++)
+            local_nblack += p[x] < td->bthresh;
+        p += td->linesize;
+    }
+
+    // Save my private count
+    td->counts[jobnr] = local_nblack;
+    return 0;
+}
+
 static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 {
     AVFilterContext *ctx = inlink->dst;
     BlackFrameContext *s = ctx->priv;
-    int x, i;
+    // --- C90 HARD FIX: ALL DECLARATIONS AT THE VERY TOP ---
     int pblack = 0;
-    uint8_t *p = frame->data[0];
     AVDictionary **metadata;
     char buf[32];
+    ThreadData td;
+    int nb_threads;
+    unsigned int *thread_counts;
+    int nb_jobs;
+    int i; // <--- This was the MSVC killer. Moved to top.
+    // ------------------------------------------------------
 
-    for (i = 0; i < frame->height; i++) {
-        for (x = 0; x < inlink->w; x++)
-            s->nblack += p[x] < s->bthresh;
-        p += frame->linesize[0];
+    nb_threads = ff_filter_get_nb_threads(ctx);
+    
+    thread_counts = av_calloc(nb_threads, sizeof(*thread_counts));
+    if (!thread_counts) {
+        av_log(ctx, AV_LOG_ERROR, "Failed to allocate thread_counts\n");
+        return AVERROR(ENOMEM);
     }
 
+    td.data = frame->data[0];
+    td.linesize = frame->linesize[0];
+    td.width = inlink->w;
+    td.bthresh = s->bthresh;
+    td.counts = thread_counts;
+
+    nb_jobs = FFMIN(frame->height, nb_threads);
+    
+    ff_filter_execute(ctx, blackframe_slice, &td, NULL, nb_jobs);
+
+    s->nblack = 0;
+    for (i = 0; i < nb_jobs; i++) {
+        s->nblack += thread_counts[i];
+    }
+    
     if (frame->flags & AV_FRAME_FLAG_KEY)
         s->last_keyframe = s->frame;
 
@@ -89,6 +148,9 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 
     s->frame++;
     s->nblack = 0;
+    
+    av_free(thread_counts);
+
     return ff_filter_frame(inlink->dst->outputs[0], frame);
 }
 
@@ -118,7 +180,7 @@ const FFFilter ff_vf_blackframe = {
     .p.name        = "blackframe",
     .p.description = NULL_IF_CONFIG_SMALL("Detect frames that are (almost) black."),
     .p.priv_class  = &blackframe_class,
-    .p.flags       = AVFILTER_FLAG_METADATA_ONLY,
+    .p.flags       = AVFILTER_FLAG_METADATA_ONLY | AVFILTER_FLAG_SLICE_THREADS,
     .priv_size     = sizeof(BlackFrameContext),
     FILTER_INPUTS(avfilter_vf_blackframe_inputs),
     FILTER_OUTPUTS(ff_video_default_filterpad),
