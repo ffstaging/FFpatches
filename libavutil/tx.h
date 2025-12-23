@@ -129,6 +129,9 @@ enum AVTXType {
     AV_TX_DOUBLE_DST_I = 16,
     AV_TX_INT32_DST_I  = 17,
 
+    /* Special type to allow all types */
+    AV_TX_TYPE_ANY,
+
     /* Not part of the API, do not use */
     AV_TX_NB,
 };

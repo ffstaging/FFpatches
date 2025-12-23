@@ -320,7 +320,7 @@ static void ff_tx_null(AVTXContext *s, void *_out, void *_in, ptrdiff_t stride)
 static const FFTXCodelet ff_tx_null_def = {
     .name       = NULL_IF_CONFIG_SMALL("null"),
     .function   = ff_tx_null,
-    .type       = TX_TYPE_ANY,
+    .type       = AV_TX_TYPE_ANY,
     .flags      = AV_TX_UNALIGNED | FF_TX_ALIGNED |
                   FF_TX_OUT_OF_PLACE | AV_TX_INPLACE,
     .factors[0] = TX_FACTOR_ANY,
@@ -433,7 +433,7 @@ int ff_tx_decompose_length(int dst[TX_MAX_DECOMPOSITIONS], enum AVTXType type,
                 goto sort;
 
             /* Check if the type matches */
-            if (cd->type != TX_TYPE_ANY && type != cd->type)
+            if (cd->type != AV_TX_TYPE_ANY && type != cd->type)
                 continue;
 
             /* Check direction for non-orthogonal codelets */
@@ -575,7 +575,7 @@ static void print_flags(AVBPrint *bp, uint64_t f)
 static void print_type(AVBPrint *bp, enum AVTXType type)
 {
     av_bprintf(bp, "%s",
-               type == TX_TYPE_ANY       ? "any"         :
+               type == AV_TX_TYPE_ANY    ? "any"         :
                type == AV_TX_FLOAT_FFT   ? "fft_float"   :
                type == AV_TX_FLOAT_MDCT  ? "mdct_float"  :
                type == AV_TX_FLOAT_RDFT  ? "rdft_float"  :
@@ -755,7 +755,7 @@ av_cold int ff_tx_init_subtx(AVTXContext *s, enum AVTXType type,
 
         while ((cd = *list++)) {
             /* Check if the type matches */
-            if (cd->type != TX_TYPE_ANY && type != cd->type)
+            if (cd->type != AV_TX_TYPE_ANY && type != cd->type)
                 continue;
 
             /* Check direction for non-orthogonal codelets */
