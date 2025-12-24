@@ -1903,6 +1903,9 @@ static int mkv_write_track(AVFormatContext *s, MatroskaMuxContext *mkv,
     tag = av_dict_get(st->metadata, "language", NULL, 0);
     put_ebml_string(pb, MATROSKA_ID_TRACKLANGUAGE,
                     tag && tag->value[0] ? tag->value : "und");
+    tag = av_dict_get(st->metadata, "language_bcp47", NULL, 0);
+    put_ebml_string(pb, MATROSKA_ID_TRACKLANGUAGEBCP47,
+                    tag && tag->value[0] ? tag->value : "und");
 
     // The default value for TRACKFLAGDEFAULT is 1, so add element
     // if we need to clear it.

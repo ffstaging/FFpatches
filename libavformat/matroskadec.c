@@ -269,6 +269,7 @@ typedef struct MatroskaTrack {
     char    *codec_id;
     EbmlBin  codec_priv;
     char    *language;
+    char    *language_bcp47;
     double time_scale;
     uint64_t default_duration;
     uint64_t flag_default;
@@ -615,6 +616,7 @@ static EbmlSyntax matroska_track[] = {
     { MATROSKA_ID_CODECPRIVATE,          EBML_BIN,   0, 0, offsetof(MatroskaTrack, codec_priv) },
     { MATROSKA_ID_CODECDELAY,            EBML_UINT,  0, 0, offsetof(MatroskaTrack, codec_delay),  { .u = 0 } },
     { MATROSKA_ID_TRACKLANGUAGE,         EBML_STR,   0, 0, offsetof(MatroskaTrack, language),     { .s = "eng" } },
+    { MATROSKA_ID_TRACKLANGUAGEBCP47,    EBML_STR,   0, 0, offsetof(MatroskaTrack, language_bcp47) },
     { MATROSKA_ID_TRACKDEFAULTDURATION,  EBML_UINT,  0, 0, offsetof(MatroskaTrack, default_duration) },
     { MATROSKA_ID_TRACKTIMECODESCALE,    EBML_FLOAT, 0, 0, offsetof(MatroskaTrack, time_scale),   { .f = 1.0 } },
     { MATROSKA_ID_TRACKFLAGCOMMENTARY,   EBML_UINT,  0, 0, offsetof(MatroskaTrack, flag_comment), { .u = 0 } },
@@ -3241,6 +3243,9 @@ static int matroska_parse_tracks(AVFormatContext *s)
         if (strcmp(track->language, "und"))
             av_dict_set(&st->metadata, "language", track->language, 0);
         av_dict_set(&st->metadata, "title", track->name, 0);
+
+        if (strcmp(track->language_bcp47, "und"))
+            av_dict_set(&st->metadata, "language_bcp47", track->language_bcp47, 0);
 
         if (track->time_scale < 0.01) {
             av_log(matroska->ctx, AV_LOG_WARNING,
