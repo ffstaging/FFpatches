@@ -3332,7 +3332,11 @@ after_cues:
 
             if (track->duration_offset > 0) {
                 double duration_sec = track->duration * av_q2d(st->time_base);
+#ifdef __MINGW32__
+                char duration_string[333] = "";
+#else
                 char duration_string[DURATION_STRING_LENGTH + 1] = "";
+#endif
                 ebml_master simpletag;
 
                 av_log(s, AV_LOG_DEBUG, "stream %d end duration = %" PRIu64 "\n", i,
