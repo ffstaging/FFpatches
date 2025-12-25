@@ -10,6 +10,7 @@ ALLAVPROGS   = $(AVBASENAMES:%=%$(PROGSSUF)$(EXESUF))
 ALLAVPROGS_G = $(AVBASENAMES:%=%$(PROGSSUF)_g$(EXESUF))
 
 include $(SRC_PATH)/fftools/resources/Makefile
+include $(SRC_PATH)/fftools/riscv/Makefile
 
 OBJS-ffmpeg +=                  \
     fftools/ffmpeg_dec.o        \
@@ -37,6 +38,7 @@ OBJS-ffmpeg +=                  \
     fftools/textformat/tw_stdout.o    \
     $(OBJS-resman)                    \
     $(RESOBJS)                        \
+    $(OBJS-CPU_COMMON-yes)              \
 
 OBJS-ffprobe +=                       \
     fftools/textformat/avtextformat.o \
@@ -60,7 +62,7 @@ ifdef HAVE_GNU_WINDRES
 OBJS-$(1) += fftools/fftoolsres.o
 endif
 $(1)$(PROGSSUF)_g$(EXESUF): $$(OBJS-$(1))
-$$(OBJS-$(1)): | fftools fftools/textformat fftools/resources fftools/graph
+$$(OBJS-$(1)): | fftools fftools/textformat fftools/resources fftools/graph fftools/riscv
 $$(OBJS-$(1)): CFLAGS  += $(CFLAGS-$(1))
 $(1)$(PROGSSUF)_g$(EXESUF): LDFLAGS += $(LDFLAGS-$(1))
 $(1)$(PROGSSUF)_g$(EXESUF): FF_EXTRALIBS += $(EXTRALIBS-$(1))
@@ -76,6 +78,7 @@ OUTDIRS += fftools
 OUTDIRS += fftools/textformat
 OUTDIRS += fftools/resources
 OUTDIRS += fftools/graph
+OUTDIRS += fftools/riscv
 
 ifdef AVPROGS
 install: install-progs install-data
