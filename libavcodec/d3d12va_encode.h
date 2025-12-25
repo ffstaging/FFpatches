@@ -57,6 +57,10 @@ typedef struct D3D12VAEncodePicture {
     D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA pic_ctl;
 
     int             fence_value;
+
+    // ROI delta QP map
+    int8_t         *qp_map;
+    int             qp_map_size;
 } D3D12VAEncodePicture;
 
 typedef struct D3D12VAEncodeProfile {
@@ -281,6 +285,12 @@ typedef struct D3D12VAEncodeContext {
      * Motion estimation precision mode
      */
     D3D12_VIDEO_ENCODER_MOTION_ESTIMATION_PRECISION_MODE me_precision;
+
+
+    /**
+     * QP map region pixel size (block size for QP map)
+     */
+    int qp_map_region_size;
 
 } D3D12VAEncodeContext;
 
