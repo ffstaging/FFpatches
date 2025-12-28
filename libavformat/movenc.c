@@ -45,6 +45,7 @@
 
 #include "libavcodec/internal.h"
 #include "libavcodec/put_bits.h"
+#include "libavcodec/av1_parse.h"
 #include "libavcodec/vc1_common.h"
 #include "libavcodec/raw.h"
 #include "internal.h"
@@ -8799,6 +8800,10 @@ static int mov_check_bitstream(AVFormatContext *s, AVStream *st,
             ret = ff_stream_add_bitstream_filter(st, "aac_adtstoasc", NULL);
     } else if (st->codecpar->codec_id == AV_CODEC_ID_VP9) {
         ret = ff_stream_add_bitstream_filter(st, "vp9_superframe", NULL);
+    } else if (st->codecpar->codec_id == AV_CODEC_ID_AV1) {
+        /* Convert MPEG-TS start code format to Section 5 if needed */
+        if (ff_av1_is_startcode_format(pkt->data, pkt->size))
+            ret = ff_stream_add_bitstream_filter(st, "av1_tstosection5", NULL);
     }
 
     return ret;

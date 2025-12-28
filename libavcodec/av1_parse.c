@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "libavutil/intreadwrite.h"
 #include "libavutil/mem.h"
 
 #include "av1.h"
@@ -119,4 +120,136 @@ AVRational ff_av1_framerate(int64_t ticks_per_frame, int64_t units_per_tick,
         return fr;
 
     return (AVRational){ 0, 1 };
+}
+
+int ff_av1_is_startcode_format(const uint8_t *buf, int length)
+{
+    if (length < 4)
+        return 0;
+
+    /* Check for 3-byte start code (MPEG-TS AV1 spec) */
+    if (AV_RB24(buf) == 0x000001)
+        return 1;
+
+    return 0;
+}
+
+/**
+ * Find the next 3-byte start code (0x000001) in buffer.
+ * Note: MPEG-TS AV1 uses only 3-byte start codes per the specification.
+ */
+static const uint8_t *find_next_startcode(const uint8_t *p, const uint8_t *end)
+{
+    while (p + 3 <= end) {
+        if (AV_RB24(p) == 0x000001)
+            return p;
+        p++;
+    }
+    return end;
+}
+
+int ff_av1_extract_obu_startcode(AV1OBU *obu, const uint8_t *buf, int length,
+                                  void *logctx)
+{
+    int start_code_size = 3;  /* MPEG-TS AV1 uses only 3-byte start codes */
+    int64_t obu_size;
+    int start_pos, type, temporal_id, spatial_id;
+    int ret;
+
+    if (length < 4)
+        return AVERROR_INVALIDDATA;
+
+    /* Verify 3-byte start code */
+    if (AV_RB24(buf) != 0x000001) {
+        av_log(logctx, AV_LOG_ERROR, "Invalid AV1 start code\n");
+        return AVERROR_INVALIDDATA;
+    }
+
+    if (length - start_code_size < 1)
+        return AVERROR_INVALIDDATA;
+
+    /* Parse OBU header after start code */
+    ret = parse_obu_header(buf + start_code_size,
+                           length - start_code_size,
+                           &obu_size, &start_pos, &type,
+                           &temporal_id, &spatial_id);
+    if (ret < 0) {
+        av_log(logctx, AV_LOG_ERROR, "Failed to parse OBU header\n");
+        return ret;
+    }
+
+    obu->type = type;
+    obu->temporal_id = temporal_id;
+    obu->spatial_id = spatial_id;
+    obu->raw_data = buf + start_code_size;
+    obu->raw_size = ret;
+    obu->data = buf + start_code_size + start_pos;
+    obu->size = obu_size;
+    obu->size_bits = get_obu_bit_length(obu->data, obu->size, type);
+
+    av_log(logctx, AV_LOG_DEBUG,
+           "startcode obu_type: %d, temporal_id: %d, spatial_id: %d, payload size: %d\n",
+           obu->type, obu->temporal_id, obu->spatial_id, obu->size);
+
+    return start_code_size + ret;
+}
+
+int ff_av1_packet_split_startcode(AV1Packet *pkt, const uint8_t *buf,
+                                   int length, void *logctx)
+{
+    const uint8_t *p = buf;
+    const uint8_t *end = buf + length;
+    int ret;
+
+    pkt->nb_obus = 0;
+
+    /* Find first start code */
+    p = find_next_startcode(p, end);
+
+    while (p < end) {
+        AV1OBU *obu;
+        int consumed;
+
+        /* Ensure OBU array has space */
+        if (pkt->obus_allocated < pkt->nb_obus + 1) {
+            int new_size = pkt->obus_allocated + 1;
+            AV1OBU *tmp;
+
+            if (new_size >= INT_MAX / sizeof(*tmp))
+                return AVERROR(ENOMEM);
+            tmp = av_fast_realloc(pkt->obus, &pkt->obus_allocated_size,
+                                  new_size * sizeof(*tmp));
+            if (!tmp)
+                return AVERROR(ENOMEM);
+
+            pkt->obus = tmp;
+            memset(pkt->obus + pkt->obus_allocated, 0, sizeof(*pkt->obus));
+            pkt->obus_allocated = new_size;
+        }
+
+        obu = &pkt->obus[pkt->nb_obus];
+
+        /* Extract OBU using its size field, not by finding next start code */
+        ret = ff_av1_extract_obu_startcode(obu, p, end - p, logctx);
+        if (ret < 0) {
+            av_log(logctx, AV_LOG_WARNING,
+                   "Failed to extract OBU at offset %td, skipping to next start code\n",
+                   p - buf);
+            /* On error, try to find next start code and continue */
+            p = find_next_startcode(p + 3, end);
+            continue;
+        }
+
+        consumed = ret;  /* Total bytes consumed including start code */
+
+        pkt->nb_obus++;
+        p += consumed;
+
+        /* Skip to next start code if there's gap */
+        if (p < end && AV_RB24(p) != 0x000001) {
+            p = find_next_startcode(p, end);
+        }
+    }
+
+    return 0;
 }

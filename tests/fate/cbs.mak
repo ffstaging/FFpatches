@@ -66,6 +66,16 @@ FATE_CBS_AV1-$(call FATE_CBS_DEPS, IVF, AV1, AV1, AV1, RAWVIDEO) = $(FATE_CBS_av
 FATE_SAMPLES_AVCONV += $(FATE_CBS_AV1-yes)
 fate-cbs-av1: $(FATE_CBS_AV1-yes)
 
+# AV1 MPEG-TS to Section 5 BSF test
+# This tests the av1_tstosection5 bitstream filter that converts from
+# MPEG-TS start code format to Section 5 (low overhead) format.
+# The test generates an MPEG-TS file from IVF, then converts back using the BSF.
+FATE_AV1_BSF-$(call ALLYES, IVF_DEMUXER MPEGTS_MUXER MPEGTS_DEMUXER AV1_PARSER AV1_TSTOSECTION5_BSF IVF_MUXER) += fate-av1-bsf-tstosection5
+fate-av1-bsf-tstosection5: SRC = $(TARGET_SAMPLES)/av1-test-vectors/av1-1-b8-05-mv.ivf
+fate-av1-bsf-tstosection5: CMD = transcode ivf "$(SRC)" mpegts "-c:v copy" "-c:v copy -bsf:v av1_tstosection5 -f ivf"
+
+FATE_SAMPLES_FFMPEG += $(FATE_AV1_BSF-yes)
+
 # H.264 read/write
 
 FATE_CBS_H264_CONFORMANCE_SAMPLES = \

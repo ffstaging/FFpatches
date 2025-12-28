@@ -1,0 +1,11 @@
+db041646a729b26618465bf2acb8b053 *tests/data/fate/av1-bsf-tstosection5.mpegts
+57904 tests/data/fate/av1-bsf-tstosection5.mpegts
+#tb 0: 1/90000
+#media_type 0: video
+#codec_id 0: av1
+#dimensions 0: 352x288
+#sar 0: 1/1
+0,          0,          0,     3000,    30833, 0xfb97b07f, S=1, MPEGTS Stream ID,        1, 0x00bd00bd
+0,       3000,       3000,     3000,    20779, 0xd71f36d5, F=0x0, S=1, MPEGTS Stream ID,        1, 0x00bd00bd
+0,       6000,       6000,     3000,     3526, 0x643de3e4, F=0x0, S=1, MPEGTS Stream ID,        1, 0x00bd00bd
+0,       9000,       9000,     3000,        5, 0x01920115, F=0x0, S=1, MPEGTS Stream ID,        1, 0x00bd00bd

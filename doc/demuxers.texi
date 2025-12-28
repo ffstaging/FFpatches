@@ -1003,6 +1003,37 @@ Set maximum size, in bytes, of packet emitted by the demuxer. Payloads above thi
 are split across multiple packets. Range is 1 to INT_MAX/2. Default is 204800 bytes.
 @end table
 
+@subsection AV1 Support
+
+The MPEG-TS demuxer supports AV1 video streams according to the AOM
+"Carriage of AV1 in MPEG-2 TS" specification.
+
+AV1 streams are identified by:
+@itemize
+@item Stream type 0x06 (private data) in the PMT
+@item Registration descriptor with format identifier @samp{AV01}
+@end itemize
+
+The demuxer outputs AV1 data in the MPEG-TS start code format, where each OBU
+is prefixed with a 0x000001 start code. To convert to the standard Section 5
+format used by other containers and decoders, the @code{av1_tstosection5}
+bitstream filter can be used.
+
+When remuxing to other containers (MP4, MKV, FLV, IVF, etc.), the
+@code{av1_tstosection5} filter is automatically inserted.
+
+The AV1 video descriptor (descriptor tag 0x80) is parsed to extract stream
+parameters such as profile, level, tier, and color information.
+
+@subsubsection Example
+
+Demux and convert AV1 from MPEG-TS to MP4:
+@example
+ffmpeg -i input.ts -c:v copy output.mp4
+@end example
+
+The bitstream filter is automatically applied when needed.
+
 @section mpjpeg
 
 MJPEG encapsulated in multi-part MIME demuxer.

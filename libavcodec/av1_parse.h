@@ -169,4 +169,40 @@ static inline int get_obu_bit_length(const uint8_t *buf, int size, int type)
 AVRational ff_av1_framerate(int64_t ticks_per_frame, int64_t units_per_tick,
                             int64_t time_scale);
 
+/**
+ * Check if data is in MPEG-TS start code format.
+ *
+ * MPEG-TS AV1 uses start codes (0x000001) to delimit OBUs,
+ * unlike Section 5 (Low Overhead) format.
+ *
+ * @param buf    input buffer
+ * @param length buffer length
+ * @return 1 if start code format, 0 otherwise
+ */
+int ff_av1_is_startcode_format(const uint8_t *buf, int length);
+
+/**
+ * Extract a single OBU from MPEG-TS start code format.
+ *
+ * @param obu    output OBU structure
+ * @param buf    input buffer (should start with 0x000001 or 0x00000001)
+ * @param length input length
+ * @param logctx logging context
+ * @return bytes consumed on success, negative error code on failure
+ */
+int ff_av1_extract_obu_startcode(AV1OBU *obu, const uint8_t *buf, int length,
+                                  void *logctx);
+
+/**
+ * Split start code format packet into OBU list.
+ *
+ * @param pkt    output OBU list
+ * @param buf    input buffer
+ * @param length input length
+ * @param logctx logging context
+ * @return 0 on success, negative error code on failure
+ */
+int ff_av1_packet_split_startcode(AV1Packet *pkt, const uint8_t *buf,
+                                   int length, void *logctx);
+
 #endif /* AVCODEC_AV1_PARSE_H */

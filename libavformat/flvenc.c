@@ -39,6 +39,7 @@
 #include "nal.h"
 #include "mux.h"
 #include "libavutil/opt.h"
+#include "libavcodec/av1_parse.h"
 #include "libavcodec/put_bits.h"
 
 
@@ -1473,6 +1474,11 @@ static int flv_check_bitstream(AVFormatContext *s, AVStream *st,
         if (pkt->size > 2 && (AV_RB16(pkt->data) & 0xfff0) == 0xfff0)
             return ff_stream_add_bitstream_filter(st, "aac_adtstoasc", NULL);
     }
+    /* Convert MPEG-TS start code format to Section 5 if needed */
+    if (st->codecpar->codec_id == AV_CODEC_ID_AV1 &&
+        ff_av1_is_startcode_format(pkt->data, pkt->size))
+        return ff_stream_add_bitstream_filter(st, "av1_tstosection5", NULL);
+    /* Extract extradata if needed */
     if (!st->codecpar->extradata_size &&
             (st->codecpar->codec_id == AV_CODEC_ID_H264 ||
              st->codecpar->codec_id == AV_CODEC_ID_HEVC ||

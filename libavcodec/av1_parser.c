@@ -22,6 +22,7 @@
 
 #include "libavutil/attributes.h"
 #include "libavutil/avassert.h"
+#include "libavutil/mem.h"
 
 #include "av1_parse.h"
 #include "avcodec.h"
@@ -33,6 +34,9 @@ typedef struct AV1ParseContext {
     CodedBitstreamContext *cbc;
     CodedBitstreamFragment temporal_unit;
     int parsed_extradata;
+
+    /* Start code format detection for MPEG-TS input */
+    int in_startcode_mode;
 } AV1ParseContext;
 
 static const enum AVPixelFormat pix_fmts_8bit[2][2] = {
@@ -52,6 +56,54 @@ static const enum AVPixelFormat pix_fmts_rgb[3] = {
     AV_PIX_FMT_GBRP, AV_PIX_FMT_GBRP10, AV_PIX_FMT_GBRP12,
 };
 
+/**
+ * Convert start code format to Section 5 format for parsing.
+ */
+static int convert_startcode_to_section5(const uint8_t *src, int src_size,
+                                          uint8_t **dst, int *dst_size,
+                                          void *logctx)
+{
+    AV1Packet pkt = { 0 };
+    int ret, i;
+    size_t total_size = 0;
+    uint8_t *out, *p;
+
+    ret = ff_av1_packet_split_startcode(&pkt, src, src_size, logctx);
+    if (ret < 0)
+        return ret;
+
+    /* Calculate output size */
+    for (i = 0; i < pkt.nb_obus; i++)
+        total_size += pkt.obus[i].raw_size;
+
+    if (total_size == 0) {
+        ff_av1_packet_uninit(&pkt);
+        *dst = NULL;
+        *dst_size = 0;
+        return 0;
+    }
+
+    out = av_malloc(total_size + AV_INPUT_BUFFER_PADDING_SIZE);
+    if (!out) {
+        ff_av1_packet_uninit(&pkt);
+        return AVERROR(ENOMEM);
+    }
+
+    /* Copy OBUs without start codes */
+    p = out;
+    for (i = 0; i < pkt.nb_obus; i++) {
+        memcpy(p, pkt.obus[i].raw_data, pkt.obus[i].raw_size);
+        p += pkt.obus[i].raw_size;
+    }
+    memset(p, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+
+    ff_av1_packet_uninit(&pkt);
+
+    *dst = out;
+    *dst_size = total_size;
+    return 0;
+}
+
 static int av1_parser_parse(AVCodecParserContext *ctx,
                             AVCodecContext *avctx,
                             const uint8_t **out_data, int *out_size,
@@ -62,6 +114,10 @@ static int av1_parser_parse(AVCodecParserContext *ctx,
     const CodedBitstreamAV1Context *av1 = s->cbc->priv_data;
     const AV1RawSequenceHeader *seq;
     const AV1RawColorConfig *color;
+    uint8_t *converted_data = NULL;
+    int converted_size = 0;
+    const uint8_t *parse_data;
+    int parse_size;
     int ret;
 
     *out_data = data;
@@ -70,6 +126,25 @@ static int av1_parser_parse(AVCodecParserContext *ctx,
     ctx->key_frame         = -1;
     ctx->pict_type         = AV_PICTURE_TYPE_NONE;
     ctx->picture_structure = AV_PICTURE_STRUCTURE_UNKNOWN;
+
+    /* Detect and handle start code format from MPEG-TS */
+    if (ff_av1_is_startcode_format(data, size)) {
+        s->in_startcode_mode = 1;
+        av_log(avctx, AV_LOG_DEBUG, "Detected AV1 start code format input\n");
+
+        ret = convert_startcode_to_section5(data, size, &converted_data,
+                                             &converted_size, avctx);
+        if (ret < 0) {
+            av_log(avctx, AV_LOG_ERROR, "Failed to convert start code format\n");
+            return size;
+        }
+
+        parse_data = converted_data;
+        parse_size = converted_size;
+    } else {
+        parse_data = data;
+        parse_size = size;
+    }
 
     s->cbc->log_ctx = avctx;
 
@@ -84,7 +159,14 @@ static int av1_parser_parse(AVCodecParserContext *ctx,
         ff_cbs_fragment_reset(td);
     }
 
-    ret = ff_cbs_read(s->cbc, td, NULL, data, size);
+    if (parse_size == 0) {
+        av_freep(&converted_data);
+        goto end_no_parse;
+    }
+
+    ret = ff_cbs_read(s->cbc, td, NULL, parse_data, parse_size);
+    av_freep(&converted_data);
+
     if (ret < 0) {
         av_log(avctx, AV_LOG_ERROR, "Failed to parse temporal unit.\n");
         goto end;
@@ -174,6 +256,7 @@ static int av1_parser_parse(AVCodecParserContext *ctx,
 end:
     ff_cbs_fragment_reset(td);
 
+end_no_parse:
     s->cbc->log_ctx = NULL;
 
     return size;
