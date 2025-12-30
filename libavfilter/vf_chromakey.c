@@ -47,44 +47,44 @@ typedef struct ChromakeyContext {
 
 static uint8_t do_chromakey_pixel(ChromakeyContext *ctx, uint8_t u[9], uint8_t v[9])
 {
-    double diff = 0.0;
+    double diff_squared = 0.0;
     int du, dv, i;
 
     for (i = 0; i < 9; ++i) {
         du = (int)u[i] - ctx->chromakey_uv[0];
         dv = (int)v[i] - ctx->chromakey_uv[1];
 
-        diff += sqrt((du * du + dv * dv) / (255.0 * 255.0 * 2));
+        diff_squared += (du * du + dv * dv) / (255.0 * 255.0 * 2);
     }
 
-    diff /= 9.0;
+    diff_squared /= 81.0;
 
     if (ctx->blend > 0.0001) {
-        return av_clipd((diff - ctx->similarity) / ctx->blend, 0.0, 1.0) * 255.0;
+        return av_clipd((sqrt(diff_squared) - ctx->similarity) / ctx->blend, 0.0, 1.0) * 255.0;
     } else {
-        return (diff > ctx->similarity) ? 255 : 0;
+        return (diff_squared > ctx->similarity * ctx->similarity) ? 255 : 0;
     }
 }
 
 static uint16_t do_chromakey_pixel16(ChromakeyContext *ctx, uint16_t u[9], uint16_t v[9])
 {
     double max = ctx->max;
-    double diff = 0.0;
+    double diff_squared = 0.0;
     int du, dv, i;
 
     for (i = 0; i < 9; ++i) {
         du = (int)u[i] - ctx->chromakey_uv[0];
         dv = (int)v[i] - ctx->chromakey_uv[1];
 
-        diff += sqrt((du * du + dv * dv) / (max * max * 2));
+        diff_squared += (du * du + dv * dv) / (max * max * 2);
     }
 
-    diff /= 9.0;
+    diff_squared /= 81.0;
 
     if (ctx->blend > 0.0001) {
-        return av_clipd((diff - ctx->similarity) / ctx->blend, 0.0, 1.0) * max;
+        return av_clipd((sqrt(diff_squared) - ctx->similarity) / ctx->blend, 0.0, 1.0) * max;
     } else {
-        return (diff > ctx->similarity) ? max : 0;
+        return (diff_squared > ctx->similarity * ctx->similarity) ? max : 0;
     }
 }
 
@@ -189,17 +189,17 @@ static int do_chromahold_slice(AVFilterContext *avctx, void *arg, int jobnr, int
         for (x = 0; x < frame->width >> ctx->hsub_log2; ++x) {
             int u = frame->data[1][frame->linesize[1] * y + x];
             int v = frame->data[2][frame->linesize[2] * y + x];
-            double diff;
+            double diff_squared;
             int du, dv;
 
             du = u - ctx->chromakey_uv[0];
             dv = v - ctx->chromakey_uv[1];
 
-            diff = sqrt((du * du + dv * dv) / (255.0 * 255.0 * 2.0));
+            diff_squared = (du * du + dv * dv) / (255.0 * 255.0 * 2.0);
 
-            alpha = diff > ctx->similarity;
+            alpha = diff_squared > ctx->similarity * ctx->similarity;
             if (ctx->blend > 0.0001) {
-                double f = 1. - av_clipd((diff - ctx->similarity) / ctx->blend, 0.0, 1.0);
+                double f = 1. - av_clipd((sqrt(diff_squared) - ctx->similarity) / ctx->blend, 0.0, 1.0);
 
                 frame->data[1][frame->linesize[1] * y + x] = 128 + (u - 128) * f;
                 frame->data[2][frame->linesize[2] * y + x] = 128 + (v - 128) * f;
@@ -228,17 +228,17 @@ static int do_chromahold16_slice(AVFilterContext *avctx, void *arg, int jobnr, i
         for (x = 0; x < frame->width >> ctx->hsub_log2; ++x) {
             int u = AV_RN16(&frame->data[1][frame->linesize[1] * y + 2 * x]);
             int v = AV_RN16(&frame->data[2][frame->linesize[2] * y + 2 * x]);
-            double diff;
+            double diff_squared;
             int du, dv;
 
             du = u - ctx->chromakey_uv[0];
             dv = v - ctx->chromakey_uv[1];
 
-            diff = sqrt((du * du + dv * dv) / (max * max * 2.0));
+            diff_squared = (du * du + dv * dv) / (max * max * 2.0);
 
-            alpha = diff > ctx->similarity;
+            alpha = diff_squared > ctx->similarity * ctx->similarity;
             if (ctx->blend > 0.0001) {
-                double f = 1. - av_clipd((diff - ctx->similarity) / ctx->blend, 0.0, 1.0);
+                double f = 1. - av_clipd((sqrt(diff_squared) - ctx->similarity) / ctx->blend, 0.0, 1.0);
 
                 AV_WN16(&frame->data[1][frame->linesize[1] * y + 2 * x], mid + (u - mid) * f);
                 AV_WN16(&frame->data[2][frame->linesize[2] * y + 2 * x], mid + (v - mid) * f);
