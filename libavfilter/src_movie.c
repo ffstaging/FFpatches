@@ -519,7 +519,7 @@ static int decode_packet(AVFilterContext *ctx, int i)
     AVCodecContext *dec = movie->st[i].codec_ctx;
     AVFrame *frame = movie->st[i].frame;
     AVPacket *pkt = movie->pkt;
-    int ret = 0;
+    int ret = 0, has_frame = 0;
 
     // submit the packet to the decoder
     if (!movie->eof) {
@@ -529,15 +529,16 @@ static int decode_packet(AVFilterContext *ctx, int i)
     }
 
     // get all the available frames from the decoder
-    if (ret >= 0) {
+    while (ret >= 0) {
         ret = avcodec_receive_frame(dec, frame);
         if (ret < 0) {
             // those two return values are special and mean there is no output
             // frame available, but there were no errors during decoding
             if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
-                return 0;
+                return has_frame;
             return ret;
         }
+        has_frame |= 1;
 
         frame->pts = frame->best_effort_timestamp;
         if (frame->pts != AV_NOPTS_VALUE) {
@@ -558,8 +559,6 @@ static int decode_packet(AVFilterContext *ctx, int i)
         ret = ff_filter_frame(outlink, av_frame_clone(frame));
         if (ret < 0)
             return ret;
-        if (ret == 0)
-            return 1;
     }
 
     return 0;
