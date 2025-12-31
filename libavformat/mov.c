@@ -5892,9 +5892,9 @@ static int mov_read_trun(MOVContext *c, AVIOContext *pb, MOVAtom atom)
             } else if (has_sidx && !c->use_tfdt || fallback_sidx) {
                 // FIXME: sidx earliest_presentation_time is *PTS*, s.b.
                 // pts = frag_stream_info->sidx_pts;
-                dts = frag_stream_info->sidx_pts;
+                pts = frag_stream_info->sidx_pts; // <--- FIXED
                 av_log(c->fc, AV_LOG_DEBUG, "found sidx time %"PRId64
-                        ", using it for dts\n", frag_stream_info->sidx_pts);
+                        ", using it for pts\n", frag_stream_info->sidx_pts); // Update log message too if you like, but logically just changing to pts is the key.
             } else {
                 dts = sc->track_end - sc->time_offset;
                 av_log(c->fc, AV_LOG_DEBUG, "found track end time %"PRId64
