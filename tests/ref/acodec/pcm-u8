@@ -1,4 +1,4 @@
-98cadb3502dbdc99e6e077c28b1a036c *tests/data/fate/acodec-pcm-u8.wav
-529244 tests/data/fate/acodec-pcm-u8.wav
-652edf30f35ad89bf27bcc9d2f9c7b53 *tests/data/fate/acodec-pcm-u8.out.wav
+92ed6f923664d45cc74b5bcc1f8269f9 *tests/data/fate/acodec-pcm-u8.wav
+529280 tests/data/fate/acodec-pcm-u8.wav
+5ec32de35bd47bd92506fc5cc507077f *tests/data/fate/acodec-pcm-u8.out.wav
 stddev:  147.89 PSNR: 52.93 MAXDIFF:  255 bytes:  1058400/  1058400
