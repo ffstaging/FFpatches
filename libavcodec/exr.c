@@ -59,6 +59,8 @@
 #include "mathops.h"
 #include "thread.h"
 
+#define MAX_CHANNELS 1024
+
 enum ExrCompr {
     EXR_RAW,
     EXR_RLE,
@@ -1603,6 +1605,7 @@ static int decode_header(EXRContext *s, AVFrame *frame)
     int layer_match = 0;
     int ret;
     int dup_channels = 0;
+    void *tmp;
 
     s->current_channel_offset = 0;
     s->xmin               = ~0;
@@ -1807,12 +1810,19 @@ static int decode_header(EXRContext *s, AVFrame *frame)
                     }
                 }
 
-                s->channels = av_realloc(s->channels,
-                                         ++s->nb_channels * sizeof(EXRChannel));
-                if (!s->channels) {
+                if (s->nb_channels >= MAX_CHANNELS) {
+                    av_log(s->avctx, AV_LOG_ERROR, "Number of channels exceeds supported maximum of %d.\n", MAX_CHANNELS);
+                    ret = AVERROR_INVALIDDATA;
+                    goto fail;
+                }
+
+                tmp = av_realloc(s->channels, ++s->nb_channels * sizeof(EXRChannel));
+                if (!tmp) {
                     ret = AVERROR(ENOMEM);
                     goto fail;
                 }
+                s->channels = tmp;
+
                 channel             = &s->channels[s->nb_channels - 1];
                 channel->pixel_type = current_pixel_type;
                 channel->xsub       = xsub;
