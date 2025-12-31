@@ -2488,18 +2488,7 @@ early_exit:
 
 static int64_t median3(int64_t a, int64_t b, int64_t c)
 {
-    int64_t max2, min2, m;
-
-    if (a >= b) {
-        max2 = a;
-        min2 = b;
-    } else {
-        max2 = b;
-        min2 = a;
-    }
-    m = (c >= max2) ? max2 : c;
-
-    return (m >= min2) ? m : min2;
+    return a + (uint64_t)b + c - FFMIN3(a,b,c) - FFMAX3(a,b,c);
 }
 
 
