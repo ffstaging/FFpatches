@@ -32,6 +32,7 @@
 
 #include "libavutil/internal.h"
 #include "libavutil/opt.h"
+#include "libavutil/mem.h"
 #include "avfilter.h"
 #include "filters.h"
 #include "video.h"
@@ -45,6 +46,15 @@ typedef struct BlackFrameContext {
     unsigned int last_keyframe; ///< frame number of the last received key-frame
 } BlackFrameContext;
 
+typedef struct ThreadData {
+    const uint8_t *data;
+    int linesize;
+    int bthresh;
+    int width;
+    int height;           ///< height for cleaner slice math
+    unsigned int *counts;
+} ThreadData;
+
 static const enum AVPixelFormat pix_fmts[] = {
     AV_PIX_FMT_YUV410P, AV_PIX_FMT_YUV420P, AV_PIX_FMT_GRAY8, AV_PIX_FMT_NV12,
     AV_PIX_FMT_NV21, AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUV422P, AV_PIX_FMT_YUV411P,
@@ -55,22 +65,60 @@ static const enum AVPixelFormat pix_fmts[] = {
     snprintf(buf, sizeof(buf), format, value);  \
     av_dict_set(metadata, key, buf, 0)
 
+static int blackframe_slice(AVFilterContext *ctx, void *arg, int jobnr, int nb_jobs)
+{
+    ThreadData *td = arg;
+    int slice_start = (td->height * jobnr) / nb_jobs;
+    int slice_end   = (td->height * (jobnr+1)) / nb_jobs;
+    int x, y;
+    const uint8_t *p;
+    unsigned int black_pixels_count = 0;
+
+    p = td->data + slice_start * td->linesize;
+
+    for (y = slice_start; y < slice_end; y++) {
+        for (x = 0; x < td->width; x++)
+            black_pixels_count += p[x] < td->bthresh;
+        p += td->linesize;
+    }
+
+    td->counts[jobnr] = black_pixels_count;
+    return 0;
+}
+
 static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 {
     AVFilterContext *ctx = inlink->dst;
     BlackFrameContext *s = ctx->priv;
-    int x, i;
     int pblack = 0;
-    uint8_t *p = frame->data[0];
     AVDictionary **metadata;
     char buf[32];
+    ThreadData td;
+    int nb_threads, nb_jobs, i;
+    unsigned int *nb_black_pixels_per_slice;
 
-    for (i = 0; i < frame->height; i++) {
-        for (x = 0; x < inlink->w; x++)
-            s->nblack += p[x] < s->bthresh;
-        p += frame->linesize[0];
+    nb_threads = ff_filter_get_nb_threads(ctx);
+    
+    nb_black_pixels_per_slice = av_calloc(nb_threads, sizeof(*nb_black_pixels_per_slice));
+    if (!nb_black_pixels_per_slice)
+        return AVERROR(ENOMEM);
+
+    td.data = frame->data[0];
+    td.linesize = frame->linesize[0];
+    td.width = inlink->w;
+    td.height = inlink->h;
+    td.bthresh = s->bthresh;
+    td.counts = nb_black_pixels_per_slice;
+
+    nb_jobs = FFMIN(td.height, nb_threads);
+    
+    ff_filter_execute(ctx, blackframe_slice, &td, NULL, nb_jobs);
+
+    s->nblack = 0;
+    for (i = 0; i < nb_jobs; i++) {
+        s->nblack += nb_black_pixels_per_slice[i];
     }
-
+    
     if (frame->flags & AV_FRAME_FLAG_KEY)
         s->last_keyframe = s->frame;
 
@@ -89,6 +137,9 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 
     s->frame++;
     s->nblack = 0;
+    
+    av_free(nb_black_pixels_per_slice);
+
     return ff_filter_frame(inlink->dst->outputs[0], frame);
 }
 
@@ -118,7 +169,7 @@ const FFFilter ff_vf_blackframe = {
     .p.name        = "blackframe",
     .p.description = NULL_IF_CONFIG_SMALL("Detect frames that are (almost) black."),
     .p.priv_class  = &blackframe_class,
-    .p.flags       = AVFILTER_FLAG_METADATA_ONLY,
+    .p.flags       = AVFILTER_FLAG_METADATA_ONLY | AVFILTER_FLAG_SLICE_THREADS,
     .priv_size     = sizeof(BlackFrameContext),
     FILTER_INPUTS(avfilter_vf_blackframe_inputs),
     FILTER_OUTPUTS(ff_video_default_filterpad),
