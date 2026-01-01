@@ -230,6 +230,11 @@ static const size_t exif_sizes[] = {
     [AV_TIFF_IFD] = 4,
 };
 
+static av_always_inline int exif_is_synthetic_tag(uint16_t id)
+{
+    return id > 0xFFECu && id <= 0xFFFCu;
+}
+
 const char *av_exif_get_tag_name(uint16_t id)
 {
     for (size_t i = 0; i < FF_ARRAY_ELEMS(tag_list); i++) {
@@ -498,7 +503,8 @@ static int exif_decode_tag(void *logctx, GetByteContext *gb, int le,
     if (type > AV_TIFF_IFD || count >= INT_MAX/8U)
         return AVERROR_INVALIDDATA;
 
-    is_ifd = type == AV_TIFF_IFD || ff_tis_ifd(entry->id) || entry->id == MAKERNOTE_TAG;
+    is_ifd = (type == AV_TIFF_IFD || ff_tis_ifd(entry->id) || entry->id == MAKERNOTE_TAG) &&
+             !exif_is_synthetic_tag(entry->id);
 
     if (is_ifd) {
         if (!payload)
@@ -805,6 +811,8 @@ int av_exif_write(void *logctx, const AVExifMetadata *ifd, AVBufferRef **buffer,
         ret = av_exif_get_entry(logctx, (AVExifMetadata *) ifd, extra_tag, 0, &extra_entry);
         if (ret < 0)
             break;
+        if (extra_entry->type != AV_TIFF_IFD)
+            continue;
         if (!ret)
             continue;
         av_log(logctx, AV_LOG_DEBUG, "found extra IFD tag: %04x\n", extra_tag);
