@@ -1728,6 +1728,19 @@ static int64_t get_frag_time(AVFormatContext *s, AVStream *dst_st,
         return frag_stream_info->sidx_pts;
     }
 
+    // Check if the requested stream is present in the fragment with valid timing
+    int stream_present = 0;
+    for (i = 0; i < frag_index->item[index].nb_stream_info; i++) {
+        if (dst_st->id != frag_index->item[index].stream_info[i].id)
+            continue;
+        if (get_stream_info_time(&frag_index->item[index].stream_info[i]) != AV_NOPTS_VALUE) {
+            stream_present = 1;
+            break;
+        }
+    }
+    if (!stream_present)
+        return AV_NOPTS_VALUE;
+
     for (i = 0; i < frag_index->item[index].nb_stream_info; i++) {
         AVStream *frag_stream = NULL;
         frag_stream_info = &frag_index->item[index].stream_info[i];
