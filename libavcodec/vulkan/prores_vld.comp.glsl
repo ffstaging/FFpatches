@@ -16,6 +16,44 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+#define GET_BITS_SMEM 4
+#include "common.comp"
+
+layout(local_size_x_id = 0, local_size_y_id = 1, local_size_z_id = 2) in;
+layout(constant_id = 3) const uint32_t interlaced = 0;
+
+layout(set = 0, binding = 0) readonly buffer slice_offsets_buf {
+    uint32_t slice_offsets[68401];
+};
+layout(set = 0, binding = 1) writeonly buffer quant_idx_buf {
+    uint8_t quant_idx[68400];
+};
+layout(set = 0, binding = 2) uniform writeonly uimage2D dst[3];
+
+layout(push_constant, scalar) uniform pushConstants {
+   u8buf    slice_data;
+   uint     bitstream_size;
+
+   uint16_t width;
+   uint16_t height;
+   uint16_t mb_width;
+   uint16_t mb_height;
+   uint16_t slice_width;
+   uint16_t slice_height;
+   uint8_t  log2_slice_width;
+   uint8_t  log2_chroma_w;
+   uint8_t  depth;
+   uint8_t  alpha_info;
+   uint8_t  bottom_field;
+
+   uint8_t  qmat_luma  [8*8];
+   uint8_t  qmat_chroma[8*8];
+};
+
 /**
  * Table 9, encoded as (last_rice_q << 0) | (krice or kexp << 4) | ((kexp or kexp + 1) << 8)
  * According to the SMPTE document, abs(prev_dc_diff) should be used

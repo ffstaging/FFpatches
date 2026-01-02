@@ -18,6 +18,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#ifndef VULKAN_COMMON_H
+#define VULKAN_COMMON_H
+
+#extension GL_EXT_shader_explicit_arithmetic_types : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_buffer_reference2 : require
+#extension GL_EXT_expect_assume : enable
+#extension GL_EXT_control_flow_attributes : enable
+
 layout(buffer_reference, buffer_reference_align = 1) buffer u8buf {
     uint8_t v;
 };
@@ -336,3 +345,5 @@ int left_bits(in GetBitContext gb)
 {
     return int(gb.buf_end - gb.buf) * 8 + gb.bits_valid;
 }
+
+#endif /* VULKAN_COMMON_H */

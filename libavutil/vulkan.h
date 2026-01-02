@@ -71,6 +71,12 @@
 
 #define DUP_SAMPLER(x) { x, x, x, x }
 
+#define FF_VK_MAX_DESCRIPTOR_SETS 4
+#define FF_VK_MAX_DESCRIPTOR_BINDINGS 16
+#define FF_VK_MAX_DESCRIPTOR_TYPES 16
+#define FF_VK_MAX_PUSH_CONSTS 4
+#define FF_VK_MAX_SHADERS 16
+
 typedef struct FFVulkanDescriptorSetBinding {
     const char         *name;
     VkDescriptorType    type;
@@ -175,8 +181,9 @@ typedef struct FFVulkanDescriptorSet {
     VkDeviceSize aligned_size; /* descriptorBufferOffsetAlignment */
     VkBufferUsageFlags usage;
 
-    VkDescriptorSetLayoutBinding *binding;
-    VkDeviceSize *binding_offset;
+    VkDescriptorSetLayoutBinding binding[FF_VK_MAX_DESCRIPTOR_BINDINGS];
+    VkDeviceSize binding_offset[FF_VK_MAX_DESCRIPTOR_BINDINGS];
+
     int nb_bindings;
 
     /* Descriptor set is shared between all submissions */
@@ -187,11 +194,15 @@ typedef struct FFVulkanShader {
     /* Name for id/debugging purposes */
     const char *name;
 
+    /* Whether shader is precompiled or not */
+    int precompiled;
+    VkSpecializationInfo *specialization_info;
+
     /* Shader text */
     AVBPrint src;
 
     /* Compute shader local group sizes */
-    int lg_size[3];
+    uint32_t lg_size[3];
 
     /* Shader bind point/type */
     VkPipelineStageFlags stage;
@@ -208,20 +219,20 @@ typedef struct FFVulkanShader {
     VkPipelineLayout pipeline_layout;
 
     /* Push consts */
-    VkPushConstantRange *push_consts;
+    VkPushConstantRange push_consts[FF_VK_MAX_PUSH_CONSTS];
     int push_consts_num;
 
     /* Descriptor sets */
-    FFVulkanDescriptorSet *desc_set;
+    FFVulkanDescriptorSet desc_set[FF_VK_MAX_DESCRIPTOR_SETS];
     int nb_descriptor_sets;
 
     /* Descriptor buffer */
-    VkDescriptorSetLayout *desc_layout;
-    uint32_t *bound_buffer_indices;
+    VkDescriptorSetLayout desc_layout[FF_VK_MAX_DESCRIPTOR_SETS];
+    uint32_t bound_buffer_indices[FF_VK_MAX_DESCRIPTOR_SETS];
 
     /* Descriptor pool */
     int use_push;
-    VkDescriptorPoolSize *desc_pool_size;
+    VkDescriptorPoolSize desc_pool_size[FF_VK_MAX_DESCRIPTOR_TYPES];
     int nb_desc_pool_size;
 } FFVulkanShader;
 
@@ -237,8 +248,8 @@ typedef struct FFVulkanShaderData {
     int nb_descriptor_sets;
 
     /* Descriptor buffer */
-    FFVulkanDescriptorSetData *desc_set_buf;
-    VkDescriptorBufferBindingInfoEXT *desc_bind;
+    FFVulkanDescriptorSetData desc_set_buf[FF_VK_MAX_DESCRIPTOR_SETS];
+    VkDescriptorBufferBindingInfoEXT desc_bind[FF_VK_MAX_DESCRIPTOR_SETS];
 
     /* Descriptor pools */
     VkDescriptorSet *desc_sets;
@@ -263,7 +274,7 @@ typedef struct FFVkExecPool {
     size_t qd_size;
 
     /* Registered shaders' data */
-    FFVulkanShaderData *reg_shd;
+    FFVulkanShaderData reg_shd[FF_VK_MAX_SHADERS];
     int nb_reg_shd;
 } FFVkExecPool;
 
@@ -602,6 +613,15 @@ int ff_vk_shader_init(FFVulkanContext *s, FFVulkanShader *shd, const char *name,
                       uint32_t required_subgroup_size);
 
 /**
+ * Initialize a shader object.
+ * The workgroup size must have local_size_XYZ_id of 0, 1, 2.
+ * If VkSpecializationInfo exists, it must have at least 3x4 byte entry left.
+ */
+int ff_vk_shader_load(FFVulkanShader *shd,
+                      VkPipelineStageFlags stage, VkSpecializationInfo *spec,
+                      uint32_t wg_size[3], uint32_t required_subgroup_size);
+
+/**
  * Output the shader code as logging data, with a specific
  * priority.
  */
@@ -611,7 +631,7 @@ void ff_vk_shader_print(void *ctx, FFVulkanShader *shd, int prio);
  * Link a shader into an executable.
  */
 int ff_vk_shader_link(FFVulkanContext *s, FFVulkanShader *shd,
-                      uint8_t *spirv, size_t spirv_len,
+                      const char *spirv, size_t spirv_len,
                       const char *entrypoint);
 
 /**

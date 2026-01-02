@@ -234,6 +234,7 @@ STLIBOBJS-$(CONFIG_SWSCALE)             += half2float.o
 SHLIBOBJS-$(HAVE_GNU_WINDRES)           += avutilres.o
 
 SKIPHEADERS                            += objc.h
+SKIPHEADERS-$(CONFIG_ZLIB)             += zlib_utils.h
 SKIPHEADERS-$(HAVE_CUDA_H)             += hwcontext_cuda.h
 SKIPHEADERS-$(CONFIG_CUDA)             += hwcontext_cuda_internal.h     \
                                           cuda_check.h
