@@ -37,6 +37,7 @@
 #include "hwaccel_internal.h"
 #include "mpegvideo.h"
 #include "proresdec.h"
+#include "prores_raw.h"
 #include <Availability.h>
 #include <AvailabilityMacros.h>
 #include <TargetConditionals.h>
@@ -818,9 +819,11 @@ static CFDictionaryRef videotoolbox_buffer_attributes_create(int width,
     CFDictionarySetValue(buffer_attributes, kCVPixelBufferWidthKey, w);
     CFDictionarySetValue(buffer_attributes, kCVPixelBufferHeightKey, h);
 #if TARGET_OS_IPHONE
-    CFDictionarySetValue(buffer_attributes, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue);
+    CFDictionarySetValue(buffer_attributes, kCVPixelBufferOpenGLESCompatibilityKey,
+                         pix_fmt != kCVPixelFormatType_16VersatileBayer ? kCFBooleanTrue : kCFBooleanFalse);
 #else
-    CFDictionarySetValue(buffer_attributes, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue);
+    CFDictionarySetValue(buffer_attributes, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey,
+                         pix_fmt != kCVPixelFormatType_16VersatileBayer ? kCFBooleanTrue : kCFBooleanFalse);
 #endif
 
     CFRelease(io_surface_properties);
@@ -946,6 +949,17 @@ static int videotoolbox_start(AVCodecContext *avctx)
             break;
         }
         break;
+    case AV_CODEC_ID_PRORES_RAW :
+        switch (avctx->codec_tag) {
+        default:
+            av_log(avctx, AV_LOG_WARNING, "Unknown prores raw profile %d\n", avctx->codec_tag);
+        // fall-through
+        case MKTAG('a', 'p', 'r', 'n'): // kCMVideoCodecType_AppleProResRAW
+        case MKTAG('a', 'p', 'r', 'h'): // kCMVideoCodecType_AppleProResRAWHQ
+            videotoolbox->cm_codec_type = av_bswap32(avctx->codec_tag);
+            break;
+        }
+        break;
     case AV_CODEC_ID_VP9 :
         videotoolbox->cm_codec_type = kCMVideoCodecType_VP9;
         break;
@@ -957,7 +971,7 @@ static int videotoolbox_start(AVCodecContext *avctx)
     }
 
 #if defined(MAC_OS_X_VERSION_10_9) && !TARGET_OS_IPHONE && (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_9) && AV_HAS_BUILTIN(__builtin_available)
-    if (avctx->codec_id == AV_CODEC_ID_PRORES) {
+    if (avctx->codec_id == AV_CODEC_ID_PRORES || avctx->codec_id == AV_CODEC_ID_PRORES_RAW) {
         if (__builtin_available(macOS 10.9, *)) {
             VTRegisterProfessionalVideoWorkflowVideoDecoders();
         }
@@ -1189,6 +1203,31 @@ static int videotoolbox_prores_end_frame(AVCodecContext *avctx)
     return ff_videotoolbox_common_end_frame(avctx, frame);
 }
 
+static int videotoolbox_prores_raw_start_frame(AVCodecContext *avctx,
+                                               const AVBufferRef *buffer_ref,
+                                               const uint8_t *buffer,
+                                               uint32_t size)
+{
+    VTContext *vtctx = avctx->internal->hwaccel_priv_data;
+
+    return ff_videotoolbox_buffer_copy(vtctx, buffer, size);
+}
+
+static int videotoolbox_prores_raw_decode_slice(AVCodecContext *avctx,
+                                                const uint8_t *buffer,
+                                                uint32_t size)
+{
+    return 0;
+}
+
+static int videotoolbox_prores_raw_end_frame(AVCodecContext *avctx)
+{
+    ProResRAWContext *s = avctx->priv_data;
+    AVFrame *frame = s->frame;
+
+    return ff_videotoolbox_common_end_frame(avctx, frame);
+}
+
 static enum AVPixelFormat videotoolbox_best_pixel_format(AVCodecContext *avctx) {
     int depth;
     const AVPixFmtDescriptor *descriptor = av_pix_fmt_desc_get(avctx->sw_pix_fmt);
@@ -1199,6 +1238,11 @@ static enum AVPixelFormat videotoolbox_best_pixel_format(AVCodecContext *avctx) 
 
     if (descriptor->flags & AV_PIX_FMT_FLAG_ALPHA)
         return (depth > 8) ? AV_PIX_FMT_AYUV64 : AV_PIX_FMT_AYUV;
+
+#if HAVE_KCVPIXELFORMATTYPE_16VERSATILEBAYER
+    if (descriptor->flags & AV_PIX_FMT_FLAG_BAYER)
+        return AV_PIX_FMT_BAYER_RGGB16;
+#endif
 
 #if HAVE_KCVPIXELFORMATTYPE_444YPCBCR16BIPLANARVIDEORANGE
     if (depth > 10)
@@ -1444,6 +1488,21 @@ const FFHWAccel ff_prores_videotoolbox_hwaccel = {
     .start_frame    = videotoolbox_prores_start_frame,
     .decode_slice   = videotoolbox_prores_decode_slice,
     .end_frame      = videotoolbox_prores_end_frame,
+    .frame_params   = ff_videotoolbox_frame_params,
+    .init           = ff_videotoolbox_common_init,
+    .uninit         = ff_videotoolbox_uninit,
+    .priv_data_size = sizeof(VTContext),
+};
+
+const FFHWAccel ff_prores_raw_videotoolbox_hwaccel = {
+    .p.name         = "prores_raw_videotoolbox",
+    .p.type         = AVMEDIA_TYPE_VIDEO,
+    .p.id           = AV_CODEC_ID_PRORES_RAW,
+    .p.pix_fmt      = AV_PIX_FMT_VIDEOTOOLBOX,
+    .alloc_frame    = ff_videotoolbox_alloc_frame,
+    .start_frame    = videotoolbox_prores_raw_start_frame,
+    .decode_slice   = videotoolbox_prores_raw_decode_slice,
+    .end_frame      = videotoolbox_prores_raw_end_frame,
     .frame_params   = ff_videotoolbox_frame_params,
     .init           = ff_videotoolbox_common_init,
     .uninit         = ff_videotoolbox_uninit,

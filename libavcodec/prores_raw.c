@@ -313,6 +313,9 @@ static enum AVPixelFormat get_pixel_format(AVCodecContext *avctx,
                                            enum AVPixelFormat pix_fmt)
 {
     enum AVPixelFormat pix_fmts[] = {
+#if CONFIG_PRORES_RAW_VIDEOTOOLBOX_HWACCEL
+        AV_PIX_FMT_VIDEOTOOLBOX,
+#endif
 #if CONFIG_PRORES_RAW_VULKAN_HWACCEL
         AV_PIX_FMT_VULKAN,
 #endif
@@ -548,6 +551,9 @@ const FFCodec ff_prores_raw_decoder = {
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP |
                       FF_CODEC_CAP_SKIP_FRAME_FILL_PARAM,
     .hw_configs     = (const AVCodecHWConfigInternal *const []) {
+#if CONFIG_PRORES_RAW_VIDEOTOOLBOX_HWACCEL
+        HWACCEL_VIDEOTOOLBOX(prores_raw),
+#endif
 #if CONFIG_PRORES_RAW_VULKAN_HWACCEL
         HWACCEL_VULKAN(prores_raw),
 #endif
