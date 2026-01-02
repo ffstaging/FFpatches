@@ -19,7 +19,7 @@
 #ifndef FFTOOLS_FFPLAY_RENDERER_H
 #define FFTOOLS_FFPLAY_RENDERER_H
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include "libavutil/frame.h"
 

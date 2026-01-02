@@ -220,7 +220,7 @@ static int create_vk_by_hwcontext(VkRenderer *renderer,
 
     // There is no way to pass SDL GetInstanceProcAddr to hwdevice.
     // Check the result and return error if they don't match.
-    if (hwctx->get_proc_addr != SDL_Vulkan_GetVkGetInstanceProcAddr()) {
+    if (hwctx->get_proc_addr != (PFN_vkGetInstanceProcAddr) SDL_Vulkan_GetVkGetInstanceProcAddr()) {
         av_log(renderer, AV_LOG_ERROR,
                "hwdevice and SDL use different get_proc_addr. "
                "Try -vulkan_params create_by_placebo=1\n");
@@ -347,7 +347,7 @@ static int create_vk_by_placebo(VkRenderer *renderer,
     const char **dev_exts;
     int num_dev_exts;
 
-    ctx->get_proc_addr = SDL_Vulkan_GetVkGetInstanceProcAddr();
+    ctx->get_proc_addr = (PFN_vkGetInstanceProcAddr) SDL_Vulkan_GetVkGetInstanceProcAddr();
 
     ctx->placebo_instance = pl_vk_inst_create(ctx->vk_log, pl_vk_inst_params(
             .get_proc_addr = ctx->get_proc_addr,
@@ -459,7 +459,7 @@ static int create(VkRenderer *renderer, SDL_Window *window, AVDictionary *opt)
 
     ctx->vk_log = pl_log_create(PL_API_VER, &vk_log_params);
 
-    if (!SDL_Vulkan_GetInstanceExtensions(window, &num_ext, NULL)) {
+    if (!SDL_Vulkan_GetInstanceExtensions(&num_ext, NULL)) {
         av_log(NULL, AV_LOG_FATAL, "Failed to get vulkan extensions: %s\n",
                SDL_GetError());
         return AVERROR_EXTERNAL;
@@ -471,7 +471,7 @@ static int create(VkRenderer *renderer, SDL_Window *window, AVDictionary *opt)
         goto out;
     }
 
-    SDL_Vulkan_GetInstanceExtensions(window, &num_ext, ext);
+    SDL_Vulkan_GetInstanceExtensions(&num_ext, ext);
 
     entry = av_dict_get(opt, "create_by_placebo", NULL, 0);
     if (entry && strtol(entry->value, NULL, 10))
@@ -481,7 +481,7 @@ static int create(VkRenderer *renderer, SDL_Window *window, AVDictionary *opt)
     if (ret < 0)
         goto out;
 
-    if (!SDL_Vulkan_CreateSurface(window, ctx->inst, &ctx->vk_surface)) {
+    if (!SDL_Vulkan_CreateSurface(window, ctx->inst, NULL, &ctx->vk_surface)) {
         ret = AVERROR_EXTERNAL;
         goto out;
     }
@@ -496,7 +496,7 @@ static int create(VkRenderer *renderer, SDL_Window *window, AVDictionary *opt)
         goto out;
     }
 
-    SDL_Vulkan_GetDrawableSize(window, &w, &h);
+    SDL_GetWindowSizeInPixels(window, &w, &h);
     pl_swapchain_resize(ctx->swapchain, &w, &h);
 
     ctx->renderer = pl_renderer_create(ctx->vk_log, ctx->placebo_vulkan->gpu);
