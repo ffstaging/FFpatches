@@ -502,11 +502,12 @@ static void filter_column(uint8_t *dst, int height,
         memset(sum, 0, sizeof(sum));
 
         for (int i = 0; i < 2 * radius + 1; i++) {
-            for (int off16 = 0; off16 < 16; off16++)
+            for (int off16 = 0; off16 < 16 && off16 < stride; off16++) {
                 sum[off16] += c[i][0 + y * stride + off16] * matrix[i];
+            }
         }
 
-        for (int off16 = 0; off16 < 16; off16++) {
+        for (int off16 = 0; off16 < 16 && off16 < stride && off16 < dstride; off16++) {
             sum[off16] = (int)(sum[off16] * rdiv + bias + 0.5f);
             dst[off16] = av_clip_uint8(sum[off16]);
         }
@@ -554,7 +555,7 @@ static void setup_row(int radius, const uint8_t *c[], const uint8_t *src, int st
     for (i = 0; i < radius * 2 + 1; i++) {
         int xoff = FFABS(x + i - radius);
 
-        xoff = xoff >= w ? 2 * w - 1 - xoff : xoff;
+        xoff = FFMIN(FFMAX(xoff >= w ? 2 * w - 1 - xoff : xoff, 0), w - 1);
 
         c[i] = src + xoff * bpc + y * stride;
     }
@@ -568,7 +569,7 @@ static void setup_column(int radius, const uint8_t *c[], const uint8_t *src, int
     for (i = 0; i < radius * 2 + 1; i++) {
         int xoff = FFABS(x + i - radius);
 
-        xoff = xoff >= h ? 2 * h - 1 - xoff : xoff;
+        xoff = FFMIN(FFMAX(xoff >= h ? 2 * h - 1 - xoff : xoff, 0), h - 1);
 
         c[i] = src + y * bpc + xoff * stride;
     }
@@ -614,12 +615,16 @@ static int filter_slice(AVFilterContext *ctx, void *arg, int jobnr, int nb_jobs)
             continue;
         }
         for (y = slice_start; y < slice_end; y += step) {
-            const int xoff = mode == MATRIX_COLUMN ? (y - slice_start) * bpc : radius * bpc;
-            const int yoff = mode == MATRIX_COLUMN ? radius * dstride : 0;
+            int xoff = mode == MATRIX_COLUMN ? (y - slice_start) * bpc : radius * bpc;
+            int yoff = mode == MATRIX_COLUMN ? radius * dstride : 0;
+            xoff = FFMIN(FFMAX(xoff, 0), width);
+            yoff = FFMIN(FFMAX(yoff, 0), height);
 
             for (x = 0; x < radius; x++) {
-                const int xoff = mode == MATRIX_COLUMN ? (y - slice_start) * bpc : x * bpc;
-                const int yoff = mode == MATRIX_COLUMN ? x * dstride : 0;
+                int xoff = mode == MATRIX_COLUMN ? (y - slice_start) * bpc : x * bpc;
+                int yoff = mode == MATRIX_COLUMN ? x * dstride : 0;
+                xoff = FFMIN(FFMAX(xoff, 0), width);
+                yoff = FFMIN(FFMAX(yoff, 0), height);
 
                 s->setup[plane](radius, c, src, stride, x, width, y, height, bpc);
                 s->filter[plane](dst + yoff + xoff, 1, rdiv,
@@ -631,8 +636,10 @@ static int filter_slice(AVFilterContext *ctx, void *arg, int jobnr, int nb_jobs)
                              rdiv, bias, matrix, c, s->max, radius,
                              dstride, stride, slice_end - step);
             for (x = sizew - radius; x < sizew; x++) {
-                const int xoff = mode == MATRIX_COLUMN ? (y - slice_start) * bpc : x * bpc;
-                const int yoff = mode == MATRIX_COLUMN ? x * dstride : 0;
+                int xoff = mode == MATRIX_COLUMN ? (y - slice_start) * bpc : x * bpc;
+                int yoff = mode == MATRIX_COLUMN ? x * dstride : 0;
+                xoff = FFMIN(FFMAX(xoff, 0), width);
+                yoff = FFMIN(FFMAX(yoff, 0), height);
 
                 s->setup[plane](radius, c, src, stride, x, width, y, height, bpc);
                 s->filter[plane](dst + yoff + xoff, 1, rdiv,
