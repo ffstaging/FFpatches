@@ -45,6 +45,27 @@ void ff_vvc_put_luma_h_x16_12_neon(int16_t *dst, const uint8_t *_src, const ptrd
 
 void ff_alf_classify_sum_neon(int *sum0, int *sum1, int16_t *grad, uint32_t gshift, uint32_t steps);
 
+void ff_vvc_alf_filter_luma_8_sme2(uint8_t *dst, const uint8_t *src, const uint64_t strides,
+                                   const uint64_t dims, const int16_t *filter, const int16_t *clip,
+				   const int vb_pos);
+
+#define ALF_ALIGN_BY_4(x) (4*((x - 1) >> 2u)+4)
+
+static void alf_filter_luma_8_sme2(uint8_t *_dst,
+                                   ptrdiff_t dst_stride,
+                                   const uint8_t *_src,
+                                   ptrdiff_t src_stride,
+                                   const int width, const int height,
+                                   const int16_t *filter,
+                                   const int16_t *clip,
+                                   const int vb_pos)
+{
+    int aligned_width = ALF_ALIGN_BY_4(width); // align width by 4
+    uint64_t dims = ((uint64_t)height << 32u) | (uint64_t)aligned_width;
+    uint64_t strides = ((uint64_t)src_stride << 32u) | (uint64_t)dst_stride;
+    ff_vvc_alf_filter_luma_8_sme2(_dst, _src, strides, dims, filter, clip, vb_pos);
+}
+
 #define BIT_DEPTH 8
 #include "alf_template.c"
 #undef BIT_DEPTH
@@ -56,6 +77,7 @@ void ff_alf_classify_sum_neon(int *sum0, int *sum1, int16_t *grad, uint32_t gshi
 #define BIT_DEPTH 12
 #include "alf_template.c"
 #undef BIT_DEPTH
+
 
 int ff_vvc_sad_neon(const int16_t *src0, const int16_t *src1, int dx, int dy,
                     const int block_w, const int block_h);
@@ -250,6 +272,9 @@ void ff_vvc_dsp_init_aarch64(VVCDSPContext *const c, const int bd)
             c->inter.put[1][4][1][1] = ff_vvc_put_epel_hv32_8_neon_i8mm;
             c->inter.put[1][5][1][1] = ff_vvc_put_epel_hv64_8_neon_i8mm;
             c->inter.put[1][6][1][1] = ff_vvc_put_epel_hv128_8_neon_i8mm;
+        }
+        if (have_sme2(cpu_flags)) {
+            c->alf.filter[LUMA] = alf_filter_luma_8_sme2;
         }
     } else if (bd == 10) {
         c->inter.avg = ff_vvc_avg_10_neon;
