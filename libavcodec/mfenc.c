@@ -874,6 +874,9 @@ static int mf_encv_output_adjust(AVCodecContext *avctx, IMFMediaType *type)
 
         ICodecAPI_SetValue(c->codec_api, &ff_CODECAPI_AVEncH264CABACEnable, FF_VAL_VT_BOOL(1));
 
+        if (avctx->refs > 0)
+            ICodecAPI_SetValue(c->codec_api, &ff_CODECAPI_AVEncVideoMaxNumRefFrame, FF_VAL_VT_UI4(avctx->refs));
+
         if (c->opt_enc_scenario >= 0)
             ICodecAPI_SetValue(c->codec_api, &ff_CODECAPI_AVScenarioInfo, FF_VAL_VT_UI4(c->opt_enc_scenario));
 
