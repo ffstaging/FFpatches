@@ -136,6 +136,10 @@ static av_cold int adpcm_encode_init(AVCodecContext *avctx)
         avctx->block_align = s->block_size;
         avctx->bits_per_coded_sample = 4;
         ) /* End of CASE */
+    CASE(ADPCM_IMA_XBOX,
+        avctx->frame_size = 65;
+        avctx->block_align = 36 * channels;
+        ) /* End of CASE */
     CASE(ADPCM_IMA_QT,
         avctx->frame_size  = 64;
         avctx->block_align = 34 * channels;
@@ -623,7 +627,8 @@ static int adpcm_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
     dst = avpkt->data;
 
     switch(avctx->codec->id) {
-    CASE(ADPCM_IMA_WAV,
+    case AV_CODEC_ID_ADPCM_IMA_WAV:
+    case AV_CODEC_ID_ADPCM_IMA_XBOX: {
         int blocks = (frame->nb_samples - 1) / 8;
 
         for (int ch = 0; ch < channels; ch++) {
@@ -667,7 +672,8 @@ static int adpcm_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
                 }
             }
         }
-        ) /* End of CASE */
+    }
+    break;
     CASE(ADPCM_IMA_QT,
         PutBitContext pb;
         init_put_bits(&pb, dst, pkt_size);
@@ -1021,14 +1027,15 @@ const FFCodec ff_ ## name_ ## _encoder = {                                 \
     ADPCM_ENCODER_3(CONFIG_ ## codec ## _ENCODER, AV_CODEC_ID_ ## codec, \
                     name, sample_fmts, capabilities, long_name)
 
-ADPCM_ENCODER(ADPCM_ARGO,    adpcm_argo,    sample_fmts_p, 0,                             "ADPCM Argonaut Games")
-ADPCM_ENCODER(ADPCM_IMA_AMV, adpcm_ima_amv, sample_fmts,   0,                             "ADPCM IMA AMV")
-ADPCM_ENCODER(ADPCM_IMA_APM, adpcm_ima_apm, sample_fmts,   AV_CODEC_CAP_SMALL_LAST_FRAME, "ADPCM IMA Ubisoft APM")
-ADPCM_ENCODER(ADPCM_IMA_ALP, adpcm_ima_alp, sample_fmts,   AV_CODEC_CAP_SMALL_LAST_FRAME, "ADPCM IMA High Voltage Software ALP")
-ADPCM_ENCODER(ADPCM_IMA_QT,  adpcm_ima_qt,  sample_fmts_p, 0,                             "ADPCM IMA QuickTime")
-ADPCM_ENCODER(ADPCM_IMA_SSI, adpcm_ima_ssi, sample_fmts,   AV_CODEC_CAP_SMALL_LAST_FRAME, "ADPCM IMA Simon & Schuster Interactive")
-ADPCM_ENCODER(ADPCM_IMA_WAV, adpcm_ima_wav, sample_fmts_p, 0,                             "ADPCM IMA WAV")
-ADPCM_ENCODER(ADPCM_IMA_WS,  adpcm_ima_ws,  sample_fmts,   AV_CODEC_CAP_SMALL_LAST_FRAME, "ADPCM IMA Westwood")
-ADPCM_ENCODER(ADPCM_MS,      adpcm_ms,      sample_fmts,   0,                             "ADPCM Microsoft")
-ADPCM_ENCODER(ADPCM_SWF,     adpcm_swf,     sample_fmts,   0,                             "ADPCM Shockwave Flash")
-ADPCM_ENCODER(ADPCM_YAMAHA,  adpcm_yamaha,  sample_fmts,   0,                             "ADPCM Yamaha")
+ADPCM_ENCODER(ADPCM_ARGO,     adpcm_argo,     sample_fmts_p, 0,                             "ADPCM Argonaut Games")
+ADPCM_ENCODER(ADPCM_IMA_AMV,  adpcm_ima_amv,  sample_fmts,   0,                             "ADPCM IMA AMV")
+ADPCM_ENCODER(ADPCM_IMA_APM,  adpcm_ima_apm,  sample_fmts,   AV_CODEC_CAP_SMALL_LAST_FRAME, "ADPCM IMA Ubisoft APM")
+ADPCM_ENCODER(ADPCM_IMA_ALP,  adpcm_ima_alp,  sample_fmts,   AV_CODEC_CAP_SMALL_LAST_FRAME, "ADPCM IMA High Voltage Software ALP")
+ADPCM_ENCODER(ADPCM_IMA_QT,   adpcm_ima_qt,   sample_fmts_p, 0,                             "ADPCM IMA QuickTime")
+ADPCM_ENCODER(ADPCM_IMA_SSI,  adpcm_ima_ssi,  sample_fmts,   AV_CODEC_CAP_SMALL_LAST_FRAME, "ADPCM IMA Simon & Schuster Interactive")
+ADPCM_ENCODER(ADPCM_IMA_WAV,  adpcm_ima_wav,  sample_fmts_p, 0,                             "ADPCM IMA WAV")
+ADPCM_ENCODER(ADPCM_IMA_WS,   adpcm_ima_ws,   sample_fmts,   AV_CODEC_CAP_SMALL_LAST_FRAME, "ADPCM IMA Westwood")
+ADPCM_ENCODER(ADPCM_IMA_XBOX, adpcm_ima_xbox, sample_fmts_p, 0,                             "ADPCM IMA Xbox")
+ADPCM_ENCODER(ADPCM_MS,       adpcm_ms,       sample_fmts,   0,                             "ADPCM Microsoft")
+ADPCM_ENCODER(ADPCM_SWF,      adpcm_swf,      sample_fmts,   0,                             "ADPCM Shockwave Flash")
+ADPCM_ENCODER(ADPCM_YAMAHA,   adpcm_yamaha,   sample_fmts,   0,                             "ADPCM Yamaha")
