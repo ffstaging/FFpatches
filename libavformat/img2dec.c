@@ -367,7 +367,6 @@ int ff_img_read_packet(AVFormatContext *s1, AVPacket *pkt)
     int i, res;
     int ret[3] = { 0 };
     int64_t size[3] = { 0 };
-    int64_t total_size;
     AVIOContext *f[3] = { NULL };
     AVCodecParameters *par = s1->streams[0]->codecpar;
 
@@ -458,15 +457,15 @@ int ff_img_read_packet(AVFormatContext *s1, AVPacket *pkt)
         }
     }
 
-    total_size = size[0];
-    if (total_size > INT64_MAX - size[1])
-        return AVERROR_INVALIDDATA;
-    total_size += size[1];
-    if (total_size > INT64_MAX - size[2])
-        return AVERROR_INVALIDDATA;
-    total_size += size[2];
-    if (total_size > INT_MAX)
-        return AVERROR_INVALIDDATA;
+    int64_t total_size = 0;
+    for(int i = 0; i < 3; i++) {
+        if (size[i] < 0)
+            return size[i];
+        if (total_size > INT64_MAX - size[i])
+            return AVERROR_INVALIDDATA;
+
+        total_size += size[i];
+    }
 
     res = av_new_packet(pkt, total_size);
     if (res < 0) {
