@@ -72,8 +72,8 @@ typedef struct DXVContext {
             idx = x;                                                          \
             break;                                                            \
         case 2:                                                               \
-            idx = (bytestream2_get_byte(gbc) + 2) * x;                        \
-            if (idx > pos) {                                                  \
+            idx = (bytestream2_get_byte(gbc) + 2) * x;
+            if (idx > pos || idx > ctx->tex_size) {                           \
                 av_log(avctx, AV_LOG_ERROR, "idx %d > %d\n", idx, pos);       \
                 return AVERROR_INVALIDDATA;                                   \
             }                                                                 \
