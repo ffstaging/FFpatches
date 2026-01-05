@@ -31,6 +31,7 @@
 #include <libavformat/avformat.h>
 #include <libavutil/opt.h>
 #include <unistd.h>
+#include <signal.h>
 
 static void process_client(AVIOContext *client, const char *in_uri)
 {
@@ -103,6 +104,7 @@ int main(int argc, char **argv)
     const char *in_uri, *out_uri;
     int ret, pid;
     av_log_set_level(AV_LOG_TRACE);
+    signal(SIGCHLD, SIG_IGN);
     if (argc < 3) {
         printf("usage: %s input http://hostname[:port]\n"
                "API example program to serve http to multiple clients.\n"
