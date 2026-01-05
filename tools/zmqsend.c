@@ -149,7 +149,13 @@ int main(int argc, char **argv)
         goto end;
     }
 
-    recv_buf_size = zmq_msg_size(&msg) + 1;
+    size_t sz = zmq_msg_size(&msg);
+    if (sz == SIZE_MAX) {
+        av_log(NULL, AV_LOG_ERROR, "Message too large (overflow detected)\n");
+        ret = 1;
+        goto end;
+    }
+    recv_buf_size = sz + 1;
     recv_buf = av_malloc(recv_buf_size);
     if (!recv_buf) {
         av_log(NULL, AV_LOG_ERROR,
