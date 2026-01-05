@@ -88,6 +88,7 @@ static int init_filter_graph(AVFilterGraph **graph, AVFilterContext **src,
     abuffer = avfilter_get_by_name("abuffer");
     if (!abuffer) {
         fprintf(stderr, "Could not find the abuffer filter.\n");
+        avfilter_graph_free(&filter_graph);
         return AVERROR_FILTER_NOT_FOUND;
     }
 
@@ -279,6 +280,10 @@ int main(int argc, char *argv[])
     }
 
     duration  = atof(argv[1]);
+    if (duration > (double)2147483647 / INPUT_SAMPLERATE) {
+        fprintf(stderr, "Duration too long\n");
+        return 1;
+    }
     nb_frames = duration * INPUT_SAMPLERATE / FRAME_SIZE;
     if (nb_frames <= 0) {
         fprintf(stderr, "Invalid duration: %s\n", argv[1]);
