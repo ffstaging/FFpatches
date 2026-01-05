@@ -111,6 +111,8 @@ static inline void tqi_idct_put(AVCodecContext *avctx, AVFrame *frame,
 
 static void tqi_calculate_qtable(TqiContext *t, int quant)
 {
+    if (quant > 107)
+        quant = 107;
     const int64_t qscale = (215 - 2*quant)*5;
     int i;
 
