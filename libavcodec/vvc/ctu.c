@@ -52,6 +52,9 @@ static void set_tb_size(const VVCFrameContext *fc, const TransformBlock *tb)
 
     for (int y = y_tb; y < end; y++) {
         const int off = y * fc->ps.pps->min_tu_width + x_tb;
+        int max_off = fc->ps.pps->min_tu_width * fc->ps.pps->min_tu_height;
+        if (off + width > max_off)
+            return;
         memset(fc->tab.tb_width [is_chroma] + off, tb->tb_width,  width);
         memset(fc->tab.tb_height[is_chroma] + off, tb->tb_height, width);
     }
@@ -1185,6 +1188,8 @@ static void set_cb_pos(const VVCFrameContext *fc, const CodingUnit *cu)
             fc->tab.cb_pos_x[ch_type][x + i] = cu->x0;
             fc->tab.cb_pos_y[ch_type][x + i] = cu->y0;
         }
+        if (x + width > fc->ps.pps->min_tu_width * fc->ps.pps->min_tu_height)
+            return;
         memset(&fc->tab.cb_width[ch_type][x], cu->cb_width, width);
         memset(&fc->tab.cb_height[ch_type][x], cu->cb_height, width);
         memset(&fc->tab.cqt_depth[ch_type][x], cu->cqt_depth, width);
