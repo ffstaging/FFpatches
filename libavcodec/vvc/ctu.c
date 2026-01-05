@@ -1287,6 +1287,8 @@ static void derive_mmvd(const VVCLocalContext *lc, MvField *mvf, const Mv *mmvd_
     if (mvf->pred_flag == PF_BI) {
         const RefPicList *rpl = sc->rpl;
         const int poc = lc->fc->ps.ph.poc;
+        if (mvf->ref_idx[L0] >= rpl[L0].nb_refs || mvf->ref_idx[L1] >= rpl[L1].nb_refs)
+            return;
         const int diff[] = {
             poc - rpl[L0].refs[mvf->ref_idx[L0]].poc,
             poc - rpl[L1].refs[mvf->ref_idx[L1]].poc
