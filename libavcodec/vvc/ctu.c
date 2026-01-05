@@ -1932,6 +1932,8 @@ static void palette_update_predictor(VVCLocalContext *lc, const bool local_dual_
             }
         }
 
+        if (i > VVC_MAX_NUM_PALETTE_PREDICTOR_SIZE)
+            i = VVC_MAX_NUM_PALETTE_PREDICTOR_SIZE;
         memcpy(pp->entries, plt->entries, i * sizeof(pp->entries[0]));
         pp->size = i;
     }
