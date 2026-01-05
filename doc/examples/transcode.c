@@ -94,9 +94,9 @@ static int open_input_file(const char *filename)
         }
         ret = avcodec_parameters_to_context(codec_ctx, stream->codecpar);
         if (ret < 0) {
-            av_log(NULL, AV_LOG_ERROR, "Failed to copy decoder parameters to input decoder context "
-                   "for stream #%u\n", i);
-            return ret;
+        av_log(NULL, AV_LOG_ERROR, "Failed to copy decoder parameters to input decoder context for stream #%u\n", i);
+        avcodec_free_context(&codec_ctx);
+        return ret;
         }
 
         /* Inform the decoder about the timebase for the packet timestamps.
