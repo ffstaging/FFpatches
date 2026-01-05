@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "config.h"
+#include "attributes_internal.h"
 #include "avstring.h"
 #include "error.h"
 #include "macros.h"
@@ -111,7 +112,7 @@ enum {
 };
 
 #define STRING(CODE, DESC) DESC "\0"
-static const char error_stringtable[ERROR_LIST_SIZE] =
+static attribute_internal_trailing_zero const char error_stringtable[ERROR_LIST_SIZE] =
     AVERROR_LIST(STRING, NOTHING)
 #if !HAVE_STRERROR_R
     STRERROR_LIST(STRING)

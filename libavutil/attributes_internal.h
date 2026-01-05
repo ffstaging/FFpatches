@@ -33,4 +33,23 @@
 
 #define EXTERN extern attribute_visibility_hidden
 
+#if (AV_HAS_ATTRIBUTE(nonstring) && (AV_GCC_VERSION_AT_LEAST(15,1) || defined(__clang__)))
+// Attribute to mark a variable initialized via a string literal as not
+// containing string data to suppress warnings about unterminated strings
+// in situations like char fourcc[4] = "TALB".
+#define attribute_nonstring __attribute__((nonstring))
+// The behavior of GCC and Clang differs when a string literal is terminated
+// by a \0 included in the string literal like char foo[4] = "bar\0":
+// GCC warns about it, Clang does not, so we use attribute_internal_trailing_zero
+// to silence the GCC warning while still benefiting from the Clang check.
+#if AV_GCC_VERSION_AT_LEAST(15,1)
+#define attribute_internal_trailing_zero __attribute__((nonstring))
+#else
+#define attribute_internal_trailing_zero
+#endif
+#else
+#define attribute_nonstring
+#define attribute_internal_trailing_zero
+#endif
+
 #endif /* AVUTIL_ATTRIBUTES_INTERNAL_H */
