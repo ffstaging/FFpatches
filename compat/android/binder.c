@@ -41,7 +41,9 @@ static void *dlopen_libbinder_ndk(void)
      * See also: https://source.android.com/docs/core/architecture/aidl/aidl-backends
      */
 
-    void *h = dlopen("libbinder_ndk.so", RTLD_NOW | RTLD_LOCAL);
+    void *h = dlopen("/system/lib64/libbinder_ndk.so", RTLD_NOW | RTLD_LOCAL);
+    if (!h)
+        h = dlopen("/system/lib/libbinder_ndk.so", RTLD_NOW | RTLD_LOCAL);
     if (h != NULL)
         return h;
 
