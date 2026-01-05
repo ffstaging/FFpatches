@@ -978,6 +978,8 @@ static int process_subpacket_9(QDM2Context *q, QDM2SubPNode *node)
     GetBitContext gb;
     int i, j, k, n, ch, run, level, diff;
 
+    if (node->packet->size > INT_MAX / 8)
+        return AVERROR_INVALIDDATA;
     init_get_bits(&gb, node->packet->data, node->packet->size * 8);
 
     n = coeff_per_sb_for_avg[q->coeff_per_sb_select][QDM2_SB_USED(q->sub_sampling) - 1] + 1;
