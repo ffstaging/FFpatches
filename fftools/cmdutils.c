@@ -1023,7 +1023,7 @@ int stream_specifier_parse(StreamSpecifier *ss, const char *spec,
     av_log(logctx, AV_LOG_TRACE, "Parsing stream specifier: %s\n", spec);
 
     while (*spec) {
-        if (*spec <= '9' && *spec >= '0') { /* opt:index */
+        if (ss->idx == -1 && *spec <= '9' && *spec >= '0') { /* opt:index */
             ss->idx = strtol(spec, &endptr, 0);
 
             av_assert0(endptr > spec);
@@ -1175,8 +1175,9 @@ int stream_specifier_parse(StreamSpecifier *ss, const char *spec,
                    "Parsed metadata: %s:%s; remainder: %s", ss->meta_key,
                    ss->meta_val ? ss->meta_val : "<any value>", spec);
 
-            // this terminates the specifier
-            break;
+            if (*spec == ':') spec++;
+
+            // continue parsing for possible index
         } else if (*spec == 'u' && (*(spec + 1) == '\0' || *(spec + 1) == ':')) {
             ss->usable_only = 1;
             spec++;
@@ -1189,6 +1190,27 @@ int stream_specifier_parse(StreamSpecifier *ss, const char *spec,
 
         if (*spec == ':')
             spec++;
+    }
+
+    if (*spec >= '0' && *spec <= '9') {
+        char *endptr;
+
+        ss->idx = strtol(spec, &endptr, 0);
+
+        av_log(logctx, AV_LOG_TRACE,
+               "Parsed trailing index: %d; remainder: %s\n", ss->idx, endptr);
+
+        spec = endptr;
+    } else if (*spec == ':' && *(spec + 1) >= '0' && *(spec + 1) <= '9') {
+        char *endptr;
+
+        spec++;
+        ss->idx = strtol(spec, &endptr, 0);
+
+        av_log(logctx, AV_LOG_TRACE,
+               "Parsed trailing index: %d; remainder: %s\n", ss->idx, endptr);
+
+        spec = endptr;
     }
 
     if (*spec) {

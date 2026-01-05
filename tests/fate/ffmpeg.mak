@@ -290,3 +290,18 @@ FATE_SAMPLES_FFMPEG-$(call FRAMECRC, MOV, HEVC, HEVC_PARSER) += fate-ffmpeg-heif
 # binding the internal filtegraph with a caller defined filtergraph
 fate-ffmpeg-heif-merge-filtergraph: CMD = framecrc -i $(TARGET_SAMPLES)/heif-conformance/C007.heic -filter_complex "sws_flags=+accurate_rnd+bitexact\;[0:g:0]scale=w=1280:h=720[out]" -map "[out]"
 FATE_SAMPLES_FFMPEG-$(call FRAMECRC, MOV, HEVC, HEVC_PARSER SCALE_FILTER) += fate-ffmpeg-heif-merge-filtergraph
+
+# Test: Select first French subtitle from multiple French subtitles
+FATE_FFMPEG += fate-ffmpeg-map-metadata-index-0
+fate-ffmpeg-map-metadata-index-0: CMD = ffmpeg -i $(TARGET_SAMPLES)/subtitles/multi-french.mkv \
+    -map 0:s:m:language:fre:0 -c copy -f null -
+
+# Test: Select second French subtitle
+FATE_FFMPEG += fate-ffmpeg-map-metadata-index-1
+fate-ffmpeg-map-metadata-index-1: CMD = ffmpeg -i $(TARGET_SAMPLES)/subtitles/multi-french.mkv \
+    -map 0:s:m:language:fre:1 -c copy -f null -
+
+# Test: Error on out-of-range index
+FATE_FFMPEG += fate-ffmpeg-map-metadata-index-error
+fate-ffmpeg-map-metadata-index-error: CMD = ffmpeg -i $(TARGET_SAMPLES)/subtitles/multi-french.mkv \
+    -map 0:s:m:language:fre:99 -c copy -f null - ; test $$? -ne 0
