@@ -1175,9 +1175,9 @@ static int parse_packet(AVFormatContext *s, AVPacket *pkt,
 {
     FormatContextInternal *const fci = ff_fc_internal(s);
     FFFormatContext *const si = &fci->fc;
-    AVPacket *out_pkt = si->parse_pkt;
     AVStream *st = s->streams[stream_index];
     FFStream *const sti = ffstream(st);
+    AVPacket *out_pkt = sti->parse_pkt;
     const AVPacketSideData *sd = NULL;
     const uint8_t *data = pkt->data;
     uint8_t *extradata = sti->avctx->extradata;
@@ -1226,6 +1226,13 @@ static int parse_packet(AVFormatContext *s, AVPacket *pkt,
 
         got_output = !!out_pkt->size;
 
+        if (pkt->side_data && !out_pkt->side_data) {
+            out_pkt->side_data       = pkt->side_data;
+            out_pkt->side_data_elems = pkt->side_data_elems;
+            pkt->side_data          = NULL;
+            pkt->side_data_elems    = 0;
+        }
+
         if (!out_pkt->size)
             continue;
 
@@ -1243,13 +1250,6 @@ static int parse_packet(AVFormatContext *s, AVPacket *pkt,
             ret = av_packet_make_refcounted(out_pkt);
             if (ret < 0)
                 goto fail;
-        }
-
-        if (pkt->side_data) {
-            out_pkt->side_data       = pkt->side_data;
-            out_pkt->side_data_elems = pkt->side_data_elems;
-            pkt->side_data          = NULL;
-            pkt->side_data_elems    = 0;
         }
 
         /* set the duration */
