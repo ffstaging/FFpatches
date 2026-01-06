@@ -1884,6 +1884,13 @@ typedef struct AVFormatContext {
      * @see skip_estimate_duration_from_pts
      */
     int64_t duration_probesize;
+
+    /**
+     * Force all streams to be analyzed, regardless of what max_analyze_duration is set
+     * to. Demuxing only. Default is 0 (off).
+     */
+     int force_analyze_all_streams;
+
 } AVFormatContext;
 
 /**

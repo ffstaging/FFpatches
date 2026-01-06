@@ -2872,7 +2872,9 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
             else if (avctx->codec_type == AVMEDIA_TYPE_SUBTITLE) limit = max_subtitle_analyze_duration;
             else                                                     limit = max_stream_analyze_duration;
 
-            if (t >= limit) {
+            if (!analyzed_all_streams && ic->force_analyze_all_streams) {
+                av_log(ic, AV_LOG_VERBOSE, "hit max_analyze_duration but ignoring, since force_analyze_all_streams is set.\n");
+            } else if (t >= limit) {
                 av_log(ic, AV_LOG_VERBOSE, "max_analyze_duration %"PRId64" reached at %"PRId64" microseconds st:%d\n",
                        limit,
                        t, pkt->stream_index);

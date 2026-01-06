@@ -245,6 +245,13 @@ Default behaviour is a general purpose trade-off, largely adaptive, but the prob
 will not be extended to get streams durations at all costs.
 Must be an integer not lesser than 1, or 0 for default behaviour.
 
+@item force_analyze_all_streams @var{integer} (@emph{input})
+For formats which we know the number of streams (due to header, etc.), setting
+this forces stream probing to keep reading packets until it has info for all
+known streams, regardless of what @code{analyzeduration} is set to. Note that
+this may cause excessive reads, which may matter if probing over a network.
+Note that @code{probesize} is still respected.
+
 @item strict, f_strict @var{integer} (@emph{input/output})
 Specify how strictly to follow the standards. @code{f_strict} is deprecated and
 should be used only via the @command{ffmpeg} tool.
