@@ -166,35 +166,74 @@ static int copy_tls_opts_dict(RTSPState *rt, AVDictionary **dict)
 
 #undef ERR_RET
 
-static void get_word_until_chars(char *buf, int buf_size,
-                                 const char *sep, const char **pp)
+/**
+ * Parse a word from the input string until a separator is found.
+ * @return 0 on success, 1 if truncation occurred
+ */
+static int get_word_until_chars(char *buf, int buf_size,
+                                const char *sep, const char **pp)
 {
     const char *p;
     char *q;
+    int truncated = 0;
 
     p = *pp;
     p += strspn(p, SPACE_CHARS);
     q = buf;
     while (!strchr(sep, *p) && *p != '\0') {
-        if ((q - buf) < buf_size - 1)
+        if ((q - buf) < buf_size - 1) {
             *q++ = *p;
+        } else {
+            truncated = 1;
+        }
         p++;
     }
     if (buf_size > 0)
         *q = '\0';
     *pp = p;
+    return truncated;
 }
 
-static void get_word_sep(char *buf, int buf_size, const char *sep,
-                         const char **pp)
+static int get_word_sep(char *buf, int buf_size, const char *sep,
+                        const char **pp)
 {
     if (**pp == '/') (*pp)++;
-    get_word_until_chars(buf, buf_size, sep, pp);
+    return get_word_until_chars(buf, buf_size, sep, pp);
 }
 
-static void get_word(char *buf, int buf_size, const char **pp)
+static int get_word(char *buf, int buf_size, const char **pp)
 {
-    get_word_until_chars(buf, buf_size, SPACE_CHARS, pp);
+    return get_word_until_chars(buf, buf_size, SPACE_CHARS, pp);
+}
+
+/**
+ * Parse an integer from a string, rejecting trailing garbage.
+ * Uses strtol with endptr validation, consistent with FFmpeg patterns.
+ * @return 0 on success, -1 on error (empty, trailing garbage, or overflow)
+ */
+static int parse_strict_int(const char *str, int *result)
+{
+    char *endptr;
+    long val;
+
+    if (!str || !*str)
+        return -1;
+
+    val = strtol(str, &endptr, 10);
+
+    /* Skip trailing whitespace */
+    endptr += strspn(endptr, SPACE_CHARS);
+
+    /* Reject if trailing non-whitespace garbage */
+    if (*endptr != '\0')
+        return -1;
+
+    /* Check range (platform-independent) */
+    if (val < INT_MIN || val > INT_MAX)
+        return -1;
+
+    *result = (int)val;
+    return 0;
 }
 
 /** Parse a string p in the form of Range:npt=xx-xx, and determine the start
@@ -452,7 +491,7 @@ static void sdp_parse_line(AVFormatContext *s, SDPParseState *s1,
     char buf1[64], st_type[64];
     const char *p;
     enum AVMediaType codec_type;
-    int payload_type;
+    int payload_type, payload;
     AVStream *st;
     RTSPStream *rtsp_st;
     RTSPSource *rtsp_src;
@@ -540,8 +579,13 @@ static void sdp_parse_line(AVFormatContext *s, SDPParseState *s1,
                                   &rtsp_st->exclude_source_addrs,
                                   &rtsp_st->nb_exclude_source_addrs);
 
-        get_word(buf1, sizeof(buf1), &p); /* port */
-        rtsp_st->sdp_port = atoi(buf1);
+        if (get_word(buf1, sizeof(buf1), &p) ||
+            parse_strict_int(buf1, &rtsp_st->sdp_port) < 0 ||
+            rtsp_st->sdp_port < 0 || rtsp_st->sdp_port > 65535) {
+            av_log(s, AV_LOG_WARNING, "Invalid port in SDP m= line: %s\n", buf1);
+            s1->skip_media = 1;
+            return;
+        }
 
         get_word(buf1, sizeof(buf1), &p); /* protocol */
         if (!strcmp(buf1, "udp"))
@@ -550,8 +594,14 @@ static void sdp_parse_line(AVFormatContext *s, SDPParseState *s1,
             rtsp_st->feedback = 1;
 
         /* XXX: handle list of formats */
-        get_word(buf1, sizeof(buf1), &p); /* format list */
-        rtsp_st->sdp_payload_type = atoi(buf1);
+        if (get_word(buf1, sizeof(buf1), &p) ||
+            parse_strict_int(buf1, &payload) < 0 ||
+            payload < 0 || payload > 127) {
+            av_log(s, AV_LOG_WARNING, "Invalid payload type in SDP: %s\n", buf1);
+            s1->skip_media = 1;
+            return;
+        }
+        rtsp_st->sdp_payload_type = payload;
 
         if (!strcmp(ff_rtp_enc_name(rtsp_st->sdp_payload_type), "MP2T")) {
             /* no corresponding stream */
