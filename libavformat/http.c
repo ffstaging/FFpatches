@@ -827,6 +827,7 @@ static int http_get_line(HTTPContext *s, char *line, int line_size)
 {
     int ch;
     char *q;
+    int too_long = 0;
 
     q = line;
     for (;;) {
@@ -839,10 +840,20 @@ static int http_get_line(HTTPContext *s, char *line, int line_size)
                 q--;
             *q = '\0';
 
+            if (too_long) {
+                av_log(s, AV_LOG_ERROR,
+                       "HTTP header line exceeds buffer size (%d); rejecting\n",
+                       line_size);
+                return AVERROR_INVALIDDATA;
+            }
+
             return 0;
         } else {
-            if ((q - line) < line_size - 1)
+            if ((q - line) < line_size - 1) {
                 *q++ = ch;
+            } else {
+                too_long = 1;
+            }
         }
     }
 }
@@ -1659,7 +1670,8 @@ static int http_buf_read(URLContext *h, uint8_t *buf, int size)
                     s->chunksize);
 
             if (!s->chunksize && s->multiple_requests) {
-                http_get_line(s, line, sizeof(line)); // read empty chunk
+                if ((err = http_get_line(s, line, sizeof(line))) < 0)
+                    return err;
                 s->chunkend = 1;
                 return 0;
             }
