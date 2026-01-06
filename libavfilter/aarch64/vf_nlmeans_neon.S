@@ -78,3 +78,131 @@ function ff_compute_safe_ssd_integral_image_neon, export=1
         b.ne            1b
         ret
 endfunc
+
+function ff_compute_weights_line_neon, export=1
+        // x0 = iia, x1 = iib, x2 = iid, x3 = iie
+        // x4 = src, x5 = total_weight, x6 = sum, x7 = weight_lut
+        // stack: [sp+0] = max_meaningful_diff, [sp+8] = startx, [sp+16] = endx
+
+        ldr             w8,  [sp, #0]                   // max_meaningful_diff
+        ldr             w9,  [sp, #8]                   // startx
+        ldr             w10, [sp, #16]                  // endx
+
+        cmp             w9, w10
+        b.ge            9f                              // if startx >= endx return
+
+        // Offset pointers
+        lsl             x11, x9, #2                     // startx * 4 (for uint32/float)
+        add             x0, x0, x11                     // iia += startx
+        add             x1, x1, x11                     // iib += startx
+        add             x2, x2, x11                     // iid += startx
+        add             x3, x3, x11                     // iie += startx
+        add             x5, x5, x11                     // total_weight += startx
+        add             x6, x6, x11                     // sum += startx
+
+        // src is uint8, so offset is just startx
+        add             x4, x4, x9                      // src += startx
+
+        dup             v30.4s, w8                      // v30 = max_meaningful_diff
+
+        sub             w10, w10, w9                    // count = endx - startx
+
+1:      // Main loop
+        cmp             w10, #4
+        b.lt            2f                              // Handle leftovers
+
+        // Load integral image values
+        ld1             {v0.4s}, [x0], #16              // iia
+        ld1             {v1.4s}, [x1], #16              // iib
+        ld1             {v2.4s}, [x2], #16              // iid
+        ld1             {v3.4s}, [x3], #16              // iie
+
+        // diff = e - d - b + a
+        sub             v3.4s, v3.4s, v2.4s             // e - d
+        sub             v3.4s, v3.4s, v1.4s             // e - d - b
+        add             v3.4s, v3.4s, v0.4s             // e - d - b + a
+
+        // min(diff, max)
+        umin            v3.4s, v3.4s, v30.4s
+
+        // Lookup weights
+        // Move to scalar registers to address lut
+        mov             w8,  v3.s[0]
+        mov             w9,  v3.s[1]
+        mov             w11, v3.s[2]
+        mov             w12, v3.s[3]
+
+        // Load 4 float weights
+        // LDR S register from x7 + offset*4
+        ldr             s0, [x7, w8, uxtw #2]
+        ldr             s1, [x7, w9, uxtw #2]
+        ldr             s2, [x7, w11, uxtw #2]
+        ldr             s3, [x7, w12, uxtw #2]
+
+        // Merge into v0.4s (s0 already in v0.s[0] from ldr s0)
+        mov             v0.s[1], v1.s[0]
+        mov             v0.s[2], v2.s[0]
+        mov             v0.s[3], v3.s[0]
+
+        // Load src pixels (uint8)
+        ld1             {v1.s}[0], [x4], #4             // Load 4 bytes
+        uxtl            v1.8h, v1.8b                    // 8b -> 16b (lower half)
+        uxtl            v1.4s, v1.4h                    // 16b -> 32b (lower half)
+        ucvtf           v1.4s, v1.4s                    // int -> float
+
+        // Load total_weight and sum
+        ld1             {v2.4s}, [x5]                   // total_weight
+        ld1             {v3.4s}, [x6]                   // sum
+
+        // Update
+        fadd            v2.4s, v2.4s, v0.4s             // total_weight += weight
+        fmla            v3.4s, v1.4s, v0.4s             // sum += src * weight
+
+        // Store back
+        st1             {v2.4s}, [x5], #16
+        st1             {v3.4s}, [x6], #16
+
+        sub             w10, w10, #4
+        b               1b
+
+2:      // Leftovers
+        cmp             w10, #0
+        b.le            9f
+
+        // Single pixel handling
+        ldr             w13, [x0], #4
+        ldr             w14, [x1], #4
+        ldr             w15, [x2], #4
+        ldr             w16, [x3], #4
+
+        sub             w16, w16, w15
+        sub             w16, w16, w14
+        add             w16, w16, w13
+
+        // min (unsigned comparison)
+        ldr             w8,  [sp, #0]
+        cmp             w16, w8
+        csel            w16, w16, w8, ls                // unsigned lower or same
+
+        // Load weight
+        ldr             s0, [x7, w16, uxtw #2]
+
+        // Load src
+        ldrb            w13, [x4], #1
+        ucvtf           s1, w13
+
+        // Load acc
+        ldr             s2, [x5]
+        ldr             s3, [x6]
+
+        fadd            s2, s2, s0
+        fmadd           s3, s1, s0, s3
+
+        str             s2, [x5], #4
+        str             s3, [x6], #4
+
+        sub             w10, w10, #1
+        b               2b
+
+9:      ret
+endfunc

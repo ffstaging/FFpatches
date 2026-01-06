@@ -18,6 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <math.h>
 #include "checkasm.h"
 #include "libavfilter/vf_nlmeans_init.h"
 #include "libavutil/avassert.h"
@@ -28,6 +29,11 @@
     for (i = 0; i < size / 4; i++)          \
         ((uint32_t *)buf)[i] = rnd();       \
 } while (0)
+
+static int float_almost_equal(float a, float b, float eps)
+{
+    return fabsf(a - b) < eps;
+}
 
 void checkasm_check_nlmeans(void)
 {
@@ -108,6 +114,108 @@ void checkasm_check_nlmeans(void)
         av_freep(&ii_orig_ref);
         av_freep(&ii_orig_new);
         av_freep(&src);
+    }
+
+    if (check_func(dsp.compute_weights_line, "compute_weights_line")) {
+        const int test_w = 256;
+        const int max_meaningful_diff = 255;
+        const int startx = 10;
+        const int endx = 200;
+
+        // Allocate aligned buffers
+        uint32_t *iia     = av_malloc_array(test_w + 16, sizeof(uint32_t));
+        uint32_t *iib     = av_malloc_array(test_w + 16, sizeof(uint32_t));
+        uint32_t *iid     = av_malloc_array(test_w + 16, sizeof(uint32_t));
+        uint32_t *iie     = av_malloc_array(test_w + 16, sizeof(uint32_t));
+        uint8_t  *src     = av_malloc(test_w + 16);
+        float    *tw_ref  = av_calloc(test_w + 16, sizeof(float));
+        float    *tw_new  = av_calloc(test_w + 16, sizeof(float));
+        float    *sum_ref = av_calloc(test_w + 16, sizeof(float));
+        float    *sum_new = av_calloc(test_w + 16, sizeof(float));
+        float    *lut     = av_malloc_array(max_meaningful_diff + 1, sizeof(float));
+
+        declare_func(void, const uint32_t *const iia,
+                     const uint32_t *const iib,
+                     const uint32_t *const iid,
+                     const uint32_t *const iie,
+                     const uint8_t *const src,
+                     float *total_weight,
+                     float *sum,
+                     const float *const weight_lut,
+                     ptrdiff_t max_meaningful_diff,
+                     ptrdiff_t startx, ptrdiff_t endx);
+
+        if (!iia || !iib || !iid || !iie || !src || !tw_ref || !tw_new ||
+            !sum_ref || !sum_new || !lut)
+            goto cleanup_weights;
+
+        // Initialize LUT: weight = exp(-diff * scale)
+        // Using scale = 0.01 for testing
+        for (int i = 0; i <= max_meaningful_diff; i++)
+            lut[i] = expf(-i * 0.01f);
+
+        // Initialize source pixels
+        for (int i = 0; i < test_w; i++)
+            src[i] = rnd() & 0xff;
+
+        // Initialize integral images
+        // We need to ensure diff = e - d - b + a is non-negative and within range
+        // Set up as if computing real integral image values
+        for (int i = 0; i < test_w; i++) {
+            uint32_t base = rnd() % 1000;
+            iia[i] = base;
+            iib[i] = base + (rnd() % 100);
+            iid[i] = base + (rnd() % 100);
+            // e = a + (b - a) + (d - a) + diff
+            // So diff = e - d - b + a will be in range [0, max_meaningful_diff]
+            uint32_t diff = rnd() % (max_meaningful_diff + 1);
+            iie[i] = iia[i] + (iib[i] - iia[i]) + (iid[i] - iia[i]) + diff;
+        }
+
+        // Clear output buffers
+        memset(tw_ref,  0, (test_w + 16) * sizeof(float));
+        memset(tw_new,  0, (test_w + 16) * sizeof(float));
+        memset(sum_ref, 0, (test_w + 16) * sizeof(float));
+        memset(sum_new, 0, (test_w + 16) * sizeof(float));
+
+        call_ref(iia, iib, iid, iie, src, tw_ref, sum_ref, lut,
+                 max_meaningful_diff, startx, endx);
+        call_new(iia, iib, iid, iie, src, tw_new, sum_new, lut,
+                 max_meaningful_diff, startx, endx);
+
+        // Compare results with small tolerance for floating point
+        for (int i = startx; i < endx; i++) {
+            if (!float_almost_equal(tw_ref[i], tw_new[i], 1e-5f)) {
+                fprintf(stderr, "total_weight mismatch at %d: ref=%f new=%f\n",
+                        i, tw_ref[i], tw_new[i]);
+                fail();
+                break;
+            }
+            if (!float_almost_equal(sum_ref[i], sum_new[i], 1e-4f)) {
+                fprintf(stderr, "sum mismatch at %d: ref=%f new=%f\n",
+                        i, sum_ref[i], sum_new[i]);
+                fail();
+                break;
+            }
+        }
+
+        // Benchmark
+        memset(tw_new,  0, (test_w + 16) * sizeof(float));
+        memset(sum_new, 0, (test_w + 16) * sizeof(float));
+        bench_new(iia, iib, iid, iie, src, tw_new, sum_new, lut,
+                  max_meaningful_diff, startx, endx);
+
+cleanup_weights:
+        av_freep(&iia);
+        av_freep(&iib);
+        av_freep(&iid);
+        av_freep(&iie);
+        av_freep(&src);
+        av_freep(&tw_ref);
+        av_freep(&tw_new);
+        av_freep(&sum_ref);
+        av_freep(&sum_new);
+        av_freep(&lut);
     }
 
     report("dsp");
