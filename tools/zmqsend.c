@@ -59,6 +59,7 @@ int main(int argc, char **argv)
     int c;
     int recv_buf_size, ret = 0;
     void *zmq_ctx, *socket;
+    size_t sz;
     const char *bind_address = "tcp://localhost:5555";
     const char *infilename = NULL;
     FILE *infile = NULL;
@@ -149,7 +150,13 @@ int main(int argc, char **argv)
         goto end;
     }
 
-    recv_buf_size = zmq_msg_size(&msg) + 1;
+    sz = zmq_msg_size(&msg);
+    if (sz == SIZE_MAX) {
+        av_log(NULL, AV_LOG_ERROR, "Message too large (overflow detected)\n");
+        ret = 1;
+        goto end;
+    }
+    recv_buf_size = sz + 1;
     recv_buf = av_malloc(recv_buf_size);
     if (!recv_buf) {
         av_log(NULL, AV_LOG_ERROR,
