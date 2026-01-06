@@ -1191,7 +1191,28 @@ static int d3d12va_encode_init_motion_estimation_precision(AVCodecContext *avctx
         default:
             av_assert0(0);
     }
+#if CONFIG_AV1_D3D12VA_ENCODER
+    D3D12_FEATURE_DATA_VIDEO_ENCODER_SUPPORT1 support = {
+        .NodeIndex                                      = 0,
+        .Codec                                          = ctx->codec->d3d12_codec,
+        .InputFormat                                    = hwctx->format,
+        .RateControl                                    = ctx->rc,
+        .IntraRefresh                                   = D3D12_VIDEO_ENCODER_INTRA_REFRESH_MODE_NONE,
+        .SubregionFrameEncoding                         = D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE_FULL_FRAME,
+        .ResolutionsListCount                           = 1,
+        .pResolutionList                                = &ctx->resolution,
+        .CodecGopSequence                               = ctx->gop,
+        .MaxReferenceFramesInDPB                        = MAX_DPB_SIZE - 1,
+        .CodecConfiguration                             = ctx->codec_conf,
+        .SuggestedProfile                               = profile,
+        .SuggestedLevel                                 = level,
+        .pResolutionDependentSupport                    = &ctx->res_limits,
+        .SubregionFrameEncodingData.pTilesPartition_AV1 = ctx->subregions_layout.pTilesPartition_AV1,
+    };
 
+    hr = ID3D12VideoDevice3_CheckFeatureSupport(ctx->video_device3, D3D12_FEATURE_VIDEO_ENCODER_SUPPORT1,
+                                                &support, sizeof(support));
+#else
     D3D12_FEATURE_DATA_VIDEO_ENCODER_SUPPORT support = {
         .NodeIndex                   = 0,
         .Codec                       = ctx->codec->d3d12_codec,
@@ -1211,6 +1232,7 @@ static int d3d12va_encode_init_motion_estimation_precision(AVCodecContext *avctx
 
     hr = ID3D12VideoDevice3_CheckFeatureSupport(ctx->video_device3, D3D12_FEATURE_VIDEO_ENCODER_SUPPORT,
                                                 &support, sizeof(support));
+#endif
     if (FAILED(hr)) {
         av_log(avctx, AV_LOG_ERROR, "Failed to check encoder support for motion estimation.\n");
         return AVERROR(EINVAL);
