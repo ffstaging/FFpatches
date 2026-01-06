@@ -87,6 +87,27 @@ static av_cold int libkvazaar_init(AVCodecContext *avctx)
         cfg->framerate_denom = avctx->time_base.num;
     }
     cfg->target_bitrate = avctx->bit_rate;
+    if (avctx->pix_fmt == AV_PIX_FMT_YUV420P
+#if KVZ_BIT_DEPTH == 10
+        || avctx->pix_fmt == AV_PIX_FMT_YUV420P10LE
+#endif
+        ) {
+        cfg->input_format   = KVZ_FORMAT_P420;
+    } else if (avctx->pix_fmt == AV_PIX_FMT_YUV422P
+#if KVZ_BIT_DEPTH == 10
+               || avctx->pix_fmt == AV_PIX_FMT_YUV422P10LE
+#endif
+               ) {
+        cfg->input_format   = KVZ_FORMAT_P422;
+    } else if (avctx->pix_fmt == AV_PIX_FMT_YUV444P
+#if KVZ_BIT_DEPTH == 10
+               || avctx->pix_fmt == AV_PIX_FMT_YUV444P10LE
+#endif
+               ) {
+        cfg->input_format   = KVZ_FORMAT_P444;
+    } else {
+        return -1;
+    }
     cfg->vui.sar_width  = avctx->sample_aspect_ratio.num;
     cfg->vui.sar_height = avctx->sample_aspect_ratio.den;
     if (avctx->bit_rate) {
@@ -213,15 +234,49 @@ static int libkvazaar_encode(AVCodecContext *avctx,
                 input_pic->data[2],
                 NULL,
             };
-            int dst_linesizes[4] = {
-              frame->width,
-              frame->width / 2,
-              frame->width / 2,
-              0
-            };
-            av_image_copy2(dst, dst_linesizes,
+            if (avctx->pix_fmt == AV_PIX_FMT_YUV420P
+#if KVZ_BIT_DEPTH == 10
+                || avctx->pix_fmt == AV_PIX_FMT_YUV420P10LE
+#endif
+                ) {
+                int dst_linesizes[4] = {
+                    frame->width,
+                    frame->width / 2,
+                    frame->width / 2,
+                    0
+                };
+                av_image_copy2(dst, dst_linesizes,
                            frame->data, frame->linesize,
                            frame->format, frame->width, frame->height);
+            } else if (avctx->pix_fmt == AV_PIX_FMT_YUV422P
+#if KVZ_BIT_DEPTH == 10
+                       || avctx->pix_fmt == AV_PIX_FMT_YUV422P10LE
+#endif
+                       ) {
+                int dst_linesizes[4] = {
+                    frame->width,
+                    frame->width / 2,
+                    frame->width,
+                    0
+                };
+                av_image_copy2(dst, dst_linesizes,
+                           frame->data, frame->linesize,
+                           frame->format, frame->width, frame->height);
+            } else if (avctx->pix_fmt == AV_PIX_FMT_YUV444P
+#if KVZ_BIT_DEPTH == 10
+                       || avctx->pix_fmt == AV_PIX_FMT_YUV444P10LE
+#endif
+                       ) {
+                int dst_linesizes[4] = {
+                    frame->width,
+                    frame->width,
+                    frame->width,
+                    0
+                };
+                av_image_copy2(dst, dst_linesizes,
+                           frame->data, frame->linesize,
+                           frame->format, frame->width, frame->height);
+            }
         }
 
         input_pic->pts = frame->pts;
@@ -294,6 +349,13 @@ done:
 }
 
 static const enum AVPixelFormat pix_fmts[] = {
+#if KVZ_BIT_DEPTH == 10
+    AV_PIX_FMT_YUV444P10LE
+    AV_PIX_FMT_YUV422P10LE
+    AV_PIX_FMT_YUV420P10LE
+#endif
+    AV_PIX_FMT_YUV444P,
+    AV_PIX_FMT_YUV422P,
     AV_PIX_FMT_YUV420P,
     AV_PIX_FMT_NONE
 };
