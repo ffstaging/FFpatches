@@ -265,28 +265,6 @@ function ff_pred8x8_left_dc_neon, export=1
         rshrn           v2.8b,  v0.8h,  #2
         dup             v1.8b,  v2.b[1]
         dup             v0.8b,  v2.b[0]
-        b               .L_pred8x8_dc_end
-endfunc
-
-function ff_pred8x8_dc_neon, export=1
-        sub             x2,  x0,  x1
-        sub             x3,  x0,  #1
-        ld1             {v0.8b}, [x2]
-        ldcol.8         v1,  x3,  x1
-        uaddlp          v0.4h,  v0.8b
-        uaddlp          v1.4h,  v1.8b
-        trn1            v2.2s,  v0.2s,  v1.2s
-        trn2            v3.2s,  v0.2s,  v1.2s
-        addp            v4.4h,  v2.4h,  v3.4h
-        addp            v5.4h,  v4.4h,  v4.4h
-        rshrn           v6.8b,  v5.8h,  #3
-        rshrn           v7.8b,  v4.8h,  #2
-        dup             v0.8b,  v6.b[0]
-        dup             v2.8b,  v7.b[2]
-        dup             v1.8b,  v7.b[3]
-        dup             v3.8b,  v6.b[1]
-        zip1            v0.2s,  v0.2s,  v2.2s
-        zip1            v1.2s,  v1.2s,  v3.2s
 .L_pred8x8_dc_end:
         mov             w3,  #4
         add             x2,  x0,  x1,  lsl #2
