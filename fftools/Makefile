@@ -50,6 +50,8 @@ OBJS-ffprobe +=                       \
     fftools/textformat/tw_avio.o      \
     fftools/textformat/tw_buffer.o    \
     fftools/textformat/tw_stdout.o    \
+    libavformat/codecstring.o         \
+    libavformat/nal.o                 \
 
 OBJS-ffmpeg += $(COMPAT_OBJS:%=compat/%)
 OBJS-ffplay += fftools/ffplay_renderer.o

@@ -31,6 +31,7 @@
 
 #include "libavformat/avformat.h"
 #include "libavformat/version.h"
+#include "libavformat/internal.h"
 #include "libavcodec/avcodec.h"
 #include "libavcodec/version.h"
 #include "libavutil/ambient_viewing_environment.h"
@@ -1794,6 +1795,13 @@ static int show_stream(AVTextFormatContext *tfc, AVFormatContext *fmt_ctx, int s
         if (!do_bitexact) {
             print_str_opt("codec_long_name", "unknown");
         }
+    }
+
+    av_bprint_clear(&pbuf);
+    if (ff_make_codec_str(fmt_ctx, stream->codecpar, &stream->avg_frame_rate, &pbuf) == 0) {
+        print_str("codec_attr", pbuf.str);
+    } else {
+        print_str_opt("codec_attr", "unknown");
     }
 
     if (!do_bitexact && (profile = avcodec_profile_name(par->codec_id, par->profile)))
