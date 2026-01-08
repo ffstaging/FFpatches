@@ -39,7 +39,7 @@
 #include "libavutil/opt.h"
 #include "libavutil/rational.h"
 #include "libavutil/stereo3d.h"
-
+#include "libavutil/pixdesc.h"
 #include <zlib.h>
 
 #define IOBUF_SIZE 4096
@@ -885,7 +885,8 @@ static int apng_encode_frame(AVCodecContext *avctx, const AVFrame *pict,
     size_t best_bytestream_size = SIZE_MAX;
     APNGFctlChunk last_fctl_chunk = *best_last_fctl_chunk;
     APNGFctlChunk fctl_chunk = *best_fctl_chunk;
-
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pict->format);
+    
     if (avctx->frame_num == 0) {
         best_fctl_chunk->width = pict->width;
         best_fctl_chunk->height = pict->height;
@@ -919,7 +920,11 @@ static int apng_encode_frame(AVCodecContext *avctx, const AVFrame *pict,
         // 0: APNG_DISPOSE_OP_NONE
         // 1: APNG_DISPOSE_OP_BACKGROUND
         // 2: APNG_DISPOSE_OP_PREVIOUS
-
+        if(last_fctl_chunk.dispose_op==APNG_DISPOSE_OP_BACKGROUND) {
+            if(!(desc->flags & AV_PIX_FMT_FLAG_ALPHA)) {
+                continue;
+            }
+        }
         for (fctl_chunk.blend_op = 0; fctl_chunk.blend_op < 2; ++fctl_chunk.blend_op) {
             // 0: APNG_BLEND_OP_SOURCE
             // 1: APNG_BLEND_OP_OVER
