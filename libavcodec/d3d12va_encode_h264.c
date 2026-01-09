@@ -44,6 +44,7 @@ typedef struct D3D12VAEncodeH264Context {
     int qp;
     int profile;
     int level;
+    int coder;
     int idr_pic_id;
 
     // Writer structures.
@@ -269,9 +270,24 @@ static int d3d12va_encode_h264_get_encoder_caps(AVCodecContext *avctx)
 
     config->ConfigurationFlags = D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_NONE;
 
-    if (h264_caps.SupportFlags & D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_SUPPORT_H264_FLAG_CABAC_ENCODING_SUPPORT) {
-        config->ConfigurationFlags |= D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_ENABLE_CABAC_ENCODING;
-        priv->unit_opts.cabac = 1;
+    // Entropy coder configuration
+    if (priv->coder == 1) {
+        if (h264_caps.SupportFlags & D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_SUPPORT_H264_FLAG_CABAC_ENCODING_SUPPORT) {
+            config->ConfigurationFlags |= D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_ENABLE_CABAC_ENCODING;
+            priv->unit_opts.cabac = 1;
+        } else {
+            av_log(avctx, AV_LOG_ERROR, "CABAC entropy coding requested but not supported by driver.\n");
+            return AVERROR(ENOTSUP);
+        }
+    } else if (priv->coder == 0) {
+        priv->unit_opts.cabac = 0;
+    } else {
+        if (h264_caps.SupportFlags & D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_SUPPORT_H264_FLAG_CABAC_ENCODING_SUPPORT) {
+            config->ConfigurationFlags |= D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_ENABLE_CABAC_ENCODING;
+            priv->unit_opts.cabac = 1;
+        } else {
+            priv->unit_opts.cabac = 0;
+        }
     }
 
     base_ctx->surface_width  = FFALIGN(avctx->width,  16);
@@ -590,6 +606,14 @@ static const AVOption d3d12va_encode_h264_options[] = {
     { LEVEL("6.1",  61) },
     { LEVEL("6.2",  62) },
 #undef LEVEL
+
+    { "coder", "Entropy coder type",
+      OFFSET(coder), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 1, FLAGS, .unit = "coder" },
+        { "auto",   "Driver default",              0, AV_OPT_TYPE_CONST, { .i64 = -1 }, 0, 0, FLAGS, .unit = "coder" },
+        { "cavlc",  "CAVLC entropy coder",         0, AV_OPT_TYPE_CONST, { .i64 = 0 },  0, 0, FLAGS, .unit = "coder" },
+        { "vlc",    "VLC entropy coder (CAVLC)",   0, AV_OPT_TYPE_CONST, { .i64 = 0 },  0, 0, FLAGS, .unit = "coder" },
+        { "cabac",  "CABAC entropy coder",         0, AV_OPT_TYPE_CONST, { .i64 = 1 },  0, 0, FLAGS, .unit = "coder" },
+        { "ac",     "Arithmetic coder (CABAC)",    0, AV_OPT_TYPE_CONST, { .i64 = 1 },  0, 0, FLAGS, .unit = "coder" },
 
     { NULL },
 };
