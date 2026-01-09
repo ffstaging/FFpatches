@@ -44,6 +44,7 @@ my $indent_operands = 0;
 my $instr_indent = 8;
 my $operand_indent = 24;
 my $match_indent = 0;
+my $lowercase_registers = 0;
 my $file;
 my $outfile;
 
@@ -58,6 +59,8 @@ while (@ARGV) {
         $operand_indent = shift;
     } elsif ($opt eq "-match-indent") {
         $match_indent = 1;
+    } elsif ($opt eq "-lowercase-registers") {
+        $lowercase_registers = 1;
     } else {
         if (!$file) {
             $file = $opt;
@@ -219,10 +222,19 @@ while (<$in>) {
             $operand_space = spaces($size);
         }
 
+        if ($lowercase_registers) {
+            # Lowercase register names. Not enabled by default, as this has
+            # got many false matches in code comments.
+            $rest =~ s/\b([XWVQDSHBZP][0-9]+)\b/lc($1)/ge;
+        }
         # Lowercase the aarch64 vector layout description, .8B -> .8b
         $rest =~ s/(\.[84216]*[BHSD])/lc($1)/ge;
         # Lowercase modifiers like "uxtw" or "lsl"
         $rest =~ s/([SU]XT[BWH]|[LA]S[LR])/lc($1)/ge;
+        # Lowercase SVE/SME modifiers like "/Z" or "/M"
+        $rest =~ s,(/[ZM])\b,lc($1),ge;
+        # Lowercase SVE/SME vector lengths
+        $rest =~ s/\b(VL[0-9]+)\b/lc($1)/ge;
 
         # Reassemble the line
         if ($rest eq "") {
