@@ -44,6 +44,10 @@
 #define CPUEXT_FAST(flags, cpuext) CPUEXT_SUFFIX_FAST(flags, , cpuext)
 #define CPUEXT_SLOW(flags, cpuext) CPUEXT_SUFFIX_SLOW(flags, , cpuext)
 
+/* Fake CPU flag for testing only */
+#define AV_CPU_FLAG_TEST        0x80000000
+#define ff_is_cpu_flags_test    (av_get_cpu_flags() & AV_CPU_FLAG_TEST)
+
 int ff_get_cpu_flags_mips(void);
 int ff_get_cpu_flags_aarch64(void);
 int ff_get_cpu_flags_arm(void);

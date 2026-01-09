@@ -60,7 +60,7 @@
 #include "checkasm.h"
 #include "libavutil/avassert.h"
 #include "libavutil/common.h"
-#include "libavutil/cpu.h"
+#include "libavutil/cpu_internal.h"
 #include "libavutil/intfloat.h"
 #include "libavutil/random_seed.h"
 
@@ -420,6 +420,9 @@ static const struct {
 #elif ARCH_WASM
     { "SIMD128",    "simd128",  AV_CPU_FLAG_SIMD128 },
 #endif
+
+    /* Don't put any flag after this one */
+    { "TEST", "test", AV_CPU_FLAG_TEST },
     { NULL }
 };
 
@@ -861,9 +864,13 @@ static void check_cpu_flag(const char *name, int flag)
 {
     int old_cpu_flag = state.cpu_flag;
 
-    flag |= old_cpu_flag;
-    av_force_cpu_flags(-1);
-    state.cpu_flag = flag & av_get_cpu_flags();
+    if (flag == AV_CPU_FLAG_TEST) {
+        state.cpu_flag = flag;
+    } else {
+        flag |= old_cpu_flag;
+        av_force_cpu_flags(-1);
+        state.cpu_flag = flag & av_get_cpu_flags();
+    }
     av_force_cpu_flags(state.cpu_flag);
 
     if (!flag || state.cpu_flag != old_cpu_flag) {
