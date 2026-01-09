@@ -97,7 +97,7 @@ static void libopus_write_header(AVCodecContext *avctx, int stream_count,
     bytestream_put_buffer(&p, "OpusHead", 8);
     bytestream_put_byte(&p, 1); /* Version */
     bytestream_put_byte(&p, channels);
-    bytestream_put_le16(&p, avctx->initial_padding * 48000 / avctx->sample_rate); /* Lookahead samples at 48kHz */
+    bytestream_put_le16(&p, avctx->initial_padding * 96000 / avctx->sample_rate); /* Lookahead samples at 96kHz */
     bytestream_put_le32(&p, avctx->sample_rate); /* Original sample rate */
     bytestream_put_le16(&p, 0); /* Gain of 0dB is recommended. */
 
@@ -267,7 +267,7 @@ static av_cold int libopus_encode_init(AVCodecContext *avctx)
     int coupled_stream_count, header_size, frame_size;
     int mapping_family;
 
-    frame_size = opus->opts.frame_duration * 48000 / 1000;
+    frame_size = opus->opts.frame_duration * 96000 / 1000;
     switch (frame_size) {
     case 120:
     case 240:
@@ -289,7 +289,7 @@ static av_cold int libopus_encode_init(AVCodecContext *avctx)
     case 5760:
 #endif
         opus->opts.packet_size =
-        avctx->frame_size      = frame_size * avctx->sample_rate / 48000;
+        avctx->frame_size      = frame_size * avctx->sample_rate / 96000;
         break;
     default:
         av_log(avctx, AV_LOG_ERROR, "Invalid frame duration: %g.\n"
@@ -577,7 +577,7 @@ static const FFCodecDefault libopus_defaults[] = {
 };
 
 static const int libopus_sample_rates[] = {
-    48000, 24000, 16000, 12000, 8000, 0,
+    96000, 48000, 24000, 16000, 12000, 8000, 0,
 };
 
 const FFCodec ff_libopus_encoder = {

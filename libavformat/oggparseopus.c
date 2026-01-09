@@ -71,10 +71,10 @@ static int parse_opus_header(AVFormatContext *avf, AVStream *st, struct ogg_stre
 
     memcpy(st->codecpar->extradata, packet, os->psize);
 
-    st->codecpar->sample_rate = 48000;
+    st->codecpar->sample_rate = 96000;
     st->codecpar->seek_preroll = av_rescale(OPUS_SEEK_PREROLL_MS,
                                             st->codecpar->sample_rate, 1000);
-    avpriv_set_pts_info(st, 64, 1, 48000);
+    avpriv_set_pts_info(st, 64, 1, 96000);
 
     priv->need_comments = 1;
 

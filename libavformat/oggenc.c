@@ -492,7 +492,7 @@ static int ogg_init(AVFormatContext *s)
         if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
             if (st->codecpar->codec_id == AV_CODEC_ID_OPUS)
                 /* Opus requires a fixed 48kHz clock */
-                avpriv_set_pts_info(st, 64, 1, 48000);
+                avpriv_set_pts_info(st, 64, 1, 96000);
             else
                 avpriv_set_pts_info(st, 64, 1, st->codecpar->sample_rate);
         }

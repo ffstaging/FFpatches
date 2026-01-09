@@ -649,7 +649,7 @@ static av_cold int opus_encode_init(AVCodecContext *avctx)
 
     if (!avctx->bit_rate) {
         int coupled = ff_opus_default_coupled_streams[s->channels - 1];
-        avctx->bit_rate = coupled*(96000) + (s->channels - coupled*2)*(48000);
+        avctx->bit_rate = coupled*(96000) + (s->channels - coupled*2)*(96000);
     } else if (avctx->bit_rate < 6000 || avctx->bit_rate > 255000 * s->channels) {
         int64_t clipped_rate = av_clip(avctx->bit_rate, 6000, 255000 * s->channels);
         av_log(avctx, AV_LOG_ERROR, "Unsupported bitrate %"PRId64" kbps, clipping to %"PRId64" kbps\n",
@@ -746,7 +746,7 @@ const FFCodec ff_opus_encoder = {
     FF_CODEC_ENCODE_CB(opus_encode_frame),
     .close          = opus_encode_end,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
-    CODEC_SAMPLERATES(48000),
+    CODEC_SAMPLERATES(96000),
     CODEC_CH_LAYOUTS(AV_CHANNEL_LAYOUT_MONO, AV_CHANNEL_LAYOUT_STEREO),
     CODEC_SAMPLEFMTS(AV_SAMPLE_FMT_FLTP),
 };

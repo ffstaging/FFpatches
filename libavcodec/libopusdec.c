@@ -62,7 +62,7 @@ static av_cold int libopus_decode_init(AVCodecContext *avc)
         channels = 2;
     }
 
-    avc->sample_rate    = 48000;
+    avc->sample_rate    = 96000;
     avc->sample_fmt     = avc->request_sample_fmt == AV_SAMPLE_FMT_FLT ?
                           AV_SAMPLE_FMT_FLT : AV_SAMPLE_FMT_S16;
     av_channel_layout_uninit(&avc->ch_layout);
