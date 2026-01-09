@@ -33,6 +33,7 @@
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
 #include "libavutil/pixfmt.h"
+#include "libavutil/mastering_display_metadata.h"
 
 #include "avcodec.h"
 #include "apv.h"
@@ -44,6 +45,23 @@
 #define MAX_NUM_FRMS (1)           // supports only 1-frame in an access unit
 #define FRM_IDX      (0)           // supports only 1-frame in an access unit
 #define MAX_NUM_CC   (OAPV_MAX_CC) // Max number of color components (upto 4:4:4:4)
+
+#define MAX_METADATA_PAYLOADS (8)
+
+// ne2be ...  native-endian to big-endian
+#if AV_HAVE_BIGENDIAN
+#define oapv_ne2be16(x) (x)
+#define oapv_ne2be32(x) (x)
+#else
+#define oapv_ne2be16(x) av_bswap16(x)
+#define oapv_ne2be32(x) av_bswap32(x)
+#endif
+
+typedef struct apv_metadata apv_metadata_t;
+struct apv_metadata {
+    uint32_t num_plds;
+    oapvm_payload_t payloads[MAX_METADATA_PAYLOADS];
+};
 
 /**
  * The structure stores all the states associated with the instance of APV encoder
@@ -64,6 +82,14 @@ typedef struct ApvEncContext {
     int preset_id;          // preset of apv ( fastest, fast, medium, slow, placebo)
 
     int qp;                 // quantization parameter (QP) [0,63]
+
+    oapvm_payload_mdcv_t mdcv;
+    oapvm_payload_cll_t cll;
+
+    apv_metadata_t* metadata;
+
+    char *mastering_display_string;
+    char *content_light_string;
 
     AVDictionary *oapv_params;
 } ApvEncContext;
@@ -180,6 +206,205 @@ fail:
 }
 
 /**
+ * Parses the SMPTE ST 2086 mastering display color volume metadata string.
+ * The expected format is "G(x,y)B(x,y)R(x,y)WP(x,y)L(max,min)",
+ * where x,y are CIE 1931 coordinates (floats) and max,min are luminance
+ * values (floats in cd/m^2).
+ *
+ * @param m The oapvm_payload_mdcv_t structure to fill.
+ * @param str The input string containing the metadata.
+ * @return 0 on success, AVERROR_INVALIDDATA on parsing error or invalid values.
+ */
+static int parse_mdcv_string_metadata(oapvm_payload_mdcv_t *mdcv, const char *str) {
+    if (!str || !mdcv) {
+        return AVERROR_INVALIDDATA;
+    }
+
+    uint16_t gx, gy, bx, by, rx, ry, wpx, wpy;
+    uint32_t max_l, min_l;
+    int ret;
+
+    // Use sscanf to extract the 10 floating-point values from the specific format string.
+    ret = sscanf(str, "G(%hu,%hu)B(%hu,%hu)R(%hu,%hu)WP(%hu,%hu)L(%u,%u)",
+                 &gx, &gy, &bx, &by, &rx, &ry, &wpx, &wpy, &max_l, &min_l);
+
+    // Check if sscanf successfully assigned all expected fields (10 numerical values).
+    const int expected_fields = 10;
+    if (ret != expected_fields) {
+        // Parsing failed, incorrect format provided.
+        return AVERROR_INVALIDDATA;
+    }
+
+    // According to APV specification, i = 0, 1, 2 specifies Red, Green, Blue respectively
+    // Store the parsed values in the correct order for APV
+    mdcv->primary_chromaticity_x[0] = rx; // Red X
+    mdcv->primary_chromaticity_y[0] = ry; // Red Y
+    mdcv->primary_chromaticity_x[1] = gx; // Green X
+    mdcv->primary_chromaticity_y[1] = gy; // Green Y
+    mdcv->primary_chromaticity_x[2] = bx; // Blue X
+    mdcv->primary_chromaticity_y[2] = by; // Blue Y
+
+    mdcv->white_point_chromaticity_x = wpx;
+    mdcv->white_point_chromaticity_y = wpy;
+
+    // Luminance values (max/min nits) are also stored in the same 10000 denominator format.
+    mdcv->max_mastering_luminance = max_l;
+    mdcv->min_mastering_luminance = min_l;
+    
+    return 0; // Success
+}
+
+/**
+ * Parses the CTA-861.3 content light level metadata string into an AVContentLightMetadata structure.
+ * The expected format is "<max_cll>,<max_fall>" (e.g., "1000,400").
+ *
+ * @param cl The oapvm_payload_cll_t structure to fill.
+ * @param str The input string containing the metadata.
+ * @return 0 on success, AVERROR_INVALIDDATA on parsing error.
+ */
+
+static int parse_cll_string_metadata(oapvm_payload_cll_t *cll, const char *str) {
+    if (!str || !cll) {
+        return AVERROR_INVALIDDATA;
+    }
+
+    // Use sscanf to extract the two integer values separated by a comma.
+    // MaxCLL and MaxFALL values in the standard are represented as unsigned 16-bit integers (cd/m^2).
+    // sscanf is a simple way to parse this fixed format.
+    uint16_t max_cll_val, max_fall_val;
+    int ret = sscanf(str, "%hu,%hu", &max_cll_val, &max_fall_val);
+
+    // Check if both values were successfully parsed.
+    const int expected_fields = 2;
+    if (ret != expected_fields) {
+        // Parsing failed, incorrect format provided.
+        return AVERROR_INVALIDDATA;
+    }
+
+    // Assign the parsed values to the structure fields.
+    // The fields in AVContentLightMetadata are already in cd/m^2 (nits), 
+    // so no AVRational conversion is needed, unlike with mastering display metadata.
+    cll->max_cll = max_cll_val;
+    cll->max_fall = max_fall_val;
+
+    return 0; // Success
+}
+
+static int serialize_metadata_mdcv(const oapvm_payload_mdcv_t* mdcv, uint8_t** buffer, size_t *size) {
+    int i;
+    uint8_t* current_ptr = NULL;
+    uint16_t beu16_val;
+    uint32_t beu32_val;
+
+    *size = 6*sizeof(uint16_t) + 2*sizeof(uint16_t) + 2*sizeof(uint32_t);
+    *buffer = (uint8_t*)av_mallocz(*size);
+    if(*buffer == NULL) {
+        return -1;
+    }
+
+    current_ptr = *buffer;
+
+    // OAPV structure uses primary_chromaticity_x[0-2] and primary_chromaticity_y[0-2]
+    // where 0=Red, 1=Green, 2=Blue according to APV specification
+    for (i = 0; i < 3; i++) {
+        beu16_val = oapv_ne2be16(mdcv->primary_chromaticity_x[i]);
+        memcpy(current_ptr, &beu16_val, sizeof(uint16_t));
+        current_ptr += sizeof(uint16_t);
+
+        beu16_val = oapv_ne2be16(mdcv->primary_chromaticity_y[i]);
+        memcpy(current_ptr, &beu16_val, sizeof(uint16_t));
+        current_ptr += sizeof(uint16_t);
+    }
+
+    beu16_val = oapv_ne2be16(mdcv->white_point_chromaticity_x);
+    memcpy(current_ptr, &beu16_val, sizeof(uint16_t));
+    current_ptr += sizeof(uint16_t);
+
+    beu16_val = oapv_ne2be16(mdcv->white_point_chromaticity_y);
+    memcpy(current_ptr, &beu16_val, sizeof(uint16_t));
+    current_ptr += sizeof(uint16_t);
+
+    beu32_val = oapv_ne2be32(mdcv->max_mastering_luminance);
+    memcpy(current_ptr, &beu32_val, sizeof(uint32_t));
+    current_ptr += sizeof(uint32_t);
+
+    beu32_val = oapv_ne2be32(mdcv->min_mastering_luminance);
+    memcpy(current_ptr, &beu32_val, sizeof(uint32_t));
+    current_ptr += sizeof(uint32_t);
+
+    return 0;
+}
+
+static int serialize_metadata_cll(const oapvm_payload_cll_t* cll, uint8_t** buffer, size_t* size) {
+    uint8_t* current_ptr = NULL;
+    uint16_t beu16_val;
+
+    *size = 2*sizeof(uint16_t);
+    *buffer = (uint8_t*)av_mallocz(*size);
+    if(*buffer == NULL) {
+        return -1;
+    }
+
+    current_ptr = *buffer;
+
+    beu16_val = oapv_ne2be16(cll->max_cll);
+    memcpy(current_ptr, &beu16_val, sizeof(uint16_t));
+    current_ptr += sizeof(uint16_t);
+
+    beu16_val = oapv_ne2be16(cll->max_fall);
+    memcpy(current_ptr, &beu16_val, sizeof(uint16_t));
+    current_ptr += sizeof(uint16_t);
+
+    return 0;
+}
+
+static apv_metadata_t* apv_metadata_create(void) {
+    apv_metadata_t* metadata = (apv_metadata_t*)av_malloc(sizeof(apv_metadata_t));
+    if (metadata) {
+        metadata->num_plds = 0;
+
+        for (int i = 0; i < MAX_METADATA_PAYLOADS; i++) {
+            metadata->payloads[i].data = NULL;
+        }
+    }
+    return metadata;
+}
+
+static void apv_metadata_destroy(apv_metadata_t* metadata) {
+    if (metadata) {
+        for (int i = 0; i < metadata->num_plds; i++) {
+            if (metadata->payloads[i].data) {
+                av_free(metadata->payloads[i].data);
+                metadata->payloads[i].data = NULL;
+            }
+        }
+        av_free(metadata);
+    }
+}
+
+static int apv_metadata_add_payload(apv_metadata_t* metadata, uint32_t group_id, uint32_t type, uint32_t size, void* data) {
+    if (!metadata || metadata->num_plds >= MAX_METADATA_PAYLOADS || !data || size == 0) {
+        return AVERROR_INVALIDDATA;
+    }
+
+    // Copying data into internal buffer
+    void* new_data = av_malloc(size);
+    if (!new_data) {
+        return AVERROR_INVALIDDATA;
+    }
+    memcpy(new_data, data, size);
+
+    metadata->payloads[metadata->num_plds].group_id = group_id;
+    metadata->payloads[metadata->num_plds].type = type;
+    metadata->payloads[metadata->num_plds].size = size;
+    metadata->payloads[metadata->num_plds].data = new_data;
+    metadata->num_plds++;
+
+    return 0; // Success
+}
+
+
+/**
  * The function returns a pointer to the object of the oapve_cdesc_t type.
  * oapve_cdesc_t contains all encoder parameters that should be initialized before the encoder is used.
  *
@@ -292,6 +517,8 @@ static av_cold int liboapve_init(AVCodecContext *avctx)
     unsigned char *bs_buf;
     int ret;
 
+    apv->metadata = apv_metadata_create();
+
     /* allocate bitstream buffer */
     bs_buf = (unsigned char *)av_malloc(MAX_BS_BUF);
     if (bs_buf == NULL) {
@@ -321,6 +548,64 @@ static av_cold int liboapve_init(AVCodecContext *avctx)
     apv->mid = oapvm_create(&ret);
     if (apv->mid == NULL || OAPV_FAILED(ret)) {
         av_log(avctx, AV_LOG_ERROR, "cannot create OAPV metadata handler\n");
+        return AVERROR_EXTERNAL;
+    }
+
+    if(apv->mastering_display_string) {
+        oapvm_payload_mdcv_t* mastering = av_mallocz(sizeof(oapvm_payload_mdcv_t));
+        if (!mastering) {
+            av_log(avctx, AV_LOG_ERROR, "Cannot allocate memory for mastering display metadata\n");
+            return AVERROR(ENOMEM);
+        }
+
+        ret = parse_mdcv_string_metadata(mastering, apv->mastering_display_string);
+        if (ret < 0) {
+            av_log(avctx, AV_LOG_WARNING, "Error parsing master-display %s'.\n", apv->mastering_display_string);
+            av_free(mastering);
+        } else {
+            size_t mdcv_buffer_size = 0;
+            uint8_t* mdcv_buffer = NULL;
+
+            if(!serialize_metadata_mdcv(mastering, &mdcv_buffer, &mdcv_buffer_size)) {
+                ret = apv_metadata_add_payload(apv->metadata, 1, OAPV_METADATA_MDCV, mdcv_buffer_size, mdcv_buffer);
+                if (ret < 0) {
+                    av_log(avctx, AV_LOG_WARNING, "Error adding mastering display metadata\n");
+                }
+            }
+            av_free(mdcv_buffer);
+            av_free(mastering);
+        }
+    }
+
+    if(apv->content_light_string) {
+        oapvm_payload_cll_t* content_light = av_mallocz(sizeof(oapvm_payload_cll_t));
+        if (!content_light) {
+            av_log(avctx, AV_LOG_ERROR, "Cannot allocate memory for content light metadata\n");
+            return AVERROR(ENOMEM);
+        }
+
+        ret = parse_cll_string_metadata(content_light, apv->content_light_string);
+        if (ret < 0) {
+            av_log(avctx, AV_LOG_WARNING, "Error parsing content-light %s'.\n", apv->content_light_string);
+            av_free(content_light);
+        } else {
+            size_t cll_buffer_size = 0;
+            uint8_t* cll_buffer = NULL;
+
+            if(!serialize_metadata_cll(content_light, &cll_buffer, &cll_buffer_size)) {
+                ret = apv_metadata_add_payload(apv->metadata, 1, OAPV_METADATA_CLL, cll_buffer_size, cll_buffer);
+                if (ret < 0) {
+                    av_log(avctx, AV_LOG_WARNING, "Error adding content light metadata\n");
+                }
+            }
+            av_free(cll_buffer);
+            av_free(content_light);
+        }
+    }
+
+    ret = oapvm_set_all(apv->mid, apv->metadata->payloads, apv->metadata->num_plds);
+    if(OAPV_FAILED(ret)) {
+        av_log(avctx, AV_LOG_ERROR, "cannot set metadata\n");
         return AVERROR_EXTERNAL;
     }
 
@@ -426,6 +711,8 @@ static av_cold int liboapve_close(AVCodecContext *avctx)
 {
     ApvEncContext *apv = avctx->priv_data;
 
+    apv_metadata_destroy(apv->metadata);
+
     for (int i = 0; i < apv->num_frames; i++) {
         if (apv->ifrms.frm[i].imgb != NULL)
             apv->ifrms.frm[i].imgb->release(apv->ifrms.frm[i].imgb);
@@ -467,15 +754,39 @@ static const enum AVPixelFormat supported_pixel_formats[] = {
 
 static const AVOption liboapv_options[] = {
     { "preset", "Encoding preset for setting encoding speed (optimization level control)", OFFSET(preset_id), AV_OPT_TYPE_INT, { .i64 = OAPV_PRESET_DEFAULT }, OAPV_PRESET_FASTEST, OAPV_PRESET_PLACEBO, VE, .unit = "preset" },
-    { "fastest", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_FASTEST }, INT_MIN, INT_MAX, VE, .unit = "preset" },
-    { "fast",    NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_FAST },    INT_MIN, INT_MAX, VE, .unit = "preset" },
-    { "medium",  NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_MEDIUM },  INT_MIN, INT_MAX, VE, .unit = "preset" },
-    { "slow",    NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_SLOW },    INT_MIN, INT_MAX, VE, .unit = "preset" },
-    { "placebo", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_PLACEBO }, INT_MIN, INT_MAX, VE, .unit = "preset" },
-    { "default", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_DEFAULT }, INT_MIN, INT_MAX, VE, .unit = "preset" },
+    { "fastest", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_FASTEST }, 0, 0, VE, .unit = "preset" },
+    { "fast",    NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_FAST },    0, 0, VE, .unit = "preset" },
+    { "medium",  NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_MEDIUM },  0, 0, VE, .unit = "preset" },
+    { "slow",    NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_SLOW },    0, 0, VE, .unit = "preset" },
+    { "placebo", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_PLACEBO }, 0, 0, VE, .unit = "preset" },
+    { "default", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = OAPV_PRESET_DEFAULT }, 0, 0, VE, .unit = "preset" },
 
     { "qp", "Quantization parameter value for CQP rate control mode", OFFSET(qp), AV_OPT_TYPE_INT, { .i64 = 32 }, 0, 63, VE },
     { "oapv-params",  "Override the apv configuration using a :-separated list of key=value parameters", OFFSET(oapv_params), AV_OPT_TYPE_DICT, { 0 }, 0, 0, VE },
+
+    { "master-display",
+      "Mastering display color volume metadata (SMPTE 2086)"
+      "Format: G(x,y)B(x,y)R(x,y)WP(x,y)L(max,min)",
+      OFFSET(mastering_display_string),
+        AV_OPT_TYPE_STRING,
+        {.str = NULL},
+        0,
+        0,
+        AV_OPT_FLAG_ENCODING_PARAM
+    },
+
+    {
+        "max-cll",
+        "Maximum Content Light Level (MaxCLL) and Maximum Frame-Average Light Level (MaxFALL) metadata (CTA-861.3). "
+        "Format: <max_cll>,<max_fall> (e.g., 1000,400)",
+        OFFSET(content_light_string),
+        AV_OPT_TYPE_STRING,
+        {.str = NULL},
+        0,
+        0,
+        AV_OPT_FLAG_ENCODING_PARAM
+    },
+
     { NULL }
 };
 
