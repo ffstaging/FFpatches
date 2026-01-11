@@ -40,12 +40,12 @@
 #define DXV_ALIGN(x) FFALIGN(x, 16)
 
 /*
- * DXV uses LZ-like back-references to avoid copying words that have already
+ * DXV uses LZ-like back-references to avoid copying data that has already
  * appeared in the decompressed stream. Using a simple hash table (HT)
  * significantly speeds up the lookback process while encoding.
  */
-#define LOOKBACK_HT_ELEMS 0x20202
-#define LOOKBACK_WORDS    0x20202
+#define LOOKBACK_HT_ELEMS    0x20202
+#define LOOKBACK_DWORDS_DXT1 0x20202
 
 typedef struct DXVEncContext {
     AVClass *class;
@@ -70,7 +70,7 @@ typedef struct DXVEncContext {
 
 /* Converts an index offset value to a 2-bit opcode and pushes it to a stream.
  * Inverse of CHECKPOINT in dxv.c.  */
-#define PUSH_OP(x)                                                            \
+#define PUSH_OP(block_dwords)                                                 \
     do {                                                                      \
         if (state == 16) {                                                    \
             if (bytestream2_get_bytes_left_p(pbc) < 4) {                      \
@@ -80,13 +80,13 @@ typedef struct DXVEncContext {
             bytestream2_put_le32(pbc, 0);                                     \
             state = 0;                                                        \
         }                                                                     \
-        if (idx >= 0x102 * x) {                                               \
+        if (idx >= 0x102 * block_dwords) {                                    \
             op = 3;                                                           \
-            bytestream2_put_le16(pbc, (idx / x) - 0x102);                     \
-        } else if (idx >= 2 * x) {                                            \
+            bytestream2_put_le16(pbc, (idx / block_dwords) - 0x102);          \
+        } else if (idx >= 2 * block_dwords) {                                 \
             op = 2;                                                           \
-            bytestream2_put_byte(pbc, (idx / x) - 2);                         \
-        } else if (idx == x) {                                                \
+            bytestream2_put_byte(pbc, (idx / block_dwords) - 2);              \
+        } else if (idx == block_dwords) {                                     \
             op = 1;                                                           \
         } else {                                                              \
             op = 0;                                                           \
@@ -119,8 +119,8 @@ static int dxv_compress_dxt1(AVCodecContext *avctx)
         combo_idx = ff_hashtable_get(ctx->combo_ht, ctx->tex_data + pos * 4, &prev_pos) ? pos - prev_pos : 0;
         idx = combo_idx;
         PUSH_OP(2);
-        if (pos >= LOOKBACK_WORDS) {
-            old_pos = pos - LOOKBACK_WORDS;
+        if (pos >= LOOKBACK_DWORDS_DXT1) {
+            old_pos = pos - LOOKBACK_DWORDS_DXT1;
             if (ff_hashtable_get(ctx->combo_ht, ctx->tex_data + old_pos * 4, &prev_pos) && prev_pos <= old_pos)
                 ff_hashtable_delete(ctx->combo_ht, ctx->tex_data + old_pos * 4);
         }
@@ -132,8 +132,8 @@ static int dxv_compress_dxt1(AVCodecContext *avctx)
             if (!idx)
                 bytestream2_put_le32(pbc, AV_RL32(ctx->tex_data + pos * 4));
         }
-        if (pos >= LOOKBACK_WORDS) {
-            old_pos = pos - LOOKBACK_WORDS;
+        if (pos >= LOOKBACK_DWORDS_DXT1) {
+            old_pos = pos - LOOKBACK_DWORDS_DXT1;
             if (ff_hashtable_get(ctx->color_ht, ctx->tex_data + old_pos * 4, &prev_pos) && prev_pos <= old_pos)
                 ff_hashtable_delete(ctx->color_ht, ctx->tex_data + old_pos * 4);
         }
@@ -146,8 +146,8 @@ static int dxv_compress_dxt1(AVCodecContext *avctx)
             if (!idx)
                 bytestream2_put_le32(pbc, AV_RL32(ctx->tex_data + pos * 4));
         }
-        if (pos >= LOOKBACK_WORDS) {
-            old_pos = pos - LOOKBACK_WORDS;
+        if (pos >= LOOKBACK_DWORDS_DXT1) {
+            old_pos = pos - LOOKBACK_DWORDS_DXT1;
             if (ff_hashtable_get(ctx->lut_ht, ctx->tex_data + old_pos * 4, &prev_pos) && prev_pos <= old_pos)
                 ff_hashtable_delete(ctx->lut_ht, ctx->tex_data + old_pos * 4);
         }
@@ -166,8 +166,8 @@ static int dxv_encode(AVCodecContext *avctx, AVPacket *pkt,
     int ret;
 
     /* unimplemented: needs to depend on compression ratio of tex format */
-    /* under DXT1, we need 3 words to encode load ops for 32 words.
-     * the first 2 words of the texture do not need load ops. */
+    /* under DXT1, we need 3 dwords to encode load ops for 32 dwords.
+     * the first 2 dwords of the texture do not need load ops. */
     ret = ff_alloc_packet(avctx, pkt, DXV_HEADER_LENGTH + ctx->tex_size + AV_CEIL_RSHIFT(ctx->tex_size - 8, 7) * 12);
     if (ret < 0)
         return ret;
