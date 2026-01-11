@@ -30,8 +30,10 @@
 #include "os_support.h"
 #include "url.h"
 #include "tls.h"
+#include "libavutil/intreadwrite.h"
 #include "libavutil/opt.h"
 #include "libavutil/thread.h"
+#include "libavutil/random_seed.h"
 
 #ifndef GNUTLS_VERSION_NUMBER
 #define GNUTLS_VERSION_NUMBER LIBGNUTLS_VERSION_NUMBER
@@ -41,6 +43,219 @@
 #include <gcrypt.h>
 GCRY_THREAD_OPTION_PTHREAD_IMPL;
 #endif
+
+#define MAX_MD_SIZE 64
+
+static int pkey_to_pem_string(gnutls_x509_privkey_t key, char *out, size_t out_sz)
+{
+    size_t read_bytes = 0;
+    int ret = 0;
+
+    if (!out || !out_sz)
+        return AVERROR(EINVAL);
+
+    gnutls_x509_privkey_export(key, GNUTLS_X509_FMT_PEM, NULL, &read_bytes);
+    if (!read_bytes) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to read the private key size\n");
+        return AVERROR(EINVAL);
+    }
+
+    if (read_bytes > out_sz) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Private key PEM string size %zu is large than %zu\n", read_bytes, out_sz);
+        return AVERROR(EINVAL);
+    }
+
+    ret = gnutls_x509_privkey_export(key, GNUTLS_X509_FMT_PEM, out, &read_bytes);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to export private key: %s\n", gnutls_strerror(ret));
+        return AVERROR(EINVAL);
+    }
+    out[read_bytes] = '\0';
+    return read_bytes;
+}
+
+static int crt_to_pem_string(gnutls_x509_crt_t crt, char *out, size_t out_sz)
+{
+    size_t read_bytes = 0;
+    int ret = 0;
+
+    if (!out || !out_sz)
+        return AVERROR(EINVAL);
+
+    gnutls_x509_crt_export(crt, GNUTLS_X509_FMT_PEM, NULL, &read_bytes);
+    if (!read_bytes) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to read the certificate size\n");
+        return AVERROR(EINVAL);
+    }
+
+    if (read_bytes > out_sz) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Certificate PEM string size %zu is large than %zu\n", read_bytes, out_sz);
+        return AVERROR(EINVAL);
+    }
+
+    ret = gnutls_x509_crt_export(crt, GNUTLS_X509_FMT_PEM, out, &read_bytes);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to export certificate: %s\n", gnutls_strerror(ret));
+        return AVERROR(EINVAL);
+    }
+    out[read_bytes] = '\0';
+    return read_bytes;
+}
+
+static int gnutls_x509_fingerprint(gnutls_x509_crt_t cert, char **fingerprint)
+{
+    unsigned char md[MAX_MD_SIZE];
+    size_t n = sizeof(md);
+    AVBPrint buf;
+    int ret;
+
+    ret = gnutls_x509_crt_get_fingerprint(cert, GNUTLS_DIG_SHA256, md, &n);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to generate fingerprint, %s\n",
+               gnutls_strerror(ret));
+        return AVERROR(ENOMEM);
+    }
+
+    av_bprint_init(&buf, n*3, n*3);
+
+    for (int i = 0; i < n - 1; i++)
+        av_bprintf(&buf, "%02X:", md[i]);
+    av_bprintf(&buf, "%02X", md[n - 1]);
+
+    return av_bprint_finalize(&buf, fingerprint);
+}
+
+static int gnutls_gen_private_key(gnutls_x509_privkey_t *key)
+{
+    int ret = 0;
+
+    ret = gnutls_x509_privkey_init(key);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to init private key: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_x509_privkey_generate(*key, GNUTLS_PK_ECDSA,
+                                       gnutls_sec_param_to_pk_bits(GNUTLS_PK_ECDSA, GNUTLS_SEC_PARAM_MEDIUM), 0);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to generate private key: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+end:
+    return ret;
+}
+
+static int gnutls_gen_certificate(gnutls_x509_privkey_t key, gnutls_x509_crt_t *crt, char **fingerprint)
+{
+    int ret = 0;
+    uint64_t serial;
+    unsigned char buf[8];
+    const char *dn = "CN=lavf";
+
+    ret = gnutls_x509_crt_init(crt);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to init certificate: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_x509_crt_set_version(*crt, 3);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to set certificate version: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    /**
+     * See https://gnutls.org/manual/gnutls.html#gnutls_005fx509_005fcrt_005fset_005fserial-1
+     * The provided serial should be a big-endian positive number (i.e. its leftmost bit should be zero).
+     */
+    serial = av_get_random_seed();
+    AV_WB64(buf, serial);
+    buf[0] &= 0x7F;
+    ret = gnutls_x509_crt_set_serial(*crt, buf, sizeof(buf));
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to set certificate serial: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_x509_crt_set_activation_time(*crt, time(NULL));
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to set certificate activation time: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_x509_crt_set_expiration_time(*crt, time(NULL) + 365 * 24 * 60 * 60);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to set certificate expiration time: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_x509_crt_set_dn(*crt, dn, NULL);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to set certificate dn: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_x509_crt_set_issuer_dn(*crt, dn, NULL);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to set certificate issuer dn: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_x509_crt_set_key(*crt, key);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to set key: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_x509_crt_sign2(*crt, *crt, key, GNUTLS_DIG_SHA256, 0);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to sign certificate: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_x509_fingerprint(*crt, fingerprint);
+    if (ret < 0)
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to generate fingerprint\n");
+end:
+    return ret;
+}
+
+int ff_ssl_gen_key_cert(char *key_buf, size_t key_sz, char *cert_buf, size_t cert_sz, char **fingerprint)
+{
+    int ret;
+    gnutls_x509_crt_t crt = NULL;
+    gnutls_x509_privkey_t key = NULL;
+
+    ret = gnutls_gen_private_key(&key);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to generate private key: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = gnutls_gen_certificate(key, &crt, fingerprint);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to generate certificate: %s\n", gnutls_strerror(ret));
+        goto end;
+    }
+
+    ret = pkey_to_pem_string(key, key_buf, key_sz);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to convert private key to PEM string\n");
+        goto end;
+    }
+
+    ret = crt_to_pem_string(crt, cert_buf, cert_sz);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "TLS: Failed to convert certificate to PEM string\n");
+        goto end;
+    }
+end:
+    if (crt)
+        gnutls_x509_crt_deinit(crt);
+    if (key)
+        gnutls_x509_privkey_deinit(key);
+    return ret;
+}
 
 typedef struct TLSContext {
     TLSShared tls_shared;
@@ -263,6 +478,28 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
         }
     } else if (s->cert_file || s->key_file)
         av_log(h, AV_LOG_ERROR, "cert and key required\n");
+
+    if (s->listen && !s->cert_file && !s->cert_buf && !s->key_file && !s->key_buf) {
+        gnutls_x509_crt_t cert = NULL;
+        gnutls_x509_privkey_t pkey = NULL;
+
+        av_log(h, AV_LOG_VERBOSE, "No server certificate provided, using self-signed\n");
+
+        ret = gnutls_gen_private_key(&pkey);
+        if (ret < 0)
+            goto fail;
+
+        ret = gnutls_gen_certificate(pkey, &cert, NULL);
+        if (ret < 0)
+            goto fail;
+
+        ret = gnutls_certificate_set_x509_key(c->cred, &cert, 1, pkey);
+        if (ret < 0) {
+            av_log(h, AV_LOG_ERROR, "Unable to set self-signed certificate: %s\n", gnutls_strerror(ret));
+            ret = AVERROR(EINVAL);
+            goto fail;
+        }
+    }
     gnutls_credentials_set(c->session, GNUTLS_CRD_CERTIFICATE, c->cred);
     gnutls_transport_set_pull_function(c->session, gnutls_url_pull);
     gnutls_transport_set_push_function(c->session, gnutls_url_push);
