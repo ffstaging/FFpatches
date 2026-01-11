@@ -2274,10 +2274,9 @@ static int bl16_decode_1(SANMVideoContext *ctx)
 {
     uint16_t hh, hw, c1, c2, *dst1, *dst2;
 
-    if (bytestream2_get_bytes_left(&ctx->gb) < ((ctx->width * ctx->height) / 2))
-        return AVERROR_INVALIDDATA;
-
     hh = (ctx->height + 1) >> 1;
+    if (bytestream2_get_bytes_left(&ctx->gb) < 2 * hh * ((ctx->width - 1) >> 1))
+        return AVERROR_INVALIDDATA;
     dst1 = (uint16_t *)ctx->frm0 + ctx->pitch;    /* start with line 1 */
     while (hh--) {
         hw = (ctx->width - 1) >> 1;
@@ -2601,10 +2600,9 @@ static int bl16_decode_7(SANMVideoContext *ctx)
 {
     uint16_t hh, hw, c1, c2, *dst1, *dst2;
 
-    if (bytestream2_get_bytes_left(&ctx->gb) < ((ctx->width * ctx->height) / 4))
-        return AVERROR_INVALIDDATA;
-
     hh = (ctx->height + 1) >> 1;
+    if (bytestream2_get_bytes_left(&ctx->gb) < hh * ((ctx->width - 1) >> 1))
+        return AVERROR_INVALIDDATA;
     dst1 = (uint16_t *)ctx->frm0 + ctx->pitch;    /* start with line 1 */
     while (hh--) {
         hw = (ctx->width - 1) >> 1;
