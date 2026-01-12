@@ -20,6 +20,11 @@
 #include "libavutil/x86/cpu.h"
 #include "libavfilter/vf_nlmeans.h"
 
+void ff_compute_safe_ssd_integral_image_avx2(uint32_t *dst, ptrdiff_t dst_linesize_32,
+                                             const uint8_t *s1, ptrdiff_t linesize1,
+                                             const uint8_t *s2, ptrdiff_t linesize2,
+                                             int w, int h);
+
 void ff_compute_weights_line_avx2(const uint32_t *const iia,
                                   const uint32_t *const iib,
                                   const uint32_t *const iid,
@@ -36,7 +41,9 @@ av_cold void ff_nlmeans_init_x86(NLMeansDSPContext *dsp)
 #if ARCH_X86_64
     int cpu_flags = av_get_cpu_flags();
 
-    if (EXTERNAL_AVX2_FAST(cpu_flags))
+    if (EXTERNAL_AVX2_FAST(cpu_flags)) {
+        dsp->compute_safe_ssd_integral_image = ff_compute_safe_ssd_integral_image_avx2;
         dsp->compute_weights_line = ff_compute_weights_line_avx2;
+    }
 #endif
 }
