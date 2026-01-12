@@ -231,12 +231,6 @@ int ff_mjpeg_decode_dqt(MJpegDecodeContext *s)
                     return AVERROR_INVALIDDATA;
             }
         }
-
-        // XXX FIXME fine-tune, and perhaps add dc too
-        s->qscale[index] = FFMAX(s->quant_matrixes[index][1],
-                                 s->quant_matrixes[index][8]) >> 1;
-        av_log(s->avctx, AV_LOG_DEBUG, "qscale[%d]: %d\n",
-               index, s->qscale[index]);
         len -= 1 + 64 * (1+pr);
     }
     return 0;
@@ -2560,14 +2554,6 @@ eoi_parser:
                 frame->flags |= AV_FRAME_FLAG_LOSSLESS;
             *got_frame = 1;
             s->got_picture = 0;
-
-            if (!s->lossless && avctx->debug & FF_DEBUG_QP) {
-                int qp = FFMAX3(s->qscale[0],
-                                s->qscale[1],
-                                s->qscale[2]);
-
-                av_log(avctx, AV_LOG_DEBUG, "QP: %d\n", qp);
-            }
 
             goto the_end;
         case SOS:

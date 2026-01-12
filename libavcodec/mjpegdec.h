@@ -66,7 +66,6 @@ typedef struct MJpegDecodeContext {
 
     uint16_t quant_matrixes[4][64];
     VLC vlcs[3][4];
-    int qscale[4];      ///< quantizer scale calculated from quant_matrixes
 
     int orig_height;  /* size given at codec init */
     int first_picture;    /* true if decoding first picture */
@@ -112,7 +111,6 @@ typedef struct MJpegDecodeContext {
     AVFrame *picture_ptr; /* pointer to picture structure */
     int got_picture;                                ///< we found a SOF and picture is valid, too.
     int linesize[MAX_COMPONENTS];                   ///< linesize << interlaced
-    int8_t *qscale_table;
     DECLARE_ALIGNED(32, int16_t, block)[64];
     int16_t (*blocks[MAX_COMPONENTS])[64]; ///< intermediate sums (progressive mode)
     uint8_t *last_nnz[MAX_COMPONENTS];

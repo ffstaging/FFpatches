@@ -147,11 +147,6 @@ read_header:
         return buf_size;
     *got_frame = 1;
 
-    if (!s->lossless && avctx->debug & FF_DEBUG_QP) {
-        av_log(avctx, AV_LOG_DEBUG, "QP: %d\n",
-               FFMAX3(s->qscale[0], s->qscale[1], s->qscale[2]));
-    }
-
     return buf_size;
 }
 
