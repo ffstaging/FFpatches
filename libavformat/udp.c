@@ -232,8 +232,10 @@ static int udp_join_multicast_group(int sockfd, struct sockaddr *addr,
         struct ipv6_mreq mreq6;
 
         memcpy(&mreq6.ipv6mr_multiaddr, &(((struct sockaddr_in6 *)addr)->sin6_addr), sizeof(struct in6_addr));
-        //TODO: Interface index should be looked up from local_addr
-        mreq6.ipv6mr_interface = 0;
+        if (local_addr)
+            mreq6.ipv6mr_interface = ((struct sockaddr_in6*)local_addr)->sin6_scope_id;
+        else 
+            mreq6.ipv6mr_interface = 0;
         if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq6, sizeof(mreq6)) < 0) {
             ff_log_net_error(logctx, AV_LOG_ERROR, "setsockopt(IPV6_ADD_MEMBERSHIP)");
             return ff_neterrno();
