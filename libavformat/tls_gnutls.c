@@ -24,6 +24,7 @@
 #include <gnutls/gnutls.h>
 #include <gnutls/dtls.h>
 #include <gnutls/x509.h>
+#include <sys/time.h>
 
 #include "avformat.h"
 #include "network.h"
