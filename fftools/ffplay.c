@@ -963,6 +963,27 @@ static void set_sdl_yuv_conversion_mode(AVFrame *frame)
 #endif
 }
 
+static void draw_checkerboard(VideoState *is, SDL_Rect *rect)
+{
+    const int checkboard_size = 64;
+    SDL_BlendMode blendMode;
+    if (!SDL_GetTextureBlendMode(is->vid_texture, &blendMode) && blendMode == SDL_BLENDMODE_BLEND) {
+        SDL_SetRenderDrawColor(renderer, 237, 237, 237, 255);
+        fill_rectangle(rect->x, rect->y, rect->w, rect->h);
+        SDL_SetRenderDrawColor(renderer, 222, 222, 222, 222);
+        for (int x = 0; x < rect->w; x += checkboard_size * 2)
+            fill_rectangle(rect->x + x, rect->y, FFMIN(checkboard_size, rect->w - x), rect->h);
+        for (int y = 0; y < rect->h; y += checkboard_size * 2)
+            fill_rectangle(rect->x, rect->y + y, rect->w, FFMIN(checkboard_size, rect->h - y));
+        SDL_SetRenderDrawColor(renderer, 237, 237, 237, 255);
+        for (int y = 0; y < rect->h; y += checkboard_size * 2) {
+            int h = FFMIN(checkboard_size, rect->h - y);
+            for (int x = 0; x < rect->w; x += checkboard_size * 2)
+                fill_rectangle(x + rect->x, y + rect->y, FFMIN(checkboard_size, rect->w - x), h);
+        }
+    }
+}
+
 static void video_image_display(VideoState *is)
 {
     Frame *vp;
@@ -1032,6 +1053,7 @@ static void video_image_display(VideoState *is)
         vp->flip_v = vp->frame->linesize[0] < 0;
     }
 
+    draw_checkerboard(is, &rect);
     SDL_RenderCopyEx(renderer, is->vid_texture, NULL, &rect, 0, NULL, vp->flip_v ? SDL_FLIP_VERTICAL : 0);
     set_sdl_yuv_conversion_mode(NULL);
     if (sp) {
