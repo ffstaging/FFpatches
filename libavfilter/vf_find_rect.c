@@ -126,8 +126,14 @@ static float compare(const AVFrame *haystack, const AVFrame *obj, int offx, int 
     const uint8_t *hdat = haystack->data[0] + offx + offy * haystack->linesize[0];
     int64_t o_sigma, h_sigma;
 
-    for(y = 0; y < obj->height; y++) {
-        for(x = 0; x < obj->width; x++) {
+    int64_t comp_w = FFMIN((int64_t)haystack->width - offx, obj->width);
+    int64_t comp_h = FFMIN((int64_t)haystack->height - offy, obj->height);
+
+    if (offx >= haystack->width || offy >= haystack->height || comp_w <= 0 || comp_h <= 0)
+        return 1.0;
+
+    for(y = 0; y < comp_h; y++) {
+        for(x = 0; x < comp_w; x++) {
             int o_v = odat[x];
             int h_v = hdat[x];
             o_sum_v += o_v;
