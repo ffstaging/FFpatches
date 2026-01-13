@@ -543,14 +543,19 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         ff_ebur128_relative_threshold(s->r128_in, &relative_threshold);
 
         if (s->above_threshold == 0) {
-            double shortterm_out;
-
-            if (shortterm > s->measured_thresh)
-                s->prev_delta *= 1.0058;
-
-            ff_ebur128_loudness_shortterm(s->r128_out, &shortterm_out);
-            if (shortterm_out >= s->target_i)
+            if (shortterm > s->measured_thresh) {
+                /* Input has exceeded threshold, transition to normal gain mode.
+                 * Reinitialize all delta values with the correct gain to ensure
+                 * immediate proper gain application when audio starts after
+                 * silence, rather than slowly ramping up via Gaussian smoothing
+                 * of stale values. */
+                double env_st = s->target_i - shortterm;
+                double new_delta = pow(10., env_st / 20.);
+                for (int i = 0; i < 30; i++)
+                    s->delta[i] = new_delta;
+                s->prev_delta = new_delta;
                 s->above_threshold = 1;
+            }
         }
 
         if (shortterm < relative_threshold || shortterm <= -70. || s->above_threshold == 0) {
