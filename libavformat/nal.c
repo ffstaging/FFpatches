@@ -21,14 +21,20 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "libavutil/attributes.h"
 #include "libavutil/mem.h"
 #include "libavutil/error.h"
 #include "libavcodec/defs.h"
 #include "avio.h"
 #include "avio_internal.h"
+#include "config.h"
 #include "nal.h"
 
-static const uint8_t *nal_find_startcode_internal(const uint8_t *p, const uint8_t *end)
+/* Pointer to the active implementation */
+const uint8_t *(*ff_nal_find_startcode_internal)(const uint8_t *p, const uint8_t *end);
+
+/* C implementation */
+static const uint8_t *ff_nal_find_startcode_c(const uint8_t *p, const uint8_t *end)
 {
     const uint8_t *a = p + 4 - ((intptr_t)p & 3);
 
@@ -66,7 +72,16 @@ static const uint8_t *nal_find_startcode_internal(const uint8_t *p, const uint8_
 }
 
 const uint8_t *ff_nal_find_startcode(const uint8_t *p, const uint8_t *end){
-    const uint8_t *out = nal_find_startcode_internal(p, end);
+    static int initialized = 0;
+    if (!initialized) {
+        ff_nal_find_startcode_internal = ff_nal_find_startcode_c;
+#if ARCH_AARCH64
+        extern void ff_nal_init_arm(void);
+        ff_nal_init_arm();
+#endif
+        initialized = 1;
+    }
+    const uint8_t *out = ff_nal_find_startcode_internal(p, end);
     if(p<out && out<end && !out[-1]) out--;
     return out;
 }
