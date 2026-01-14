@@ -25,6 +25,11 @@
 #include "hwaccel_internal.h"
 #include "vaapi_decode.h"
 
+/* libva 2.24 */
+#ifndef VA_PICTURE_H264_NON_EXISTING
+#define VA_PICTURE_H264_NON_EXISTING        0x00000020
+#endif
+
 /**
  * @file
  * This file implements the glue code between FFmpeg's and VA API's
@@ -68,6 +73,8 @@ static void fill_vaapi_pic(VAPictureH264 *va_pic,
         va_pic->flags |= (pic_structure & PICT_TOP_FIELD) ? VA_PICTURE_H264_TOP_FIELD : VA_PICTURE_H264_BOTTOM_FIELD;
     if (pic->reference)
         va_pic->flags |= pic->long_ref ? VA_PICTURE_H264_LONG_TERM_REFERENCE : VA_PICTURE_H264_SHORT_TERM_REFERENCE;
+    if (pic->invalid_gap)
+        va_pic->flags |= VA_PICTURE_H264_NON_EXISTING;
 
     va_pic->TopFieldOrderCnt = 0;
     if (pic->field_poc[0] != INT_MAX)
