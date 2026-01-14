@@ -53,8 +53,8 @@ static const AVOption find_rect_options[] = {
     { "mipmaps", "set mipmaps", OFFSET(mipmaps), AV_OPT_TYPE_INT, {.i64 = 3}, 1, MAX_MIPMAPS, FLAGS },
     { "xmin", "", OFFSET(xmin), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, FLAGS },
     { "ymin", "", OFFSET(ymin), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, FLAGS },
-    { "xmax", "", OFFSET(xmax), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, FLAGS },
-    { "ymax", "", OFFSET(ymax), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, FLAGS },
+    { "xmax", "", OFFSET(xmax), AV_OPT_TYPE_INT, {.i64 = INT_MAX}, 0, INT_MAX, FLAGS },
+    { "ymax", "", OFFSET(ymax), AV_OPT_TYPE_INT, {.i64 = INT_MAX}, 0, INT_MAX, FLAGS },
     { "discard", "", OFFSET(discard), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, FLAGS },
     { NULL }
 };
@@ -155,10 +155,10 @@ static int config_input(AVFilterLink *inlink)
     AVFilterContext *ctx = inlink->dst;
     FOCContext *foc = ctx->priv;
 
-    if (foc->xmax <= 0)
-        foc->xmax = inlink->w - foc->obj_frame->width;
-    if (foc->ymax <= 0)
-        foc->ymax = inlink->h - foc->obj_frame->height;
+    foc->xmin = FFMAX(foc->xmin, 0);
+    foc->ymin = FFMAX(foc->ymin, 0);
+    foc->xmax = FFMIN(foc->xmax, inlink->w - foc->obj_frame->width );
+    foc->ymax = FFMIN(foc->ymax, inlink->h - foc->obj_frame->height);
 
     return 0;
 }
