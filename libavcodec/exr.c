@@ -1807,8 +1807,8 @@ static int decode_header(EXRContext *s, AVFrame *frame)
                     }
                 }
 
-                s->channels = av_realloc(s->channels,
-                                         ++s->nb_channels * sizeof(EXRChannel));
+                s->channels = av_realloc_array(s->channels,
+                                         ++s->nb_channels,  sizeof(EXRChannel));
                 if (!s->channels) {
                     ret = AVERROR(ENOMEM);
                     goto fail;
