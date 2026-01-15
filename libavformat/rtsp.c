@@ -1566,7 +1566,7 @@ int ff_rtsp_make_setup_request(AVFormatContext *s, const char *host, int port,
             while (j + 1 <= rt->rtp_port_max) {
                 AVDictionary *opts = map_to_opts(rt);
 
-                ff_url_join(buf, sizeof(buf), "rtp", NULL, host, -1,
+                ff_url_join(buf, sizeof(buf), "rtp", NULL, "0.0.0.0", -1,
                             "?localport=%d", j);
                 /* we will use two ports per rtp stream (rtp and rtcp) */
                 j += 2;
