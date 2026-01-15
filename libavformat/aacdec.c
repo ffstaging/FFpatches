@@ -40,8 +40,22 @@ static int adts_aac_probe(const AVProbeData *p)
     const uint8_t *buf2;
     const uint8_t *buf;
     const uint8_t *end = buf0 + p->buf_size - 7;
+    int id3_skip = 0;
 
     buf = buf0;
+
+    // Skip ID3v2 tags at the beginning to find the actual ADTS data
+    while (buf + ID3v2_HEADER_SIZE < end &&
+           ff_id3v2_match(buf, ID3v2_DEFAULT_MAGIC)) {
+        int taglen = ff_id3v2_tag_len(buf);
+        if (id3_skip + taglen > p->buf_size)
+            break;
+        id3_skip += taglen;
+        buf = p->buf + id3_skip;
+    }
+
+    // Update buf0 to point after ID3v2 tags for first_frames calculation
+    buf0 = buf;
 
     for (; buf < end; buf = buf2 + 1) {
         buf2 = buf;
@@ -49,6 +63,16 @@ static int adts_aac_probe(const AVProbeData *p)
         for (frames = 0; buf2 < end; frames++) {
             uint32_t header = AV_RB16(buf2);
             if ((header & 0xFFF6) != 0xFFF0) {
+                // Skip embedded ID3v2 tags (common in HLS AAC streams)
+                if (buf2 + ID3v2_HEADER_SIZE < end &&
+                    ff_id3v2_match(buf2, ID3v2_DEFAULT_MAGIC)) {
+                    int id3len = ff_id3v2_tag_len(buf2);
+                    if (buf2 + id3len < end) {
+                        buf2 += id3len;
+                        frames--;  // compensate for the frames++ in the loop
+                        continue;
+                    }
+                }
                 if (buf != buf0) {
                     // Found something that isn't an ADTS header, starting
                     // from a position other than the start of the buffer.
@@ -74,6 +98,9 @@ static int adts_aac_probe(const AVProbeData *p)
     else if (max_frames > 100)
         return AVPROBE_SCORE_EXTENSION;
     else if (max_frames >= 3)
+        return AVPROBE_SCORE_EXTENSION / 2;
+    // If file starts with ID3v2 and we found ADTS frames after it, boost score
+    else if (id3_skip > 0 && max_frames >= 1)
         return AVPROBE_SCORE_EXTENSION / 2;
     else if (first_frames >= 1)
         return 1;
