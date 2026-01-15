@@ -29,7 +29,6 @@
 #ifndef AVCODEC_MJPEGDEC_H
 #define AVCODEC_MJPEGDEC_H
 
-#include "libavutil/log.h"
 #include "libavutil/mem_internal.h"
 #include "libavutil/pixdesc.h"
 #include "libavutil/stereo3d.h"
@@ -54,7 +53,6 @@ typedef struct ICCEntry {
 struct JLSState;
 
 typedef struct MJpegDecodeContext {
-    AVClass *class;
     AVCodecContext *avctx;
     GetBitContext gb;
     GetByteContext gB;
@@ -139,7 +137,6 @@ typedef struct MJpegDecodeContext {
     uint16_t (*ljpeg_buffer)[4];
     unsigned int ljpeg_buffer_size;
 
-    int extern_huff;
     AVExifMetadata exif_metadata;
 
     AVStereo3D *stereo3d; ///!< stereoscopic information (cached, since it is read before frame allocation)

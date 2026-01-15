@@ -36,7 +36,6 @@
 #include "libavutil/imgutils.h"
 #include "libavutil/avassert.h"
 #include "libavutil/mem.h"
-#include "libavutil/opt.h"
 #include "avcodec.h"
 #include "blockdsp.h"
 #include "codec_internal.h"
@@ -145,16 +144,6 @@ av_cold int ff_mjpeg_decode_init(AVCodecContext *avctx)
     if ((ret = init_default_huffman_tables(s)) < 0)
         return ret;
 
-    if (s->extern_huff) {
-        av_log(avctx, AV_LOG_INFO, "using external huffman table\n");
-        bytestream2_init(&s->gB, avctx->extradata, avctx->extradata_size);
-        if (ff_mjpeg_decode_dht(s)) {
-            av_log(avctx, AV_LOG_ERROR,
-                   "error using external huffman table, switching back to internal\n");
-            if ((ret = init_default_huffman_tables(s)) < 0)
-                return ret;
-        }
-    }
     if (avctx->field_order == AV_FIELD_BB) { /* quicktime icefloe 019 */
         s->interlace_polarity = 1;           /* bottom field first */
         av_log(avctx, AV_LOG_DEBUG, "bottom field first\n");
@@ -2940,21 +2929,6 @@ static av_cold void decode_flush(AVCodecContext *avctx)
 }
 
 #if CONFIG_MJPEG_DECODER
-#define OFFSET(x) offsetof(MJpegDecodeContext, x)
-#define VD AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_DECODING_PARAM
-static const AVOption options[] = {
-    { "extern_huff", "Use external huffman table.",
-      OFFSET(extern_huff), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, VD },
-    { NULL },
-};
-
-static const AVClass mjpegdec_class = {
-    .class_name = "MJPEG decoder",
-    .item_name  = av_default_item_name,
-    .option     = options,
-    .version    = LIBAVUTIL_VERSION_INT,
-};
-
 const FFCodec ff_mjpeg_decoder = {
     .p.name         = "mjpeg",
     CODEC_LONG_NAME("MJPEG (Motion JPEG)"),
@@ -2967,7 +2941,6 @@ const FFCodec ff_mjpeg_decoder = {
     .flush          = decode_flush,
     .p.capabilities = AV_CODEC_CAP_DR1,
     .p.max_lowres   = 3,
-    .p.priv_class   = &mjpegdec_class,
     .p.profiles     = NULL_IF_CONFIG_SMALL(ff_mjpeg_profiles),
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP |
                       FF_CODEC_CAP_SKIP_FRAME_FILL_PARAM |
