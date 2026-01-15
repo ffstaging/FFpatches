@@ -1438,8 +1438,15 @@ static int64_t calc_min_seg_no(AVFormatContext *s, struct representation *pls)
     int64_t num = 0;
 
     if (c->is_live && pls->fragment_duration) {
+        uint64_t current_time_in_sec = get_current_time_in_sec();
         av_log(s, AV_LOG_TRACE, "in live mode\n");
-        num = pls->first_seq_no + (((get_current_time_in_sec() - c->availability_start_time) - c->time_shift_buffer_depth) * pls->fragment_timescale) / pls->fragment_duration;
+        if (current_time_in_sec - c->availability_start_time < c->time_shift_buffer_depth) {
+            av_log(s, AV_LOG_TRACE, "timeShiftBufferDepth not reached yet\n");
+            num = pls->first_seq_no;
+        }
+        else {
+            num = pls->first_seq_no + (((current_time_in_sec - c->availability_start_time) - c->time_shift_buffer_depth) * pls->fragment_timescale) / pls->fragment_duration;
+        }
     } else {
         num = pls->first_seq_no;
     }
