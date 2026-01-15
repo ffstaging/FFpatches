@@ -164,6 +164,7 @@ OBJS = adler32.o                                                        \
        md5.o                                                            \
        mem.o                                                            \
        murmur3.o                                                        \
+       nal.o                                                            \
        opt.o                                                            \
        parseutils.o                                                     \
        pixdesc.o                                                        \

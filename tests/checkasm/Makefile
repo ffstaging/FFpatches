@@ -95,6 +95,7 @@ AVUTILOBJS                              += crc.o
 AVUTILOBJS                              += fixed_dsp.o
 AVUTILOBJS                              += float_dsp.o
 AVUTILOBJS                              += lls.o
+AVUTILOBJS                              += nal.o
 
 CHECKASMOBJS-$(CONFIG_AVUTIL)  += $(AVUTILOBJS)
 

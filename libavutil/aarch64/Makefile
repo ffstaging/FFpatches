@@ -6,6 +6,7 @@ ARMV8-OBJS += aarch64/crc.o
 
 NEON-OBJS += aarch64/float_dsp_neon.o                                 \
              aarch64/tx_float_neon.o                                  \
+             aarch64/nal.o                                            \
 
 SVE-OBJS += aarch64/cpu_sve.o                                         \
 

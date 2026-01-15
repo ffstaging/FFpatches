@@ -120,6 +120,7 @@ void checkasm_check_idet(void);
 void checkasm_check_jpeg2000dsp(void);
 void checkasm_check_llauddsp(void);
 void checkasm_check_lls(void);
+void checkasm_check_nal(void);
 void checkasm_check_llviddsp(void);
 void checkasm_check_llvidencdsp(void);
 void checkasm_check_lpc(void);

@@ -36,6 +36,7 @@ FATE_CHECKASM = fate-checkasm-aacencdsp                                 \
                 fate-checkasm-jpeg2000dsp                               \
                 fate-checkasm-llauddsp                                  \
                 fate-checkasm-lls                                       \
+                fate-checkasm-nal                                       \
                 fate-checkasm-llviddsp                                  \
                 fate-checkasm-llvidencdsp                               \
                 fate-checkasm-lpc                                       \

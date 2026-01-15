@@ -348,6 +348,7 @@ static const struct {
         { "fixed_dsp", checkasm_check_fixed_dsp },
         { "float_dsp", checkasm_check_float_dsp },
         { "lls",       checkasm_check_lls },
+        { "nal",       checkasm_check_nal },
         { "av_tx",     checkasm_check_av_tx },
 #endif
     { NULL }
