@@ -37,7 +37,8 @@ OBJS-$(CONFIG_H264QPEL) += riscv/h264qpel_init.o
 RVV-OBJS-$(CONFIG_H264QPEL) += riscv/h264qpel_rvv.o
 OBJS-$(CONFIG_HEVC_DECODER) += riscv/hevcdsp_init.o
 RVV-OBJS-$(CONFIG_HEVC_DECODER)  += riscv/h26x/h2656_inter_rvv.o \
-                                    riscv/h26x/hevcqpel_rvv.o
+                                    riscv/h26x/hevcqpel_rvv.o \
+                                    riscv/h26x/hevcepel_rvv.o
 OBJS-$(CONFIG_HUFFYUV_DECODER) += riscv/huffyuvdsp_init.o
 RVV-OBJS-$(CONFIG_HUFFYUV_DECODER) += riscv/huffyuvdsp_rvv.o
 OBJS-$(CONFIG_IDCTDSP) += riscv/idctdsp_init.o
