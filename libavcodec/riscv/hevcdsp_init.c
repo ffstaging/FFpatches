@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2024 Institute of Software Chinese Academy of Sciences (ISCAS).
+ * Copyright (C) 2026 Alibaba Group Holding Limited.
  *
  * This file is part of FFmpeg.
  *
@@ -34,30 +35,56 @@
         member[7][v][h] = ff_h2656_put_pixels_##8_##ext; \
         member[9][v][h] = ff_h2656_put_pixels_##8_##ext;
 
+#define RVV_FNASSIGN_PEL(member, v, h, fn) \
+        member[1][v][h] = fn;  \
+        member[2][v][h] = fn;  \
+        member[3][v][h] = fn;  \
+        member[4][v][h] = fn;  \
+        member[5][v][h] = fn; \
+        member[6][v][h] = fn; \
+        member[7][v][h] = fn; \
+        member[8][v][h] = fn; \
+        member[9][v][h] = fn;
+
 void ff_hevc_dsp_init_riscv(HEVCDSPContext *c, const int bit_depth)
 {
 #if HAVE_RVV
     const int flags = av_get_cpu_flags();
     int vlenb;
 
-    if (!(flags & AV_CPU_FLAG_RVV_I32) || !(flags & AV_CPU_FLAG_RVB))
-        return;
+    if ((flags & AV_CPU_FLAG_RVV_I32) && (flags & AV_CPU_FLAG_RVB)) {
+        vlenb = ff_get_rv_vlenb();
+        if (vlenb >= 32) {
+            switch (bit_depth) {
+                case 8:
+                    RVV_FNASSIGN(c->put_hevc_qpel, 0, 0, pel_pixels, rvv_256);
+                    RVV_FNASSIGN(c->put_hevc_epel, 0, 0, pel_pixels, rvv_256);
 
-    vlenb = ff_get_rv_vlenb();
-    if (vlenb >= 32) {
-        switch (bit_depth) {
-            case 8:
-                RVV_FNASSIGN(c->put_hevc_qpel, 0, 0, pel_pixels, rvv_256);
-                RVV_FNASSIGN(c->put_hevc_epel, 0, 0, pel_pixels, rvv_256);
-                break;
-            default:
-                break;
+                    break;
+                default:
+                    break;
+            }
+        } else if (vlenb >= 16) {
+            switch (bit_depth) {
+                case 8:
+                    RVV_FNASSIGN(c->put_hevc_qpel, 0, 0, pel_pixels, rvv_128);
+                    RVV_FNASSIGN(c->put_hevc_epel, 0, 0, pel_pixels, rvv_128);
+
+                    break;
+                default:
+                    break;
+            }
         }
-    } else if (vlenb >= 16) {
+    }
+
+    if ((flags & AV_CPU_FLAG_RVV_I32)) {
         switch (bit_depth) {
             case 8:
-                RVV_FNASSIGN(c->put_hevc_qpel, 0, 0, pel_pixels, rvv_128);
-                RVV_FNASSIGN(c->put_hevc_epel, 0, 0, pel_pixels, rvv_128);
+                RVV_FNASSIGN_PEL(c->put_hevc_qpel, 0, 1, ff_hevc_put_qpel_h_8_m1_rvv);
+                RVV_FNASSIGN_PEL(c->put_hevc_qpel_uni, 0, 1, ff_hevc_put_qpel_uni_h_8_m1_rvv);
+                RVV_FNASSIGN_PEL(c->put_hevc_qpel_uni_w, 0, 1, ff_hevc_put_qpel_uni_w_h_8_m1_rvv);
+                RVV_FNASSIGN_PEL(c->put_hevc_qpel_bi, 0, 1, ff_hevc_put_qpel_bi_h_8_m1_rvv);
+
                 break;
             default:
                 break;
