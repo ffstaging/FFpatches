@@ -94,6 +94,10 @@ void ff_hevc_dsp_init_riscv(HEVCDSPContext *c, const int bit_depth)
                 RVV_FNASSIGN_PEL(c->put_hevc_epel_uni, 0, 1, ff_hevc_put_epel_uni_h_8_m1_rvv);
                 RVV_FNASSIGN_PEL(c->put_hevc_epel_uni_w, 0, 1, ff_hevc_put_epel_uni_w_h_8_m1_rvv);
                 RVV_FNASSIGN_PEL(c->put_hevc_epel_bi, 0, 1, ff_hevc_put_epel_bi_h_8_m1_rvv);
+                RVV_FNASSIGN_PEL(c->put_hevc_epel, 1, 0, ff_hevc_put_epel_v_8_m1_rvv);
+                RVV_FNASSIGN_PEL(c->put_hevc_epel_uni, 1, 0, ff_hevc_put_epel_uni_v_8_m1_rvv);
+                RVV_FNASSIGN_PEL(c->put_hevc_epel_uni_w, 1, 0, ff_hevc_put_epel_uni_w_v_8_m1_rvv);
+                RVV_FNASSIGN_PEL(c->put_hevc_epel_bi, 1, 0, ff_hevc_put_epel_bi_v_8_m1_rvv);
                 break;
             default:
                 break;
