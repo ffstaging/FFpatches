@@ -307,3 +307,316 @@ endfunc
 .endm
 
 hevc_qpel_h m1, m2, m4
+
+/* output is unclipped; clobbers v4 */
+.macro filter_v         vdst, vsrc0, vsrc1, vsrc2, vsrc3, vsrc4, vsrc5, vsrc6, vsrc7
+        vmv.v.x          v4, s1
+        vwmulsu.vv       \vdst, v4, \vsrc0
+        vwmaccsu.vx      \vdst, s2, \vsrc1
+        vmv.v.v          \vsrc0, \vsrc1
+        vwmaccsu.vx      \vdst, s3, \vsrc2
+        vmv.v.v          \vsrc1, \vsrc2
+        vwmaccsu.vx      \vdst, s4, \vsrc3
+        vmv.v.v          \vsrc2, \vsrc3
+        vwmaccsu.vx      \vdst, s5, \vsrc4
+        vmv.v.v          \vsrc3, \vsrc4
+        vwmaccsu.vx      \vdst, s6, \vsrc5
+        vmv.v.v          \vsrc4, \vsrc5
+        vwmaccsu.vx      \vdst, s7, \vsrc6
+        vmv.v.v          \vsrc5, \vsrc6
+        vwmaccsu.vx      \vdst, s8, \vsrc7
+        vmv.v.v          \vsrc6, \vsrc7
+.endm
+
+.macro hevc_qpel_v       lmul, lmul2, lmul4
+func ff_hevc_put_qpel_v_8_\lmul\()_rvv, zve32x
+    addi        sp, sp, -64
+    sx          s1, 0(sp)
+    sx          s2, 8(sp)
+    sx          s3, 16(sp)
+    sx          s4, 24(sp)
+    sx          s5, 32(sp)
+    sx          s6, 40(sp)
+    sx          s7, 48(sp)
+    sx          s8, 56(sp)
+    load_filter a5
+    slli        t1, a2, 1
+    add         t1, t1, a2
+    sub         a1, a1, t1      # src - 3 * src_stride
+    li          t1, 0           # offset
+    mv          t4, a3
+
+1:
+    add         t2, a1, t1
+    slli        t3, t1, 1
+    add         t3, a0, t3
+
+    vsetvli     t5, a6, e8, \lmul, ta, ma
+    vle8.V      v16, (t2)
+    add         t2, t2, a2
+    vle8.V      v18, (t2)
+    add         t2, t2, a2
+    vle8.V      v20, (t2)
+    add         t2, t2, a2
+    vle8.V      v22, (t2)
+    add         t2, t2, a2
+    vle8.V      v24, (t2)
+    add         t2, t2, a2
+    vle8.V      v26, (t2)
+    add         t2, t2, a2
+    vle8.V      v28, (t2)
+    add         t2, t2, a2
+
+2:
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vle8.V      v30, (t2)
+    add         t2, t2, a2
+    filter_v    v0, v16, v18, v20, v22, v24, v26, v28, v30
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    vse16.v     v0, (t3)
+    add         t3, t3, 2*HEVC_MAX_PB_SIZE
+    addi        a3, a3, -1
+    bgt         a3, zero, 2b
+    add         t1, t1, t5
+    sub         a6, a6, t5
+    mv          a3, t4
+    bgt         a6, zero, 1b
+
+    lx          s1, 0(sp)
+    lx          s2, 8(sp)
+    lx          s3, 16(sp)
+    lx          s4, 24(sp)
+    lx          s5, 32(sp)
+    lx          s6, 40(sp)
+    lx          s7, 48(sp)
+    lx          s8, 56(sp)
+    addi        sp, sp, 64
+    ret
+endfunc
+
+func ff_hevc_put_qpel_uni_v_8_\lmul\()_rvv, zve32x
+    csrwi       vxrm, 0
+    addi        sp, sp, -64
+    sx          s1, 0(sp)
+    sx          s2, 8(sp)
+    sx          s3, 16(sp)
+    sx          s4, 24(sp)
+    sx          s5, 32(sp)
+    sx          s6, 40(sp)
+    sx          s7, 48(sp)
+    sx          s8, 56(sp)
+    load_filter a6
+    slli        t1, a3, 1
+    add         t1, t1, a3
+    sub         a2, a2, t1      # src - 3 * src_stride
+    li          t1, 0           # offset
+    mv          t4, a4
+
+1:
+    add         t2, a2, t1
+    add         t3, a0, t1
+
+    vsetvli     t5, a7, e8, \lmul, ta, ma
+    vle8.V      v16, (t2)
+    add         t2, t2, a3
+    vle8.V      v18, (t2)
+    add         t2, t2, a3
+    vle8.V      v20, (t2)
+    add         t2, t2, a3
+    vle8.V      v22, (t2)
+    add         t2, t2, a3
+    vle8.V      v24, (t2)
+    add         t2, t2, a3
+    vle8.V      v26, (t2)
+    add         t2, t2, a3
+    vle8.V      v28, (t2)
+    add         t2, t2, a3
+
+2:
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vle8.V      v30, (t2)
+    add         t2, t2, a3
+    filter_v    v0, v16, v18, v20, v22, v24, v26, v28, v30
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    vmax.vx     v0, v0, zero
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vnclipu.wi  v0, v0, 6
+    vse8.v      v0, (t3)
+    add         t3, t3, a1
+    addi        a4, a4, -1
+    bgt         a4, zero, 2b
+    add         t1, t1, t5
+    sub         a7, a7, t5
+    mv          a4, t4
+    bgt         a7, zero, 1b
+
+    lx          s1, 0(sp)
+    lx          s2, 8(sp)
+    lx          s3, 16(sp)
+    lx          s4, 24(sp)
+    lx          s5, 32(sp)
+    lx          s6, 40(sp)
+    lx          s7, 48(sp)
+    lx          s8, 56(sp)
+    addi        sp, sp, 64
+    ret
+endfunc
+
+func ff_hevc_put_qpel_uni_w_v_8_\lmul\()_rvv, zve32x
+    csrwi       vxrm, 0
+#if (__riscv_xlen == 32)
+    lw          t1, 4(sp)       # my
+    lw          t6, 8(sp)       # width
+#elif (__riscv_xlen == 64)
+    ld          t1, 8(sp)
+    lw          t6, 16(sp)
+#endif
+    addi        sp, sp, -64
+    sx          s1, 0(sp)
+    sx          s2, 8(sp)
+    sx          s3, 16(sp)
+    sx          s4, 24(sp)
+    sx          s5, 32(sp)
+    sx          s6, 40(sp)
+    sx          s7, 48(sp)
+    sx          s8, 56(sp)
+    load_filter t1
+    addi        a5, a5, 6       # shift
+    slli        t1, a3, 1
+    add         t1, t1, a3
+    sub         a2, a2, t1      # src - 3 * src_stride
+    li          t1, 0           # offset
+    mv          t4, a4
+
+1:
+    add         t2, a2, t1
+    add         t3, a0, t1
+
+    vsetvli     t5, t6, e8, \lmul, ta, ma
+    vle8.V      v16, (t2)
+    add         t2, t2, a3
+    vle8.V      v18, (t2)
+    add         t2, t2, a3
+    vle8.V      v20, (t2)
+    add         t2, t2, a3
+    vle8.V      v22, (t2)
+    add         t2, t2, a3
+    vle8.V      v24, (t2)
+    add         t2, t2, a3
+    vle8.V      v26, (t2)
+    add         t2, t2, a3
+    vle8.V      v28, (t2)
+    add         t2, t2, a3
+
+2:
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vle8.V      v30, (t2)
+    add         t2, t2, a3
+    filter_v    v0, v16, v18, v20, v22, v24, v26, v28, v30
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    vwmul.vx    v8, v0, a6
+    vsetvli     zero, zero, e32, \lmul4, ta, ma
+    vssra.vx    v0, v8, a5
+    vsadd.vx    v0, v0, a7
+    vmax.vx     v0, v0, zero
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    vnclip.wi   v0, v0, 0
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vnclipu.wi  v0, v0, 0
+    vse8.v      v0, (t3)
+    add         t3, t3, a1
+    addi        a4, a4, -1
+    bgt         a4, zero, 2b
+    add         t1, t1, t5
+    sub         t6, t6, t5
+    mv          a4, t4
+    bgt         t6, zero, 1b
+
+    lx          s1, 0(sp)
+    lx          s2, 8(sp)
+    lx          s3, 16(sp)
+    lx          s4, 24(sp)
+    lx          s5, 32(sp)
+    lx          s6, 40(sp)
+    lx          s7, 48(sp)
+    lx          s8, 56(sp)
+    addi        sp, sp, 64
+    ret
+endfunc
+
+func ff_hevc_put_qpel_bi_v_8_\lmul\()_rvv, zve32x
+    csrwi       vxrm, 0
+    lw          t6, 0(sp)      # width
+    addi        sp, sp, -64
+    sx          s1, 0(sp)
+    sx          s2, 8(sp)
+    sx          s3, 16(sp)
+    sx          s4, 24(sp)
+    sx          s5, 32(sp)
+    sx          s6, 40(sp)
+    sx          s7, 48(sp)
+    sx          s8, 56(sp)
+    load_filter a7
+    slli        t1, a3, 1
+    add         t1, t1, a3
+    sub         a2, a2, t1      # src - 3 * src_stride
+    li          t1, 0           # offset
+    mv          t4, a5
+
+1:
+    add         t2, a2, t1
+    add         t3, a0, t1
+    slli        t0, t1, 1
+    add         t0, a4, t0
+
+    vsetvli     t5, t6, e8, \lmul, ta, ma
+    vle8.V      v16, (t2)
+    add         t2, t2, a3
+    vle8.V      v18, (t2)
+    add         t2, t2, a3
+    vle8.V      v20, (t2)
+    add         t2, t2, a3
+    vle8.V      v22, (t2)
+    add         t2, t2, a3
+    vle8.V      v24, (t2)
+    add         t2, t2, a3
+    vle8.V      v26, (t2)
+    add         t2, t2, a3
+    vle8.V      v28, (t2)
+    add         t2, t2, a3
+
+2:
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vle8.V      v30, (t2)
+    add         t2, t2, a3
+    filter_v    v0, v16, v18, v20, v22, v24, v26, v28, v30
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    vle16.v     v8, (t0)
+    addi        t0, t0, 2*HEVC_MAX_PB_SIZE
+    vsadd.vv    v0, v0, v8
+    vmax.vx     v0, v0, zero
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vnclipu.wi  v0, v0, 7
+    vse8.v      v0, (t3)
+    add         t3, t3, a1
+    addi        a5, a5, -1
+    bgt         a5, zero, 2b
+    add         t1, t1, t5
+    sub         t6, t6, t5
+    mv          a5, t4
+    bgt         t6, zero, 1b
+
+    lx          s1, 0(sp)
+    lx          s2, 8(sp)
+    lx          s3, 16(sp)
+    lx          s4, 24(sp)
+    lx          s5, 32(sp)
+    lx          s6, 40(sp)
+    lx          s7, 48(sp)
+    lx          s8, 56(sp)
+    addi        sp, sp, 64
+    ret
+endfunc
+.endm
+
+hevc_qpel_v m1, m2, m4
