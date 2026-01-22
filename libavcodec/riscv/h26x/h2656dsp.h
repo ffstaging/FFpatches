@@ -47,6 +47,17 @@ void ff_hevc_put_qpel_uni_w_v_8_m1_rvv(uint8_t *_dst,  ptrdiff_t _dststride,
 void ff_hevc_put_qpel_bi_v_8_m1_rvv(uint8_t *_dst, ptrdiff_t _dststride, const uint8_t *_src,
         ptrdiff_t _srcstride, const int16_t *src2, int height, intptr_t
         mx, intptr_t my, int width);
+void ff_hevc_put_qpel_hv_8_m1_rvv(int16_t *dst, const uint8_t *_src, ptrdiff_t _srcstride, int height,
+        intptr_t mx, intptr_t my, int width);
+void ff_hevc_put_qpel_uni_hv_8_m1_rvv(uint8_t *_dst, ptrdiff_t _dststride, const uint8_t *_src,
+        ptrdiff_t _srcstride, int height, intptr_t mx, intptr_t my, int width);
+void ff_hevc_put_qpel_uni_w_hv_8_m1_rvv(uint8_t *_dst,  ptrdiff_t _dststride,
+        const uint8_t *_src, ptrdiff_t _srcstride,
+        int height, int denom, int wx, int ox,
+        intptr_t mx, intptr_t my, int width);
+void ff_hevc_put_qpel_bi_hv_8_m1_rvv(uint8_t *_dst, ptrdiff_t _dststride, const uint8_t *_src,
+        ptrdiff_t _srcstride, const int16_t *src2, int height, intptr_t
+        mx, intptr_t my, int width);
 
 void ff_hevc_put_epel_h_8_m1_rvv(int16_t *dst, const uint8_t *_src, ptrdiff_t _srcstride, int height,
         intptr_t mx, intptr_t my, int width);

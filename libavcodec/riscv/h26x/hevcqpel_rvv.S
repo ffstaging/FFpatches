@@ -620,3 +620,387 @@ endfunc
 .endm
 
 hevc_qpel_v m1, m2, m4
+
+/* clobbers reg t4 */
+.macro filter_v_s         vdst, vsrc0, vsrc1, vsrc2, vsrc3, vsrc4, vsrc5, vsrc6, vsrc7, vf
+        vwmul.vx       \vdst, \vsrc0, s0
+        vwmacc.vx      \vdst, s9, \vsrc1
+        vmv.v.v        \vsrc0, \vsrc1
+        vwmacc.vx      \vdst, s10, \vsrc2
+        vmv.v.v        \vsrc1, \vsrc2
+        vwmacc.vx      \vdst, s11, \vsrc3
+        vmv.v.v        \vsrc2, \vsrc3
+        lb             t4, 4(\vf)
+        vwmacc.vx      \vdst, t4, \vsrc4
+        lb             t4, 5(\vf)
+        vmv.v.v        \vsrc3, \vsrc4
+        vwmacc.vx      \vdst, t4, \vsrc5
+        lb             t4, 6(\vf)
+        vmv.v.v        \vsrc4, \vsrc5
+        vwmacc.vx      \vdst, t4, \vsrc6
+        lb             t4, 7(\vf)
+        vmv.v.v        \vsrc5, \vsrc6
+        vwmacc.vx      \vdst, t4, \vsrc7
+        vmv.v.v        \vsrc6, \vsrc7
+.endm
+
+/* output \m as t0; clobbers t0, t1, reg not enough for all coef */
+.macro load_filter2 m
+        la          t0, qpel_filters
+        slli        t1, \m, 3
+        add         t0, t0, t1
+        lb          s0, 0(t0)
+        lb          s9, 1(t0)
+        lb          s10, 2(t0)
+        lb          s11, 3(t0)
+        mv          \m, t0
+.endm
+
+.macro hevc_qpel_hv       lmul, lmul2, lmul4
+func ff_hevc_put_qpel_hv_8_\lmul\()_rvv, zve32x
+    csrwi       vxrm, 2
+    addi        sp, sp, -96
+    sx          s0, 0(sp)
+    sx          s1, 8(sp)
+    sx          s2, 16(sp)
+    sx          s3, 24(sp)
+    sx          s4, 32(sp)
+    sx          s5, 40(sp)
+    sx          s6, 48(sp)
+    sx          s7, 56(sp)
+    sx          s8, 64(sp)
+    sx          s9, 72(sp)
+    sx          s10, 80(sp)
+    sx          s11, 88(sp)
+    load_filter  a4
+    load_filter2 a5
+    slli        t1, a2, 1
+    add         t1, t1, a2
+    sub         a1, a1, t1     # src - 3 * src_stride
+    mv          t0, a3
+    li          t1, 0          # offset
+
+1:
+    add         t2, a1, t1
+    slli        t3, t1, 1
+    add         t3, a0, t3
+
+    vsetvli     t6, a6, e8, \lmul, ta, ma
+    filter_h    v4, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a2
+    filter_h    v6, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a2
+    filter_h    v8, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a2
+    filter_h    v10, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a2
+    filter_h    v12, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a2
+    filter_h    v14, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a2
+    filter_h    v16, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a2
+
+2:
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    filter_h    v18, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a2
+
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    filter_v_s  v0, v4, v6, v8, v10, v12, v14, v16, v18, a5
+    vnclip.wi   v0, v0, 6
+    vse16.v     v0, (t3)
+    addi        a3, a3, -1
+    addi        t3, t3, 2*HEVC_MAX_PB_SIZE
+    bgt         a3, zero, 2b
+    mv          a3, t0
+    add         t1, t1, t6
+    sub         a6, a6, t6
+    bgt         a6, zero, 1b
+
+    lx          s0, 0(sp)
+    lx          s1, 8(sp)
+    lx          s2, 16(sp)
+    lx          s3, 24(sp)
+    lx          s4, 32(sp)
+    lx          s5, 40(sp)
+    lx          s6, 48(sp)
+    lx          s7, 56(sp)
+    lx          s8, 64(sp)
+    lx          s9, 72(sp)
+    lx          s10, 80(sp)
+    lx          s11, 88(sp)
+    addi        sp, sp, 96
+    ret
+endfunc
+
+func ff_hevc_put_qpel_uni_hv_8_\lmul\()_rvv, zve32x
+    csrwi       vxrm, 0
+    addi        sp, sp, -96
+    sx          s0, 0(sp)
+    sx          s1, 8(sp)
+    sx          s2, 16(sp)
+    sx          s3, 24(sp)
+    sx          s4, 32(sp)
+    sx          s5, 40(sp)
+    sx          s6, 48(sp)
+    sx          s7, 56(sp)
+    sx          s8, 64(sp)
+    sx          s9, 72(sp)
+    sx          s10, 80(sp)
+    sx          s11, 88(sp)
+    load_filter  a5
+    load_filter2 a6
+    slli        t1, a3, 1
+    add         t1, t1, a3
+    sub         a2, a2, t1     # src - 3 * src_stride
+    mv          t0, a4
+    li          t1, 0          # offset
+
+1:
+    add         t2, a2, t1
+    add         t3, a0, t1
+
+    vsetvli     t6, a7, e8, \lmul, ta, ma
+    filter_h    v4, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v6, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v8, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v10, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v12, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v14, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v16, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+
+2:
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    filter_h    v18, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    filter_v_s  v0, v4, v6, v8, v10, v12, v14, v16, v18, a6
+    vsetvli     zero, zero, e32, \lmul4, ta, ma
+    vsra.vi     v0, v0, 6
+    vmax.vx     v0, v0, zero
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    vnclipu.wi   v0, v0, 6
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vnclipu.wi  v0, v0, 0
+    vse8.v     v0, (t3)
+    addi        a4, a4, -1
+    add         t3, t3, a1
+    bgt         a4, zero, 2b
+    mv          a4, t0
+    add         t1, t1, t6
+    sub         a7, a7, t6
+    bgt         a7, zero, 1b
+
+    lx          s0, 0(sp)
+    lx          s1, 8(sp)
+    lx          s2, 16(sp)
+    lx          s3, 24(sp)
+    lx          s4, 32(sp)
+    lx          s5, 40(sp)
+    lx          s6, 48(sp)
+    lx          s7, 56(sp)
+    lx          s8, 64(sp)
+    lx          s9, 72(sp)
+    lx          s10, 80(sp)
+    lx          s11, 88(sp)
+    addi        sp, sp, 96
+    ret
+endfunc
+
+func ff_hevc_put_qpel_uni_w_hv_8_\lmul\()_rvv, zve32x
+    csrwi       vxrm, 0
+    lx          t2, 0(sp)       # mx
+#if (__riscv_xlen == 32)
+    lw          t4, 4(sp)       # my
+    lw          t5, 8(sp)       # width
+#elif (__riscv_xlen == 64)
+    ld          t4, 8(sp)
+    lw          t5, 16(sp)
+#endif
+    addi        a5, a5, 6       # shift
+    addi        sp, sp, -104
+    sx          s0, 0(sp)
+    sx          s1, 8(sp)
+    sx          s2, 16(sp)
+    sx          s3, 24(sp)
+    sx          s4, 32(sp)
+    sx          s5, 40(sp)
+    sx          s6, 48(sp)
+    sx          s7, 56(sp)
+    sx          s8, 64(sp)
+    sx          s9, 72(sp)
+    sx          s10, 80(sp)
+    sx          s11, 88(sp)
+    sx          ra, 96(sp)
+    mv          ra, t4
+    load_filter  t2
+    load_filter2 ra
+    slli        t1, a3, 1
+    add         t1, t1, a3
+    sub         a2, a2, t1     # src - 3 * src_stride
+    mv          t0, a4
+    li          t1, 0          # offset
+
+1:
+    add         t2, a2, t1
+    add         t3, a0, t1
+
+    vsetvli     t6, t5, e8, \lmul, ta, ma
+    filter_h    v4, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v6, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v8, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v10, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v12, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v14, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v16, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+
+2:
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    filter_h    v18, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    filter_v_s  v0, v4, v6, v8, v10, v12, v14, v16, v18, ra
+    vsetvli     zero, zero, e32, \lmul4, ta, ma
+    vsra.vi     v0, v0, 6
+    vmul.vx     v0, v0, a6
+    vssra.vx    v0, v0, a5
+    vsadd.vx    v0, v0, a7
+    vmax.vx     v0, v0, zero
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    vnclip.wi   v0, v0, 0
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vnclipu.wi  v0, v0, 0
+    vse8.v      v0, (t3)
+    addi        a4, a4, -1
+    add         t3, t3, a1
+    bgt         a4, zero, 2b
+    mv          a4, t0
+    add         t1, t1, t6
+    sub         t5, t5, t6
+    bgt         t5, zero, 1b
+
+    lx          s0, 0(sp)
+    lx          s1, 8(sp)
+    lx          s2, 16(sp)
+    lx          s3, 24(sp)
+    lx          s4, 32(sp)
+    lx          s5, 40(sp)
+    lx          s6, 48(sp)
+    lx          s7, 56(sp)
+    lx          s8, 64(sp)
+    lx          s9, 72(sp)
+    lx          s10, 80(sp)
+    lx          s11, 88(sp)
+    lx          ra, 96(sp)
+    addi        sp, sp, 104
+    ret
+endfunc
+
+func ff_hevc_put_qpel_bi_hv_8_\lmul\()_rvv, zve32x
+    csrwi       vxrm, 0
+    lw          t3, 0(sp)      # width
+    addi        sp, sp, -96
+    sx          s0, 0(sp)
+    sx          s1, 8(sp)
+    sx          s2, 16(sp)
+    sx          s3, 24(sp)
+    sx          s4, 32(sp)
+    sx          s5, 40(sp)
+    sx          s6, 48(sp)
+    sx          s7, 56(sp)
+    sx          s8, 64(sp)
+    sx          s9, 72(sp)
+    sx          s10, 80(sp)
+    sx          s11, 88(sp)
+    load_filter  a6
+    load_filter2 a7
+    mv          a6, t3
+    slli        t1, a3, 1
+    add         t1, t1, a3
+    sub         a2, a2, t1     # src - 3 * src_stride
+    mv          t0, a5
+    li          t1, 0          # offset
+
+1:
+    add         t2, a2, t1
+    add         t3, a0, t1
+    slli        t5, t1, 1
+    add         t5, a4, t5
+
+    vsetvli     t6, a6, e8, \lmul, ta, ma
+    filter_h    v4, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v6, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v8, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v10, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v12, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v14, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+    filter_h    v16, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+
+2:
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    filter_h    v18, v24, v25, v26, v27, v28, v29, v30, v31, t2
+    add         t2, t2, a3
+
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    vle16.V     v24, (t5)
+    addi        t5, t5, 2*HEVC_MAX_PB_SIZE
+    filter_v_s  v0, v4, v6, v8, v10, v12, v14, v16, v18, a7
+    vsetvli     zero, zero, e32, \lmul4, ta, ma
+    vsra.vi     v0, v0, 6
+    vsetvli     zero, zero, e16, \lmul2, ta, ma
+    vwadd.wv    v0, v0, v24
+    vnclip.wi   v0, v0, 7
+    vmax.vx     v0, v0, zero
+    vsetvli     zero, zero, e8, \lmul, ta, ma
+    vnclipu.wi  v0, v0, 0
+    vse8.v     v0, (t3)
+    addi        a5, a5, -1
+    add         t3, t3, a1
+    bgt         a5, zero, 2b
+    mv          a5, t0
+    add         t1, t1, t6
+    sub         a6, a6, t6
+    bgt         a6, zero, 1b
+
+    lx          s0, 0(sp)
+    lx          s1, 8(sp)
+    lx          s2, 16(sp)
+    lx          s3, 24(sp)
+    lx          s4, 32(sp)
+    lx          s5, 40(sp)
+    lx          s6, 48(sp)
+    lx          s7, 56(sp)
+    lx          s8, 64(sp)
+    lx          s9, 72(sp)
+    lx          s10, 80(sp)
+    lx          s11, 88(sp)
+    addi        sp, sp, 96
+    ret
+endfunc
+.endm
+
+hevc_qpel_hv m1, m2, m4
