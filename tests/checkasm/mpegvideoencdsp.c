@@ -147,8 +147,13 @@ static void check_draw_edges(MpegvideoEncDSPContext *c)
     LOCAL_ALIGNED_16(uint8_t, buf0, [BUFSIZE]);
     LOCAL_ALIGNED_16(uint8_t, buf1, [BUFSIZE]);
 
+#if ARCH_X86
     declare_func_emms(AV_CPU_FLAG_MMX, void, uint8_t *buf, ptrdiff_t wrap, int width, int height,
                                              int w, int h, int sides);
+#else
+    declare_func(void, uint8_t *buf, ptrdiff_t wrap, int width, int height,
+                                             int w, int h, int sides);
+#endif
 
     for (int isi = 0; isi < FF_ARRAY_ELEMS(input_sizes); isi++) {
         int input_size = input_sizes[isi];

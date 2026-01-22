@@ -26,6 +26,8 @@
 
 int ff_pix_sum16_neon(const uint8_t *pix, ptrdiff_t line_size);
 int ff_pix_norm1_neon(const uint8_t *pix, ptrdiff_t line_size);
+void ff_draw_edges_neon(uint8_t *buf, ptrdiff_t wrap, int width, int height,
+                        int w, int h, int sides);
 
 #if HAVE_DOTPROD
 int ff_pix_norm1_neon_dotprod(const uint8_t *pix, ptrdiff_t line_size);
@@ -39,6 +41,7 @@ av_cold void ff_mpegvideoencdsp_init_aarch64(MpegvideoEncDSPContext *c,
     if (have_neon(cpu_flags)) {
         c->pix_sum   = ff_pix_sum16_neon;
         c->pix_norm1 = ff_pix_norm1_neon;
+        c->draw_edges = ff_draw_edges_neon;
     }
 
 #if HAVE_DOTPROD
