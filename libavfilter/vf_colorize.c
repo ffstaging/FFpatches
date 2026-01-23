@@ -16,19 +16,68 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/eval.h"
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
 #include "avfilter.h"
 #include "filters.h"
 #include "video.h"
 
+
+static const char *const var_names[] = {
+    "TB",                ///< timebase
+
+    "pts",               ///< original pts in the file of the frame
+    "start_pts",         ///< first PTS in the stream, expressed in TB units
+    "prev_pts",          ///< previous frame PTS
+
+    "t",                 ///< timestamp expressed in seconds
+    "start_t",           ///< first PTS in the stream, expressed in seconds
+    "prev_t",            ///< previous frame time
+
+    "n",                 ///< frame number (starting from zero)
+
+    "ih",                ///< ih: Represents the height of the input video frame.
+    "iw",                ///< iw: Represents the width of the input video frame.
+
+    NULL
+};
+
+enum var_name {
+    VAR_TB,
+
+    VAR_PTS,
+    VAR_START_PTS,
+    VAR_PREV_PTS,
+
+    VAR_T,
+    VAR_START_T,
+    VAR_PREV_T,
+
+    VAR_N,
+
+    VAR_IH,
+    VAR_IW,
+
+    VAR_VARS_NB
+};
+
 typedef struct ColorizeContext {
     const AVClass *class;
 
-    float hue;
-    float saturation;
-    float lightness;
+    char *hue_str;
+    char *saturation_str;
+    char *lightness_str;
+    char *mix_str;
+
+    AVExpr *hue_expr;
+    AVExpr *saturation_expr;
+    AVExpr *lightness_expr;
+    AVExpr *mix_expr;
+
     float mix;
+
+    double var_values[VAR_VARS_NB];
 
     int depth;
     int c[3];
@@ -193,19 +242,80 @@ static void rgb2yuv(float r, float g, float b, int *y, int *u, int *v, int depth
          (0.04585*224.0/255.0) * b + 0.5) * ((1 << depth) - 1);
 }
 
+#define PARSE_EXPR(NAME) \
+    if ((ret = av_expr_parse(&colorize->NAME ## _expr, colorize->NAME ## _str, \
+                             var_names, NULL, NULL, NULL, NULL, 0, ctx)) < 0) { \
+        av_log(ctx, AV_LOG_ERROR, "Error while parsing " #NAME " expression '%s'\n", \
+               colorize->NAME ## _str); \
+        return ret; \
+    }
+
+
+static av_cold int init(AVFilterContext *ctx)
+{
+    ColorizeContext *colorize = ctx->priv;
+    int ret;
+
+    PARSE_EXPR(hue);
+    PARSE_EXPR(saturation);
+    PARSE_EXPR(lightness);
+    PARSE_EXPR(mix);
+
+    return 0;
+}
+
+#undef PARSE_EXPR
+
 static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 {
     AVFilterContext *ctx = inlink->dst;
-    ColorizeContext *s = ctx->priv;
+    ColorizeContext *colorize = ctx->priv;
+    FilterLink *inl = ff_filter_link(inlink);
+    float hue;
+    float saturation;
+    float lightness;
     float c[3];
 
-    hsl2rgb(s->hue, s->saturation, s->lightness, &c[0], &c[1], &c[2]);
-    rgb2yuv(c[0], c[1], c[2], &s->c[0], &s->c[1], &s->c[2], s->depth);
+    // prepare vars
+    if (isnan(colorize->var_values[VAR_START_PTS]))
+        colorize->var_values[VAR_START_PTS] = TS2D(frame->pts);
+    if (isnan(colorize->var_values[VAR_START_T]))
+        colorize->var_values[VAR_START_T] = TS2D(frame->pts) * av_q2d(inlink->time_base);
+
+    colorize->var_values[VAR_N  ] = inl->frame_count_out - 1;
+    colorize->var_values[VAR_PTS] = TS2D(frame->pts);
+    colorize->var_values[VAR_T  ] = TS2D(frame->pts) * av_q2d(inlink->time_base);
+
+    // eval expr
+    hue           = av_expr_eval(colorize->hue_expr,        colorize->var_values, NULL);
+    saturation    = av_expr_eval(colorize->saturation_expr, colorize->var_values, NULL);
+    lightness     = av_expr_eval(colorize->lightness_expr,  colorize->var_values, NULL);
+    colorize->mix = av_expr_eval(colorize->mix_expr,        colorize->var_values, NULL);
+
+    hsl2rgb(hue, saturation, lightness, &c[0], &c[1], &c[2]);
+    rgb2yuv(c[0], c[1], c[2], &colorize->c[0], &colorize->c[1], &colorize->c[2], colorize->depth);
 
     ff_filter_execute(ctx, do_slice, frame, NULL,
-                      FFMIN(s->planeheight[1], ff_filter_get_nb_threads(ctx)));
+                      FFMIN(colorize->planeheight[1], ff_filter_get_nb_threads(ctx)));
+
+    colorize->var_values[VAR_PREV_PTS] = colorize->var_values[VAR_PTS];
+    colorize->var_values[VAR_PREV_T]   = colorize->var_values[VAR_T];
 
     return ff_filter_frame(ctx->outputs[0], frame);
+}
+
+static av_cold void uninit(AVFilterContext *ctx)
+{
+    ColorizeContext *colorize = ctx->priv;
+
+    av_expr_free(colorize->hue_expr);
+    colorize->hue_expr = NULL;
+    av_expr_free(colorize->saturation_expr);
+    colorize->saturation_expr = NULL;
+    av_expr_free(colorize->lightness_expr);
+    colorize->lightness_expr = NULL;
+    av_expr_free(colorize->mix_expr);
+    colorize->mix_expr = NULL;
 }
 
 static const enum AVPixelFormat pixel_fmts[] = {
@@ -232,19 +342,32 @@ static const enum AVPixelFormat pixel_fmts[] = {
 static av_cold int config_input(AVFilterLink *inlink)
 {
     AVFilterContext *ctx = inlink->dst;
-    ColorizeContext *s = ctx->priv;
+    ColorizeContext *colorize = ctx->priv;
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(inlink->format);
     int depth;
 
-    s->depth = depth = desc->comp[0].depth;
+    colorize->depth = depth = desc->comp[0].depth;
 
-    s->planewidth[1] = s->planewidth[2] = AV_CEIL_RSHIFT(inlink->w, desc->log2_chroma_w);
-    s->planewidth[0] = s->planewidth[3] = inlink->w;
-    s->planeheight[1] = s->planeheight[2] = AV_CEIL_RSHIFT(inlink->h, desc->log2_chroma_h);
-    s->planeheight[0] = s->planeheight[3] = inlink->h;
+    colorize->planewidth[1] = colorize->planewidth[2] = AV_CEIL_RSHIFT(inlink->w, desc->log2_chroma_w);
+    colorize->planewidth[0] = colorize->planewidth[3] = inlink->w;
+    colorize->planeheight[1] = colorize->planeheight[2] = AV_CEIL_RSHIFT(inlink->h, desc->log2_chroma_h);
+    colorize->planeheight[0] = colorize->planeheight[3] = inlink->h;
 
-    s->do_plane_slice[0] = depth <= 8 ? colorizey_slice8 : colorizey_slice16;
-    s->do_plane_slice[1] = depth <= 8 ? colorize_slice8 : colorize_slice16;
+    colorize->do_plane_slice[0] = depth <= 8 ? colorizey_slice8 : colorizey_slice16;
+    colorize->do_plane_slice[1] = depth <= 8 ? colorize_slice8 : colorize_slice16;
+
+    // set expression variables
+    colorize->var_values[VAR_TB]        = av_q2d(inlink->time_base);
+
+    colorize->var_values[VAR_PREV_PTS]  = NAN;
+    colorize->var_values[VAR_PREV_T]    = NAN;
+    colorize->var_values[VAR_START_PTS] = NAN;
+    colorize->var_values[VAR_START_T]   = NAN;
+
+    colorize->var_values[VAR_N]         = 0.0;
+
+    colorize->var_values[VAR_IH]        = NAN;
+    colorize->var_values[VAR_IW]        = NAN;
 
     return 0;
 }
@@ -260,13 +383,13 @@ static const AVFilterPad colorize_inputs[] = {
 };
 
 #define OFFSET(x) offsetof(ColorizeContext, x)
-#define VF AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM|AV_OPT_FLAG_RUNTIME_PARAM
+#define VF AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
 
 static const AVOption colorize_options[] = {
-    { "hue",        "set the hue",                     OFFSET(hue),        AV_OPT_TYPE_FLOAT, {.dbl=0},  0, 360, VF },
-    { "saturation", "set the saturation",              OFFSET(saturation), AV_OPT_TYPE_FLOAT, {.dbl=0.5},0,   1, VF },
-    { "lightness",  "set the lightness",               OFFSET(lightness),  AV_OPT_TYPE_FLOAT, {.dbl=0.5},0,   1, VF },
-    { "mix",        "set the mix of source lightness", OFFSET(mix),        AV_OPT_TYPE_FLOAT, {.dbl=1},  0,   1, VF },
+    { "hue",        "set the hue",                     OFFSET(hue_str),        AV_OPT_TYPE_STRING, {.str="0"},   0, 0, .flags=VF },
+    { "saturation", "set the saturation",              OFFSET(saturation_str), AV_OPT_TYPE_STRING, {.str="0.5"}, 0, 0, .flags=VF },
+    { "lightness",  "set the lightness",               OFFSET(lightness_str),  AV_OPT_TYPE_STRING, {.str="0.5"}, 0, 0, .flags=VF },
+    { "mix",        "set the mix of source lightness", OFFSET(mix_str),        AV_OPT_TYPE_STRING, {.str="1"},   0, 0, .flags=VF },
     { NULL }
 };
 
@@ -282,4 +405,6 @@ const FFFilter ff_vf_colorize = {
     FILTER_OUTPUTS(ff_video_default_filterpad),
     FILTER_PIXFMTS_ARRAY(pixel_fmts),
     .process_command = ff_filter_process_command,
+    .init = init,
+    .uninit = uninit,
 };
