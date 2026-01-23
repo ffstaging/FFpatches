@@ -32,6 +32,7 @@
 
 typedef struct {
     int64_t data;
+    int64_t total_duration;
     int size_buffer_size;
     int size_entries_used;
     int packets;
@@ -57,7 +58,6 @@ static uint32_t codec_flags(enum AVCodecID codec_id) {
 static uint32_t samples_per_packet(const AVCodecParameters *par) {
     enum AVCodecID codec_id = par->codec_id;
     int channels = par->ch_layout.nb_channels, block_align = par->block_align;
-    int frame_size = par->frame_size, sample_rate = par->sample_rate;
 
     switch (codec_id) {
     case AV_CODEC_ID_PCM_S8:
@@ -89,7 +89,7 @@ static uint32_t samples_per_packet(const AVCodecParameters *par) {
     case AV_CODEC_ID_MP1:
         return 384;
     case AV_CODEC_ID_OPUS:
-        return frame_size * 48000 / sample_rate;
+        return 0; // Variable, will be calculated in trailer from actual packet durations
     case AV_CODEC_ID_MP2:
     case AV_CODEC_ID_MP3:
         return 1152;
@@ -235,6 +235,7 @@ static int caf_write_packet(AVFormatContext *s, AVPacket *pkt)
         }
         pkt_sizes[caf->size_entries_used++] = pkt->size & 127;
         caf->packets++;
+        caf->total_duration += pkt->duration;
     }
     avio_write(s->pb, pkt->data, pkt->size);
     return 0;
@@ -255,7 +256,7 @@ static int caf_write_trailer(AVFormatContext *s)
         if (!par->block_align) {
             int packet_size = samples_per_packet(par);
             if (!packet_size) {
-                packet_size = st->duration / (caf->packets - 1);
+                packet_size = caf->total_duration / caf->packets;
                 avio_seek(pb, FRAME_SIZE_OFFSET, SEEK_SET);
                 avio_wb32(pb, packet_size);
             }
@@ -263,7 +264,7 @@ static int caf_write_trailer(AVFormatContext *s)
             ffio_wfourcc(pb, "pakt");
             avio_wb64(pb, caf->size_entries_used + 24U);
             avio_wb64(pb, caf->packets); ///< mNumberPackets
-            avio_wb64(pb, caf->packets * packet_size); ///< mNumberValidFrames
+            avio_wb64(pb, caf->total_duration); ///< mNumberValidFrames
             avio_wb32(pb, 0); ///< mPrimingFrames
             avio_wb32(pb, 0); ///< mRemainderFrames
             avio_write(pb, st->priv_data, caf->size_entries_used);
