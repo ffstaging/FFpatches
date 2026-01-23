@@ -75,6 +75,9 @@ const int program_birth_year = 2003;
 /* Step size for volume control in dB */
 #define SDL_VOLUME_STEP (0.75)
 
+/* Minimum window size; smaller sizes may cause window controls to be hidden */
+#define SDL_MIN_WINDOW_SIZE 128
+
 /* no AV sync correction is done if below the minimum AV sync threshold */
 #define AV_SYNC_THRESHOLD_MIN 0.04
 /* AV sync correction is done if above the maximum AV sync threshold */
@@ -1393,6 +1396,9 @@ static int video_open(VideoState *is)
 
     w = screen_width ? screen_width : default_width;
     h = screen_height ? screen_height : default_height;
+
+    w = FFMAX(w, SDL_MIN_WINDOW_SIZE);
+    h = FFMAX(h, SDL_MIN_WINDOW_SIZE);
 
     if (!window_title)
         window_title = input_filename;
