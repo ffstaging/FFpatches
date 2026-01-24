@@ -50,6 +50,8 @@ typedef struct CafContext {
 
     int64_t data_start;             ///< data start position, in bytes
     int64_t data_size;              ///< raw data size, in bytes
+
+    unsigned remainder;             ///< frames to discard from the last packet
 } CafContext;
 
 static int probe(const AVProbeData *p)
@@ -254,8 +256,8 @@ static int read_pakt_chunk(AVFormatContext *s, int64_t size)
         return AVERROR_INVALIDDATA;
 
     st->nb_frames  = avio_rb64(pb); /* valid frames */
-    st->nb_frames += avio_rb32(pb); /* priming frames */
-    st->nb_frames += avio_rb32(pb); /* remainder frames */
+    st->start_time = -(int64_t)avio_rb32(pb); /* priming frames */
+    caf->remainder = avio_rb32(pb); /* remainder frames */
 
     if (caf->bytes_per_packet > 0 && caf->frames_per_packet > 0) {
         st->duration = caf->frames_per_packet * num_packets;
@@ -272,6 +274,9 @@ static int read_pakt_chunk(AVFormatContext *s, int64_t size)
             st->duration += caf->frames_per_packet ? caf->frames_per_packet : ff_mp4_read_descr_len(pb);
         }
     }
+    st->duration -= caf->remainder;
+    if (st->duration < 0)
+        return AVERROR_INVALIDDATA;
 
     if (avio_tell(pb) - ccount > size || size > INT64_MAX - ccount) {
         av_log(s, AV_LOG_ERROR, "error reading packet table\n");
@@ -433,6 +438,7 @@ static int read_packet(AVFormatContext *s, AVPacket *pkt)
     FFStream *const sti = ffstream(st);
     CafContext *caf   = s->priv_data;
     int res, pkt_size = 0, pkt_frames = 0;
+    unsigned remainder = 0;
     int64_t left      = CAF_MAX_PKT_SIZE;
 
     if (avio_feof(pb))
@@ -461,6 +467,7 @@ static int read_packet(AVFormatContext *s, AVPacket *pkt)
         } else if (caf->packet_cnt == sti->nb_index_entries - 1) {
             pkt_size   = caf->num_bytes - sti->index_entries[caf->packet_cnt].pos;
             pkt_frames = st->duration   - sti->index_entries[caf->packet_cnt].timestamp;
+            remainder  = caf->remainder;
         } else {
             return AVERROR_INVALIDDATA;
         }
@@ -473,6 +480,16 @@ static int read_packet(AVFormatContext *s, AVPacket *pkt)
     if (res < 0)
         return res;
 
+    if (remainder > 0) {
+        uint8_t* side_data = av_packet_new_side_data(pkt,
+                                                     AV_PKT_DATA_SKIP_SAMPLES,
+                                                     10);
+        if (!side_data)
+            return AVERROR(ENOMEM);
+        AV_WL32(side_data + 4, caf->remainder);
+    }
+
+    pkt->duration       = pkt_frames;
     pkt->size           = res;
     pkt->stream_index   = 0;
     pkt->dts = pkt->pts = caf->frame_cnt;
