@@ -307,6 +307,31 @@ This decoder generates wave patterns according to predefined sequences. Its
 use is purely internal and the format of the data it accepts is not publicly
 documented.
 
+@section hca
+
+CRIWARE High Compression Audio decoder.
+
+This codec is used by various games with CRIWARE middleware.
+
+@subsection Options
+
+@table @option
+
+@item hca_key @var{hexadecimal string}
+16-byte decryption key, in hex.
+
+@item hca_subkey @var{int}
+Subkey used to permute the decryption key. Range is 0 to 65535.
+
+@end table
+
+@subsection Examples
+
+Convert usm video with encrypted hca audio stream to mp4:
+@example
+ffmpeg -hca_key 89ABCDEF -i input.usm output.mp4
+@end example
+
 @section libcelt
 
 libcelt decoder wrapper.

@@ -323,7 +323,7 @@ static int64_t parse_chunk(AVFormatContext *s, AVIOContext *pb,
                 avpriv_set_pts_info(st, 64, ch->rate.den, ch->rate.num);
 
                 ffstream(st)->need_parsing = AVSTREAM_PARSE_TIMESTAMPS;
-                get_extradata = ch->codec_id == AV_CODEC_ID_ADPCM_ADX;
+                get_extradata = ch->type == AVMEDIA_TYPE_AUDIO;
                 ch->extradata_pos = avio_tell(pb);
             }
 
@@ -336,7 +336,7 @@ static int64_t parse_chunk(AVFormatContext *s, AVIOContext *pb,
                 if ((ret = ff_get_extradata(s, st->codecpar, pb, pkt_size)) < 0)
                     return ret;
             } else {
-                if (ret == ch->extradata_pos && ch->codec_id == AV_CODEC_ID_ADPCM_ADX) {
+                if (ret == ch->extradata_pos && ch->type == AVMEDIA_TYPE_AUDIO) {
                     avio_skip(pb, pkt_size);
                     ret = 0;
                 } else {

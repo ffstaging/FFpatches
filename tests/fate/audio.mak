@@ -48,6 +48,9 @@ fate-g728: REF = $(SAMPLES)/g728/OUTA3.BIN
 fate-g728: CMP = oneoff
 fate-g728: FUZZ = 5
 
+FATE_SAMPLES_AUDIO-$(call DEMDEC, HCA, HCA, ARESAMPLE_FILTER) += fate-hca-encrypted
+fate-hca-encrypted: CMD = framecrc -hca_key 30D9E8 -i $(TARGET_SAMPLES)/hca/hca-encrypted.hca -f s16le -af aresample
+
 FATE_SAMPLES_AUDIO-$(call PCM, AVI, IMC, ARESAMPLE_FILTER) += fate-imc
 fate-imc: CMD = pcm -i $(TARGET_SAMPLES)/imc/imc.avi
 fate-imc: CMP = oneoff

@@ -16,11 +16,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/opt.h"
 #include "libavutil/crc.h"
 #include "libavutil/float_dsp.h"
 #include "libavutil/mem.h"
 #include "libavutil/mem_internal.h"
 #include "libavutil/tx.h"
+#include "libavformat/version_major.h"
 
 #include "avcodec.h"
 #include "bytestream.h"
@@ -47,14 +49,13 @@ typedef struct ChannelContext {
 } ChannelContext;
 
 typedef struct HCAContext {
+    AVClass *class;
     const AVCRC *crc_table;
 
     ChannelContext ch[MAX_CHANNELS];
 
     uint8_t ath[128];
     uint8_t cipher[256];
-    uint64_t key;
-    uint16_t subkey;
 
     int     ath_type;
     int     ciph_type;
@@ -70,6 +71,10 @@ typedef struct HCAContext {
     av_tx_fn           tx_fn;
     AVTXContext       *tx_ctx;
     AVFloatDSPContext *fdsp;
+    uint64_t key;
+    uint16_t subkey;
+    uint8_t *keyopt;
+    int keyopt_len;
 } HCAContext;
 
 static void cipher_init56_create_table(uint8_t *r, uint8_t key)
@@ -202,7 +207,8 @@ static av_cold void init_flush(AVCodecContext *avctx)
 {
     HCAContext *c = avctx->priv_data;
 
-    memset(c, 0, offsetof(HCAContext, tx_fn));
+    // Avoid destroying AVClass*
+    memset(&c->crc_table, 0, offsetof(HCAContext, tx_fn) - offsetof(HCAContext, crc_table));
 }
 
 static int init_hca(AVCodecContext *avctx, const uint8_t *extradata,
@@ -224,7 +230,15 @@ static int init_hca(AVCodecContext *avctx, const uint8_t *extradata,
 
     bytestream2_skipu(gb, 4);
     version = bytestream2_get_be16(gb);
+#if FF_API_HCA_OPTS
+    /* avformat/usmdec does not extend extradata by 10 bytes which can cause
+     * key and/or subkey to be assigned garbage when dealing with usm.
+     * Save chunk size to compare it to extradata_size later to know where we came from
+     */
+    int chunk_size = bytestream2_get_be16(gb) & HCA_MASK;
+#else
     bytestream2_skipu(gb, 2);
+#endif
 
     c->ath_type = version >= 0x200 ? 0 : 1;
 
@@ -285,10 +299,25 @@ static int init_hca(AVCodecContext *avctx, const uint8_t *extradata,
         }
     }
 
-    if (bytestream2_get_bytes_left(gb) >= 10) {
+#if FF_API_HCA_OPTS
+    if (bytestream2_get_bytes_left(gb) >= 10 && extradata_size > chunk_size) {
         bytestream2_skip(gb, bytestream2_get_bytes_left(gb) - 10);
         c->key = bytestream2_get_be64u(gb);
         c->subkey = bytestream2_get_be16u(gb);
+    }
+#endif
+
+    if (c->keyopt_len > 8) {
+        av_log(c, AV_LOG_ERROR, "hca_key value must be at most 8 bytes!\n");
+        return AVERROR(EINVAL);
+    }
+
+    if (c->keyopt_len) {
+        c->key = 0;
+        // Convert array of bytes to uint64_t
+        for (int i = 0; i < c->keyopt_len; i++) {
+            c->key |= (uint64_t) c->keyopt[c->keyopt_len - 1 - i] << 8*i;
+        }
     }
 
     cipher_init(c->cipher, c->ciph_type, c->key, c->subkey);
@@ -623,11 +652,31 @@ static av_cold void decode_flush(AVCodecContext *avctx)
         memset(c->ch[ch].imdct_prev, 0, sizeof(c->ch[ch].imdct_prev));
 }
 
+#define OFFSET(x) offsetof(HCAContext, x)
+#define FLAGS AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_DECODING_PARAM
+static const AVOption hca_options[] = {
+    { "hca_key",
+        "Key used for handling CRI HCA streams (hex)", OFFSET(keyopt),
+        AV_OPT_TYPE_BINARY, .flags = FLAGS, },
+    { "hca_subkey",
+        "Subkey used for handling CRI HCA streams", OFFSET(subkey),
+        AV_OPT_TYPE_INT, {.i64=0}, .min = 0, .max = UINT16_MAX, .flags = FLAGS },
+    { NULL },
+};
+
+static const AVClass hca_class = {
+    .class_name = "hca",
+    .item_name  = av_default_item_name,
+    .option     = hca_options,
+    .version    = LIBAVUTIL_VERSION_INT,
+};
+
 const FFCodec ff_hca_decoder = {
     .p.name         = "hca",
     CODEC_LONG_NAME("CRI HCA"),
     .p.type         = AVMEDIA_TYPE_AUDIO,
     .p.id           = AV_CODEC_ID_HCA,
+    .p.priv_class   = &hca_class,
     .priv_data_size = sizeof(HCAContext),
     .init           = decode_init,
     FF_CODEC_DECODE_CB(decode_frame),
