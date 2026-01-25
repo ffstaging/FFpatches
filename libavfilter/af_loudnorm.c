@@ -63,7 +63,8 @@ typedef struct LoudNormContext {
     double offset;
     int linear;
     int dual_mono;
-    enum PrintFormat print_format;
+    /* enum PrintFormat */
+    int print_format;
 
     double *buf;
     int buf_size;
