@@ -1,0 +1,91 @@
+Building FFmpeg with AMD HIP SDK Support (Windows)
+===================================================
+
+This document describes how to build FFmpeg with AMD HIP SDK support
+for GPU-accelerated video processing on AMD GPUs.
+
+Requirements:
+-------------
+- Windows 10/11 or Windows Server 2022
+- AMD GPU with RDNA2, RDNA3, or newer architecture
+- AMD HIP SDK 5.x or 6.x
+- MSYS2 with MinGW64 toolchain
+
+Installation Steps:
+-------------------
+
+1. Install MSYS2 from https://www.msys2.org/
+
+2. Install build tools in MSYS2 MinGW 64-bit terminal:
+   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm make diffutils pkg-config
+
+3. Install AMD HIP SDK from:
+   https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html
+
+   Default installation path: C:\Program Files\AMD\ROCm\<version>\
+   Ensure hipcc is available: C:\Program Files\AMD\ROCm\<version>\bin\hipcc.bat
+
+4. Add HIP SDK to PATH (in MSYS2 terminal):
+   export PATH="/c/Program Files/AMD/ROCm/6.4/bin:$PATH"
+
+   (Adjust version number as needed)
+
+Configure and Build:
+--------------------
+
+   ./configure --enable-hip --enable-nonfree
+   make -j$(nproc)
+
+Note: The default target architecture is gfx900. To target a specific
+GPU architecture, use --hipccflags="--offload-arch=<arch>" where <arch>
+is your GPU's architecture code (e.g., gfx1030 for RDNA2, gfx1100 for RDNA3).
+
+Verification:
+-------------
+
+Check if HIP is enabled in the build:
+
+   ./ffmpeg -buildconf | grep hip
+
+Expected output should include: --enable-hip
+
+Troubleshooting:
+----------------
+
+1. "hipcc: command not found"
+   - Ensure HIP SDK bin directory is in PATH
+   - Check: ls "/c/Program Files/AMD/ROCm/6.4/bin/hipcc.bat"
+
+2. "failed checking for hipcc"
+   - Verify HIP SDK installation is complete
+   - Check ffbuild/config.log for detailed error messages
+
+3. Incompatible object files after switching toolchains:
+   - Run: make clean
+   - Then rebuild: make -j$(nproc)
+
+Notes:
+------
+
+- HIP (Heterogeneous-compute Interface for Portability) enables
+  GPU-accelerated code that can run on AMD GPUs.
+
+- The --enable-hip option enables the hipcc compiler for building
+  GPU kernels (.hip files) into GPU code objects (.hsaco files).
+
+- HIP support provides infrastructure for GPU-accelerated filters.
+  Actual GPU filters must implement HIP kernels similar to existing
+  CUDA filters (scale_cuda, yadif_cuda, etc.).
+
+External Dependencies:
+----------------------
+
+Header files:
+   - hip/hip_runtime.h (from HIP SDK, or compat/hip/hip_runtime.h)
+
+Tools:
+   - hipcc (HIP compiler, from AMD HIP SDK)
+
+Runtime:
+   - AMD GPU driver with ROCm/HIP support
+   - amdhip64.dll (HIP runtime library)

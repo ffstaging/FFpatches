@@ -35,6 +35,69 @@ package(amdgru-pro contains, but does not install automatically) are required.
 
 This driver can be installed using amdgpu-pro-install script in official amd driver archive.
 
+@section AMD HIP SDK
+
+FFmpeg can use the AMD HIP (Heterogeneous-compute Interface for Portability) SDK
+for GPU-accelerated video processing filters on AMD GPUs with RDNA2 architecture or newer.
+
+@subsection Requirements
+
+@itemize
+@item Windows 10/11 or Windows Server 2022
+@item AMD GPU with RDNA2, RDNA3, or newer architecture
+@item AMD HIP SDK 5.x or 6.x (available from @url{https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html})
+@item Visual Studio 2019 or 2022 (for Windows development)
+@end itemize
+
+@subsection Installation on Windows
+
+@enumerate
+@item Download the HIP SDK installer from AMD's ROCm Hub.
+@item Run the installer with administrator privileges.
+@item Select the components to install: HIP Runtime, HIP SDK (headers and libraries), and optionally Visual Studio integration.
+@item The SDK will be installed to @code{C:\Program Files\AMD\ROCm\<version>\} by default.
+@item Ensure the @code{hipcc} compiler is available in your PATH, typically at @code{C:\Program Files\AMD\ROCm\<version>\bin}.
+@item A system restart may be required after installation.
+@end enumerate
+
+@subsection Building FFmpeg with HIP support
+
+To enable HIP SDK support with the official hipcc compiler:
+@example
+./configure --enable-hip
+@end example
+
+To use clang for HIP compilation (autodetected if hipcc is not available):
+@example
+./configure --enable-hip-llvm
+@end example
+
+You can specify a custom hipcc path and flags:
+@example
+./configure --enable-hip --hipcc=/path/to/hipcc --hipccflags="--offload-arch=gfx1030 -O2"
+@end example
+
+@subsection Supported GPU Architectures
+
+The @code{--offload-arch} flag specifies the target GPU architecture:
+@itemize
+@item @code{gfx900} - Vega (Vega 56, Vega 64)
+@item @code{gfx906} - Vega 20 (Radeon VII)
+@item @code{gfx1030} - RDNA2 (RX 6800, RX 6900)
+@item @code{gfx1100} - RDNA3 (RX 7900)
+@item @code{gfx1101} - RDNA3 (RX 7700, RX 7800)
+@item @code{gfx1102} - RDNA3 (RX 7600)
+@end itemize
+
+@subsection Notes
+
+HIP is designed for portability between AMD and NVIDIA GPUs. Code written for
+HIP can often be compiled for CUDA targets as well. The HIP SDK includes tools
+like HIPIFY for converting existing CUDA code to HIP.
+
+For more information, see the official AMD HIP documentation at
+@url{https://rocm.docs.amd.com/projects/HIP/}.
+
 @section AviSynth
 
 FFmpeg can read AviSynth scripts as input. To enable support, pass

@@ -351,6 +351,8 @@ External library support:
   --disable-audiotoolbox   disable Apple AudioToolbox code [autodetect]
   --enable-cuda-nvcc       enable Nvidia CUDA compiler [no]
   --disable-cuda-llvm      disable CUDA compilation using clang [autodetect]
+  --enable-hip             enable AMD HIP SDK support [no]
+  --disable-hip-llvm       disable HIP compilation using clang [autodetect]
   --disable-cuvid          disable Nvidia CUVID support [autodetect]
   --disable-d3d11va        disable Microsoft Direct3D 11 video acceleration code [autodetect]
   --disable-d3d12va        disable Microsoft Direct3D 12 video acceleration code [autodetect]
@@ -407,6 +409,7 @@ Toolchain options:
   --dep-cc=DEPCC           use dependency generator DEPCC [$cc_default]
   --glslc=GLSLC            use GLSL compiler GLSLC [$glslc_default]
   --nvcc=NVCC              use Nvidia CUDA compiler NVCC or clang [$nvcc_default]
+  --hipcc=HIPCC            use AMD HIP compiler HIPCC or clang [\$hipcc_default]
   --ld=LD                  use linker LD [$ld_default]
   --metalcc=METALCC        use metal compiler METALCC [$metalcc_default]
   --metallib=METALLIB      use metal linker METALLIB [$metallib_default]
@@ -432,6 +435,7 @@ Toolchain options:
   --optflags=OPTFLAGS      override optimization-related compiler flags
   --glslcflags=GLSLCFLAGS  extra glslc flags [$glslcflags_default]
   --nvccflags=NVCCFLAGS    override nvcc flags [$nvccflags_default]
+  --hipccflags=HIPCCFLAGS  override hipcc flags [\$hipccflags_default]
   --build-suffix=SUFFIX    library name suffix []
   --enable-pic             build position-independent code
   --enable-thumb           compile for Thumb instruction set
@@ -1084,6 +1088,10 @@ nvcc_o(){
     eval printf '%s\\n' $NVCC_O
 }
 
+hipcc_o(){
+    eval printf '%s\\n' $HIPCC_O
+}
+
 test_cc(){
     log test_cc "$@"
     cat > $TMPC
@@ -1142,6 +1150,29 @@ check_nvcc() {
     disabled $name && return
     disable $name
     test_nvcc "$@" <<EOF && enable $name
+extern "C" {
+    __global__ void hello(unsigned char *data) {}
+}
+EOF
+}
+
+test_hipcc(){
+    log test_hipcc "$@"
+    cat > $TMPHIP
+    log_file $TMPHIP
+    tmphip_=$TMPHIP
+    tmpo_=$TMPO
+    [ -x "$(command -v cygpath)" ] && tmphip_=$(cygpath -m $tmphip_) && tmpo_=$(cygpath -m $tmpo_)
+    test_cmd $hipcc $hipccflags "$@" $HIPCC_C $(hipcc_o $tmpo_) $tmphip_
+}
+
+check_hipcc() {
+    log check_hipcc "$@"
+    name=$1
+    shift 1
+    disabled $name && return
+    disable $name
+    test_hipcc "$@" <<EOF && enable $name
 extern "C" {
     __global__ void hello(unsigned char *data) {}
 }
@@ -2091,6 +2122,7 @@ HWACCEL_AUTODETECT_LIBRARY_LIST="
     cuda
     cuda_llvm
     cuvid
+    hip_llvm
     d3d11va
     d3d12va
     dxva2
@@ -2114,6 +2146,7 @@ EXTRALIBS_LIST="
 HWACCEL_LIBRARY_NONFREE_LIST="
     cuda_nvcc
     cuda_sdk
+    hip
     libnpp
 "
 
@@ -2826,6 +2859,8 @@ CMDLINE_SET="
     optflags
     nvcc
     nvccflags
+    hipcc
+    hipccflags
     pkg_config
     pkg_config_flags
     progs_suffix
@@ -4408,6 +4443,8 @@ HOSTLD_O='-o $@'
 GLSLC_O='-o $@'
 NVCC_C='-c'
 NVCC_O='-o $@'
+HIPCC_C='-c'
+HIPCC_O='-o $@'
 
 host_extralibs='-lm'
 host_cflags_filter=echo
@@ -4928,6 +4965,19 @@ fi
 
 set_default nvcc
 
+# AMD HIP SDK configuration
+if enabled hip; then
+    hipcc_default="hipcc"
+    hipccflags_default="--offload-arch=gfx900 -O2"
+    HIPCC_C=""
+else
+    hipcc_default="clang"
+    hipccflags_default="--offload-arch=gfx900 -O2 -x hip"
+    HIPCC_C=""
+fi
+
+set_default hipcc
+
 if enabled cuda_nvcc; then
     if $nvcc $nvccflags_default 2>&1 | grep -qi unsupported; then
         nvccflags_default="-gencode arch=compute_60,code=sm_60 -O2"
@@ -5010,6 +5060,7 @@ tmpfile TMPE   $EXESUF
 tmpfile TMPH   .h
 tmpfile TMPM   .m
 tmpfile TMPCU  .cu
+tmpfile TMPHIP .hip
 tmpfile TMPGLSL .comp.glsl
 tmpfile TMPO   .o
 tmpfile TMPS   .S
@@ -7066,6 +7117,26 @@ else
     check_nvcc cuda_llvm
 fi
 
+# AMD HIP SDK flags configuration
+if [ -z "$hipccflags" ]; then
+    hipccflags=$hipccflags_default
+fi
+
+hipccflags="$hipccflags -std=c++17"
+
+if enabled x86_64 || enabled ppc64 || enabled aarch64; then
+    hipccflags="$hipccflags -m64"
+else
+    hipccflags="$hipccflags -m32"
+fi
+
+if enabled hip; then
+    hipccflags="$hipccflags --genco -nogpuinc -nogpulib -include ${source_link}/compat/hip/hip_runtime.h"
+else
+    hipccflags="$hipccflags -S -x hip --hip-device-only -Wno-c++11-narrowing -include ${source_link}/compat/hip/hip_runtime.h"
+    check_hipcc hip_llvm
+fi
+
 if ! disabled ffnvcodec; then
     ffnv_hdr_list="ffnvcodec/nvEncodeAPI.h ffnvcodec/dynlink_cuda.h ffnvcodec/dynlink_cuviddec.h ffnvcodec/dynlink_nvcuvid.h"
     check_pkg_config ffnvcodec "ffnvcodec >= 12.1.14.0" "$ffnv_hdr_list" "" || \
@@ -7167,6 +7238,7 @@ enabled avisynth          && { require_headers "avisynth/avisynth_c.h avisynth/a
                                  die "ERROR: AviSynth+ header version must be >= 3.7.3"; } }
 enabled cairo             && require_pkg_config cairo cairo "cairo.h" cairo_create
 enabled cuda_nvcc         && { check_nvcc cuda_nvcc || die "ERROR: failed checking for nvcc."; }
+enabled hip               && { check_hipcc hip || die "ERROR: failed checking for hipcc (AMD HIP SDK)."; }
 enabled chromaprint       && { check_pkg_config chromaprint libchromaprint "chromaprint.h" chromaprint_get_version ||
                                require chromaprint chromaprint.h chromaprint_get_version -lchromaprint; }
 enabled decklink          && { require_headers DeckLinkAPI.h &&
@@ -8487,6 +8559,7 @@ RANLIB=$ranlib
 STRIP=$strip
 STRIPTYPE=$striptype
 NVCC=$nvcc
+HIPCC=$hipcc
 CP=cp -p
 LN_S=$ln_s
 CPPFLAGS=$CPPFLAGS
@@ -8496,6 +8569,7 @@ OBJCFLAGS=$OBJCFLAGS
 ASFLAGS=$ASFLAGS
 GLSLCFLAGS=$GLSLCFLAGS
 NVCCFLAGS=$nvccflags
+HIPCCFLAGS=$hipccflags
 AS_C=$AS_C
 AS_O=$AS_O
 OBJCC_C=$OBJCC_C
@@ -8509,6 +8583,8 @@ CXX_O=$CXX_O
 GLSLC_O=$GLSLC_O
 NVCC_C=$NVCC_C
 NVCC_O=$NVCC_O
+HIPCC_C=$HIPCC_C
+HIPCC_O=$HIPCC_O
 LD_O=$LD_O
 X86ASM_O=$X86ASM_O
 LD_LIB=$LD_LIB

@@ -27,7 +27,7 @@ BIN2C = $(BIN2CEXE)
 ifndef V
 Q      = @
 ECHO   = printf "$(1)\t%s\n" $(2)
-BRIEF  = CC CXX OBJCC HOSTCC HOSTLD AS X86ASM AR LD LDXX STRIP CP WINDRES GLSLC NVCC BIN2C METALCC METALLIB
+BRIEF  = CC CXX OBJCC HOSTCC HOSTLD AS X86ASM AR LD LDXX STRIP CP WINDRES GLSLC NVCC HIPCC BIN2C METALCC METALLIB
 SILENT = DEPCC DEPCXX DEPHOSTCC DEPAS DEPX86ASM RANLIB RM
 
 MSG    = $@
@@ -70,6 +70,7 @@ COMPILE_X86ASM = $(call COMPILE,X86ASM)
 COMPILE_HOSTC = $(call COMPILE,HOSTCC)
 COMPILE_GLSLC = $(call COMPILE,GLSLC)
 COMPILE_NVCC = $(call COMPILE,NVCC)
+COMPILE_HIPCC = $(call COMPILE,HIPCC)
 COMPILE_MMI = $(call COMPILE,CC,MMIFLAGS)
 COMPILE_MSA = $(call COMPILE,CC,MSAFLAGS)
 COMPILE_LSX = $(call COMPILE,CC,LSXFLAGS)
@@ -157,6 +158,10 @@ endif
 %.ptx: %.cu $(SRC_PATH)/compat/cuda/cuda_runtime.h
 	$(COMPILE_NVCC)
 
+# AMD HIP SDK compilation rules
+%.hsaco: %.hip $(SRC_PATH)/compat/hip/hip_runtime.h
+	$(COMPILE_HIPCC)
+
 ifdef CONFIG_SHADER_COMPRESSION
 %.ptx.gz: %.ptx
 	$(RUN_GZIP)
@@ -165,6 +170,18 @@ ifdef CONFIG_SHADER_COMPRESSION
 	$(RUN_BIN2C)
 else
 %.ptx.c: %.ptx $(BIN2CEXE)
+	$(RUN_BIN2C)
+endif
+
+# AMD HIP HSACO binary rules
+ifdef CONFIG_HSACO_COMPRESSION
+%.hsaco.gz: %.hsaco
+	$(RUN_GZIP)
+
+%.hsaco.c: %.hsaco.gz $(BIN2CEXE)
+	$(RUN_BIN2C)
+else
+%.hsaco.c: %.hsaco $(BIN2CEXE)
 	$(RUN_BIN2C)
 endif
 
@@ -245,9 +262,10 @@ SKIPHEADERS := $(SKIPHEADERS:%=$(SUBDIR)%)
 HOBJS        = $(filter-out $(SKIPHEADERS:.h=.h.o),$(ALLHEADERS:.h=.h.o))
 SPVOBJS      = $(filter %.spv.o,$(OBJS))
 PTXOBJS      = $(filter %.ptx.o,$(OBJS))
+HSACOOBJS    = $(filter %.hsaco.o,$(OBJS))
 $(HOBJS):     CCFLAGS += $(CFLAGS_HEADERS)
 checkheaders: $(HOBJS)
-.SECONDARY:   $(HOBJS:.o=.c) $(SPVOBJS:.o=.c) $(SPVOBJS:.o=.gz) $(SPVOBJS:.o=) $(PTXOBJS:.o=.c) $(PTXOBJS:.o=.gz) $(PTXOBJS:.o=)
+.SECONDARY:   $(HOBJS:.o=.c) $(SPVOBJS:.o=.c) $(SPVOBJS:.o=.gz) $(SPVOBJS:.o=) $(PTXOBJS:.o=.c) $(PTXOBJS:.o=.gz) $(PTXOBJS:.o=) $(HSACOOBJS:.o=.c) $(HSACOOBJS:.o=.gz) $(HSACOOBJS:.o=)
 alltools: $(TOOLS)
 
 $(HOSTOBJS): %.o: %.c
@@ -266,7 +284,7 @@ $(TOOLOBJS): | tools
 
 OUTDIRS := $(OUTDIRS) $(dir $(OBJS) $(HOBJS) $(HOSTOBJS) $(SHLIBOBJS) $(STLIBOBJS) $(TESTOBJS))
 
-CLEANSUFFIXES     = *.d *.gcda *.gcno *.h.c *.ho *.map *.o *.objs *.pc *.ptx *.ptx.gz *.ptx.c *.spv *.spv.gz *.spv.c *.ver *.version *.html.gz *.html.c *.css.min.gz *.css.min *.css.c  *$(DEFAULT_X86ASMD).asm *~ *.ilk *.pdb
+CLEANSUFFIXES     = *.d *.gcda *.gcno *.h.c *.ho *.map *.o *.objs *.pc *.ptx *.ptx.gz *.ptx.c *.hsaco *.hsaco.gz *.hsaco.c *.spv *.spv.gz *.spv.c *.ver *.version *.html.gz *.html.c *.css.min.gz *.css.min *.css.c  *$(DEFAULT_X86ASMD).asm *~ *.ilk *.pdb
 LIBSUFFIXES       = *.a *.lib *.so *.so.* *.dylib *.dll *.def *.dll.a
 
 define RULES
