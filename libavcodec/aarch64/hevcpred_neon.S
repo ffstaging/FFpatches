@@ -724,8 +724,8 @@ function ff_hevc_pred_planar_32x32_8_neon, export=1
 .purgem planar32_row
 
         ldp             d14, d15, [sp, #48]
-        ldp             d10, d11, [sp, #16]
         ldp             d12, d13, [sp, #32]
+        ldp             d10, d11, [sp, #16]
         ldp             d8, d9, [sp], #64
         ret
 endfunc
@@ -974,22 +974,9 @@ function ff_hevc_pred_angular_mode_26_8_neon, export=1
         sqxtun          v3.8b, v3.8h           // Saturate back to bytes
         sqxtun2         v3.16b, v4.8h
         
-        st1             {v3.b}[0], [x0], x3
-        st1             {v3.b}[1], [x0], x3
-        st1             {v3.b}[2], [x0], x3
-        st1             {v3.b}[3], [x0], x3
-        st1             {v3.b}[4], [x0], x3
-        st1             {v3.b}[5], [x0], x3
-        st1             {v3.b}[6], [x0], x3
-        st1             {v3.b}[7], [x0], x3
-        st1             {v3.b}[8], [x0], x3
-        st1             {v3.b}[9], [x0], x3
-        st1             {v3.b}[10], [x0], x3
-        st1             {v3.b}[11], [x0], x3
-        st1             {v3.b}[12], [x0], x3
-        st1             {v3.b}[13], [x0], x3
-        st1             {v3.b}[14], [x0], x3
-        st1             {v3.b}[15], [x0], x3
+.irp n, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+        st1             {v3.b}[\n], [x0], x3
+.endr
         b               9f
         
 224:    ldr             s2, [x2]
@@ -998,10 +985,9 @@ function ff_hevc_pred_angular_mode_26_8_neon, export=1
         sshr            v3.8h, v3.8h, #1       // Arithmetic shift right by 1
         uaddw           v3.8h, v3.8h, v5.8b    // Add top[0] from v5 (unsigned extend, top[0] is unsigned)
         sqxtun          v3.8b, v3.8h           // Saturate back to bytes
-        st1             {v3.b}[0], [x0], x3
-        st1             {v3.b}[1], [x0], x3
-        st1             {v3.b}[2], [x0], x3
-        st1             {v3.b}[3], [x0], x3
+.irp n, 0, 1, 2, 3
+        st1             {v3.b}[\n], [x0], x3
+.endr
         b               9f
 
 228:    ldr             d2, [x2]
@@ -1010,14 +996,9 @@ function ff_hevc_pred_angular_mode_26_8_neon, export=1
         sshr            v3.8h, v3.8h, #1       // Arithmetic shift right by 1
         uaddw           v3.8h, v3.8h, v5.8b    // Add top[0] from v5 (unsigned extend, top[0] is unsigned)
         sqxtun          v3.8b, v3.8h           // Saturate back to bytes
-        st1             {v3.b}[0], [x0], x3
-        st1             {v3.b}[1], [x0], x3
-        st1             {v3.b}[2], [x0], x3
-        st1             {v3.b}[3], [x0], x3
-        st1             {v3.b}[4], [x0], x3
-        st1             {v3.b}[5], [x0], x3
-        st1             {v3.b}[6], [x0], x3
-        st1             {v3.b}[7], [x0], x3
+.irp n, 0, 1, 2, 3, 4, 5, 6, 7
+        st1             {v3.b}[\n], [x0], x3
+.endr
         b               9f
 
 9:      ret
@@ -1088,37 +1069,16 @@ function ff_hevc_pred_angular_mode_18_8x8_8_neon, export=1
         mov             v2.d[1], v1.d[0]        // v2[8..15] = top[-1..6]
 
         // Row 0: ref[0..7] = top[-1..6] = v2[8..15]
-        mov             v3.d[0], v2.d[1]
-        str             d3, [x0]
-        add             x0, x0, x3
+        st1             {v2.d}[1], [x0], x3
 
         // Row 1-7: use ext with decreasing offset
-        ext             v3.16b, v2.16b, v2.16b, #7
+.irp offset, 7, 6, 5, 4, 3, 2, 1
+        ext             v3.16b, v2.16b, v2.16b, #\offset
         str             d3, [x0]
+  .ifnc \offset, 1
         add             x0, x0, x3
-
-        ext             v3.16b, v2.16b, v2.16b, #6
-        str             d3, [x0]
-        add             x0, x0, x3
-
-        ext             v3.16b, v2.16b, v2.16b, #5
-        str             d3, [x0]
-        add             x0, x0, x3
-
-        ext             v3.16b, v2.16b, v2.16b, #4
-        str             d3, [x0]
-        add             x0, x0, x3
-
-        ext             v3.16b, v2.16b, v2.16b, #3
-        str             d3, [x0]
-        add             x0, x0, x3
-
-        ext             v3.16b, v2.16b, v2.16b, #2
-        str             d3, [x0]
-        add             x0, x0, x3
-
-        ext             v3.16b, v2.16b, v2.16b, #1
-        str             d3, [x0]
+  .endif
+.endr
 
         ret
 endfunc
@@ -1141,65 +1101,14 @@ function ff_hevc_pred_angular_mode_18_16x16_8_neon, export=1
         // Row 0: ref[0..15] = v1
         str             q1, [x0]
         add             x0, x0, x3
-        // Row 1: EXT(v0, v1, #15) = {v0[15], v1[0..14]} = {left[0], top[-1..13]}
-        ext             v2.16b, v0.16b, v1.16b, #15
+        // Row 1-15: EXT(v0, v1, #N) slides window across {v0:v1}
+.irp offset, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+        ext             v2.16b, v0.16b, v1.16b, #\offset
         str             q2, [x0]
+  .ifnc \offset, 1
         add             x0, x0, x3
-        // Row 2
-        ext             v2.16b, v0.16b, v1.16b, #14
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 3
-        ext             v2.16b, v0.16b, v1.16b, #13
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 4
-        ext             v2.16b, v0.16b, v1.16b, #12
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 5
-        ext             v2.16b, v0.16b, v1.16b, #11
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 6
-        ext             v2.16b, v0.16b, v1.16b, #10
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 7
-        ext             v2.16b, v0.16b, v1.16b, #9
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 8
-        ext             v2.16b, v0.16b, v1.16b, #8
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 9
-        ext             v2.16b, v0.16b, v1.16b, #7
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 10
-        ext             v2.16b, v0.16b, v1.16b, #6
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 11
-        ext             v2.16b, v0.16b, v1.16b, #5
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 12
-        ext             v2.16b, v0.16b, v1.16b, #4
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 13
-        ext             v2.16b, v0.16b, v1.16b, #3
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 14
-        ext             v2.16b, v0.16b, v1.16b, #2
-        str             q2, [x0]
-        add             x0, x0, x3
-        // Row 15
-        ext             v2.16b, v0.16b, v1.16b, #1
-        str             q2, [x0]
+  .endif
+.endr
 
         ret
 endfunc
@@ -1551,6 +1460,11 @@ function ff_hevc_pred_angular_v_pos_32x32_8_neon, export=1
         b.lt            .Lv_pos_32x32_mode34_loop
         ret
 endfunc
+
+// =============================================================================
+// Angular Prediction - Horizontal reference modes, positive angle (Mode 2-9)
+// =============================================================================
+	
 const intra_pred_angle_h, align=4
         .byte   32      // mode 2
         .byte   26      // mode 3
@@ -2055,11 +1969,11 @@ const inv_angle_v_neg, align=4
 endconst
 
 // -----------------------------------------------------------------------------
-// pred_angular_v_neg_4x4_8: Vertical reference negative angle prediction (mode 18-25)
+// pred_angular_v_neg_4x4_8: Vertical reference negative angle prediction (mode 19-25)
 // Arguments:
 // x0: src
 // x1: top
-// x2: left (unused for V reference modes)
+// x2: left (used for reference extension)
 // x3: stride
 // w4: c_idx
 // w5: mode
@@ -2150,11 +2064,11 @@ function ff_hevc_pred_angular_v_neg_4x4_8_neon, export=1
 endfunc
 
 // -----------------------------------------------------------------------------
-// pred_angular_v_neg_8x8_8: Vertical reference negative angle prediction (mode 18-25)
+// pred_angular_v_neg_8x8_8: Vertical reference negative angle prediction (mode 19-25)
 // Arguments:
 // x0: src
 // x1: top
-// x2: left (unused for V reference modes)
+// x2: left (used for reference extension)
 // x3: stride
 // w4: c_idx
 // w5: mode
@@ -2242,11 +2156,11 @@ function ff_hevc_pred_angular_v_neg_8x8_8_neon, export=1
 endfunc
 
 // -----------------------------------------------------------------------------
-// pred_angular_v_neg_16x16_8: Vertical reference negative angle prediction (mode 18-25)
+// pred_angular_v_neg_16x16_8: Vertical reference negative angle prediction (mode 19-25)
 // Arguments:
 // x0: src
 // x1: top
-// x2: left (unused for V reference modes)
+// x2: left (used for reference extension)
 // x3: stride
 // w4: c_idx
 // w5: mode
@@ -2339,11 +2253,11 @@ function ff_hevc_pred_angular_v_neg_16x16_8_neon, export=1
 endfunc
 
 // -----------------------------------------------------------------------------
-// pred_angular_v_neg_32x32_8: Vertical reference negative angle prediction (mode 18-25)
+// pred_angular_v_neg_32x32_8: Vertical reference negative angle prediction (mode 19-25)
 // Arguments:
 // x0: src
 // x1: top
-// x2: left (unused for V reference modes)
+// x2: left (used for reference extension)
 // x3: stride
 // w4: c_idx
 // w5: mode
@@ -2454,3 +2368,594 @@ endfunc
 // Angular Prediction - Horizontal reference modes, negative angles (Mode 11-17)
 // =============================================================================
 
+// Angle table for H reference negative angles (mode 11-17)
+// angle = intra_pred_angle_h_neg[mode - 11]
+// mode 11: -2, mode 12: -5, mode 13: -9, mode 14: -13,
+// mode 15: -17, mode 16: -21, mode 17: -26
+const intra_pred_angle_h_neg, align=4
+        .byte   -2      // mode 11
+        .byte   -5      // mode 12
+        .byte   -9      // mode 13
+        .byte   -13     // mode 14
+        .byte   -17     // mode 15
+        .byte   -21     // mode 16
+        .byte   -26     // mode 17
+endconst
+
+// inv_angle table for reference extension (16-bit values)
+// inv_angle = inv_angle_h_neg[mode - 11]
+// Used to calculate: ref_tmp[x] = top[-1 + ((x * inv_angle + 128) >> 8)]
+const inv_angle_h_neg, align=4
+        .short  -4096   // mode 11: inv_angle[0]
+        .short  -1638   // mode 12: inv_angle[1]
+        .short  -910    // mode 13: inv_angle[2]
+        .short  -630    // mode 14: inv_angle[3]
+        .short  -482    // mode 15: inv_angle[4]
+        .short  -390    // mode 16: inv_angle[5]
+        .short  -315    // mode 17: inv_angle[6]
+endconst
+
+// -----------------------------------------------------------------------------
+// pred_angular_h_neg_4x4_8: Horizontal reference negative angle prediction (mode 11-17)
+// Arguments:
+// x0: src
+// x1: top (used for reference extension)
+// x2: left
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_h_neg_4x4_8_neon, export=1
+        str             d15, [sp, #-16]!
+        // Stack layout: ref_tmp[-64..47] at sp, base at sp+64
+        // last ranges from -4 (mode 17) to 0; data occupies ref_tmp[-4..4]
+        // Allocated 112 bytes (16-byte aligned), offset 64 for negative indexing
+        sub             sp, sp, #112
+        add             x14, sp, #64            // ref_tmp base
+
+        // Load angle from table
+        movrel          x6, intra_pred_angle_h_neg
+        sub             w7, w5, #11             // mode - 11
+        ldrsb           w8, [x6, w7, sxtw]      // angle (negative)
+
+        // Calculate last = (4 * angle) >> 5
+        mov             w15, #4
+        mul             w15, w15, w8
+        asr             w15, w15, #5            // last (negative)
+
+        // Check if extension needed (last < -1)
+        cmn             w15, #1                 // Compare with -1: last + 1 < 0 means last < -1
+        b.ge            .Lh_neg_4x4_no_extend
+
+        // === Reference extension ===
+        // 1. Copy left[-1..4] to ref_tmp[0..5]
+        sub             x16, x2, #1             // left - 1
+        ldr             d0, [x16]               // load 8 bytes (left[-1..6])
+        str             d0, [x14]               // store to ref_tmp[0..7]
+
+        // 2. Load inv_angle
+        movrel          x17, inv_angle_h_neg
+        sxtw            x7, w7                  // sign extend mode index
+        ldrsh           w9, [x17, x7, lsl #1]   // inv_angle (negative)
+
+        // 3. Extend: ref_tmp[x] = top[-1 + ((x * inv_angle + 128) >> 8)]
+        mov             w10, w15                // x = last
+.Lh_neg_4x4_extend:
+        mul             w11, w10, w9            // x * inv_angle
+        add             w11, w11, #128
+        asr             w11, w11, #8            // (x * inv_angle + 128) >> 8
+        sub             w11, w11, #1            // -1 + result
+        ldrb            w12, [x1, w11, sxtw]    // top[index]
+        strb            w12, [x14, w10, sxtw]   // ref_tmp[x]
+        add             w10, w10, #1
+        cmn             w10, #1                 // compare with -1
+        b.le            .Lh_neg_4x4_extend      // loop while x <= -1
+
+        mov             x13, x14                // ref = ref_tmp
+        b               .Lh_neg_4x4_predict
+
+.Lh_neg_4x4_no_extend:
+        sub             x13, x2, #1             // ref = left - 1
+
+.Lh_neg_4x4_predict:
+        // === Fully unrolled 4-column computation ===
+        // Each column produces 4 interpolated pixels in the low 4 bytes of v0-v3.
+        // After computing, transpose 4x4 and store as contiguous rows.
+        mov             w10, #0                 // angle_acc
+        movi            v15.16b, #32            // constant 32 for NEON-domain weight computation
+
+.macro h_neg_4x4_col dst
+        add             w10, w10, w8
+        asr             w11, w10, #5
+        and             w12, w10, #31
+        add             x16, x13, w11, sxtw
+        ldr             d18, [x16, #1]          // ref[idx+1..idx+8]
+        ldr             d19, [x16, #2]          // ref[idx+2..idx+9]
+        dup             v17.8b, w12
+        sub             v16.8b, v15.8b, v17.8b
+        umull           v20.8h, v18.8b, v16.8b
+        umlal           v20.8h, v19.8b, v17.8b
+        rshrn           \dst\().8b, v20.8h, #5
+.endm
+        h_neg_4x4_col  v0              // col0: v0.8b[0..3] = rows 0-3
+        h_neg_4x4_col  v1              // col1
+        h_neg_4x4_col  v2              // col2
+        h_neg_4x4_col  v3              // col3
+.purgem h_neg_4x4_col
+
+        // === 4x4 byte matrix transpose ===
+        // Input:  v0=col0, v1=col1, v2=col2, v3=col3 (low 4 bytes each)
+        // Output: v0=row0, v1=row1, v2=row2, v3=row3 (low 4 bytes each)
+        transpose_4x8B  v0, v1, v2, v3, v16, v17, v18, v19
+
+        // === Store 4 rows with 4-byte writes ===
+        str             s0, [x0]
+        add             x0, x0, x3
+        str             s1, [x0]
+        add             x0, x0, x3
+        str             s2, [x0]
+        add             x0, x0, x3
+        str             s3, [x0]
+
+        add             sp, sp, #112
+        ldr             d15, [sp], #16
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_h_neg_8x8_8: Horizontal reference negative angle prediction (mode 11-17)
+//
+// Fully unrolled 8-column computation with 8x8 byte matrix transpose.
+// Each column interpolation result is placed directly into v0-v7, then
+// transposed so rows can be stored with contiguous 8-byte writes.
+//
+// Arguments:
+// x0: src
+// x1: top (used for reference extension)
+// x2: left
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_h_neg_8x8_8_neon, export=1
+        str             d15, [sp, #-16]!
+        // Stack layout: ref_tmp[-64..47] at sp, base at sp+64
+        // last ranges from -7 (mode 17) to 0; data occupies ref_tmp[-7..8]
+        // Allocated 112 bytes (16-byte aligned), offset 64 for negative indexing
+        sub             sp, sp, #112
+        add             x14, sp, #64            // ref_tmp base
+
+        // Load angle from table
+        movrel          x6, intra_pred_angle_h_neg
+        sub             w7, w5, #11             // mode - 11
+        ldrsb           w8, [x6, w7, sxtw]      // angle (negative)
+
+        // Calculate last = (8 * angle) >> 5
+        mov             w15, #8
+        mul             w15, w15, w8
+        asr             w15, w15, #5            // last (negative or zero)
+
+        // Check if extension needed (last < -1)
+        cmn             w15, #1
+        b.ge            .Lh_neg_8x8_no_extend
+
+        // Copy left[-1..8] to ref_tmp[0..9]
+        sub             x16, x2, #1
+        ldr             q0, [x16]
+        str             q0, [x14]
+
+        // Load inv_angle
+        movrel          x17, inv_angle_h_neg
+        sxtw            x7, w7
+        ldrsh           w9, [x17, x7, lsl #1]
+
+        // Scalar extend loop: ref_tmp[x] = top[-1 + ((x * inv_angle + 128) >> 8)]
+        mov             w10, w15                // x = last (negative)
+.Lh_neg_8x8_extend:
+        mul             w11, w10, w9
+        add             w11, w11, #128
+        asr             w11, w11, #8
+        sub             w11, w11, #1
+        ldrb            w12, [x1, w11, sxtw]
+        strb            w12, [x14, w10, sxtw]
+        add             w10, w10, #1
+        cmn             w10, #1
+        b.le            .Lh_neg_8x8_extend
+
+        mov             x13, x14                // ref = ref_tmp
+        b               .Lh_neg_8x8_predict
+
+.Lh_neg_8x8_no_extend:
+        sub             x13, x2, #1             // ref = left - 1
+
+.Lh_neg_8x8_predict:
+        // === Fully unrolled 8-column computation ===
+        // Each column produces 8 interpolated pixels stored in v0-v7.
+        mov             w10, #0                 // angle_acc
+        movi            v15.16b, #32            // constant 32 for NEON-domain weight computation
+
+        // Interpolation macro body (inlined 8 times, targeting v0-v7):
+        //   angle_acc += angle; idx = angle_acc >> 5; fact = angle_acc & 31
+        //   load ref[idx+1..idx+8], ref[idx+2..idx+9]
+        //   result = ((32-fact)*a + fact*b + 16) >> 5
+
+.macro h_neg_8x8_col dst
+        add             w10, w10, w8
+        asr             w11, w10, #5
+        and             w12, w10, #31
+        add             x16, x13, w11, sxtw
+        ldr             d18, [x16, #1]
+        ldr             d19, [x16, #2]
+        dup             v17.8b, w12
+        sub             v16.8b, v15.8b, v17.8b
+        umull           v20.8h, v18.8b, v16.8b
+        umlal           v20.8h, v19.8b, v17.8b
+        rshrn           \dst\().8b, v20.8h, #5
+.endm
+        h_neg_8x8_col  v0
+        h_neg_8x8_col  v1
+        h_neg_8x8_col  v2
+        h_neg_8x8_col  v3
+        h_neg_8x8_col  v4
+        h_neg_8x8_col  v5
+        h_neg_8x8_col  v6
+        h_neg_8x8_col  v7
+.purgem h_neg_8x8_col
+
+        // === 8x8 byte matrix transpose ===
+        // Input:  v0=col0 ... v7=col7 (each 8B: rows 0-7 of that column)
+        // Output: v0=row0 ... v7=row7 (each 8B: cols 0-7 of that row)
+        transpose_8x8B  v0, v1, v2, v3, v4, v5, v6, v7, v16, v17
+
+        // === Store 8 rows contiguously ===
+        str             d0, [x0]
+        add             x0, x0, x3
+        str             d1, [x0]
+        add             x0, x0, x3
+        str             d2, [x0]
+        add             x0, x0, x3
+        str             d3, [x0]
+        add             x0, x0, x3
+        str             d4, [x0]
+        add             x0, x0, x3
+        str             d5, [x0]
+        add             x0, x0, x3
+        str             d6, [x0]
+        add             x0, x0, x3
+        str             d7, [x0]
+
+        add             sp, sp, #112
+        ldr             d15, [sp], #16
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_h_neg_16x16_8: Horizontal reference negative angle prediction (mode 11-17)
+//
+// Process 16 columns in two batches of 8. Each column produces a 16-byte
+// vector (16 rows). transpose_8x16B transposes each batch, then rows are
+// stored with contiguous 16-byte writes by combining both halves.
+//
+// Arguments:
+// x0: src
+// x1: top (used for reference extension)
+// x2: left
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_h_neg_16x16_8_neon, export=1
+        stp             x19, x20, [sp, #-16]!
+        str             d15, [sp, #-16]!
+        // Stack layout: ref_tmp[-64..79] at sp, base at sp+64
+        // last ranges from -13 (mode 17) to 0; data occupies ref_tmp[-13..16]
+        // Allocated 144 bytes (16-byte aligned), offset 64 for negative indexing
+        sub             sp, sp, #144
+        add             x14, sp, #64            // ref_tmp base
+
+        // Load angle
+        movrel          x6, intra_pred_angle_h_neg
+        sub             w7, w5, #11
+        ldrsb           w8, [x6, w7, sxtw]
+
+        // Calculate last = (16 * angle) >> 5
+        mov             w15, #16
+        mul             w15, w15, w8
+        asr             w15, w15, #5
+
+        // Check if extension needed
+        cmn             w15, #1
+        b.ge            .Lh_neg_16x16_no_extend
+
+        // Copy left[-1..16] to ref_tmp[0..17]
+        sub             x16, x2, #1
+        ldp             q0, q1, [x16]
+        stp             q0, q1, [x14]
+
+        // Load inv_angle
+        movrel          x17, inv_angle_h_neg
+        sxtw            x7, w7
+        ldrsh           w9, [x17, x7, lsl #1]
+
+        // Extend loop
+        mov             w10, w15
+.Lh_neg_16x16_extend:
+        mul             w11, w10, w9
+        add             w11, w11, #128
+        asr             w11, w11, #8
+        sub             w11, w11, #1
+        ldrb            w12, [x1, w11, sxtw]
+        strb            w12, [x14, w10, sxtw]
+        add             w10, w10, #1
+        cmn             w10, #1
+        b.le            .Lh_neg_16x16_extend
+
+        mov             x13, x14
+        b               .Lh_neg_16x16_predict
+
+.Lh_neg_16x16_no_extend:
+        sub             x13, x2, #1
+
+.Lh_neg_16x16_predict:
+        // Save base pointers
+        mov             x19, x0                 // base dst (callee-saved)
+        mov             x20, x13                // base ref (callee-saved)
+        movi            v15.16b, #32            // constant 32 for NEON-domain weight computation
+
+        // === Column interpolation macro (16-byte column) ===
+.macro h_neg_16x16_col dst
+        add             w10, w10, w8
+        asr             w11, w10, #5
+        and             w12, w10, #31
+        add             x16, x20, w11, sxtw
+        ldr             q18, [x16, #1]          // ref[idx+1..idx+16]
+        ldr             q19, [x16, #2]          // ref[idx+2..idx+17]
+        dup             v17.16b, w12
+        sub             v16.16b, v15.16b, v17.16b
+        umull           v20.8h, v18.8b, v16.8b
+        umlal           v20.8h, v19.8b, v17.8b
+        rshrn           \dst\().8b, v20.8h, #5
+        umull2          v21.8h, v18.16b, v16.16b
+        umlal2          v21.8h, v19.16b, v17.16b
+        rshrn2          \dst\().16b, v21.8h, #5
+.endm
+
+        // === Batch 1: columns 0-7 ===
+        mov             w10, #0                 // angle_acc = 0
+        h_neg_16x16_col v0
+        h_neg_16x16_col v1
+        h_neg_16x16_col v2
+        h_neg_16x16_col v3
+        h_neg_16x16_col v4
+        h_neg_16x16_col v5
+        h_neg_16x16_col v6
+        h_neg_16x16_col v7
+
+        // Save angle_acc for batch 2
+        mov             w19, w10                // reuse x19 (base dst already consumed below)
+
+        // transpose_8x16B: transposes two independent 8x8 blocks
+        // (low halves and high halves separately).
+        // Input  vi.16b = [row0..row7 | row8..row15] of column i
+        // Output vi.16b: lo8 = col0..col7 of row i, hi8 = col0..col7 of row (i+8)
+        transpose_8x16B v0, v1, v2, v3, v4, v5, v6, v7, v16, v17
+
+        // Store first 8 bytes (cols 0-7) of rows 0-7 and rows 8-15
+        // Rows 0-7: store lo 8 bytes of v0-v7
+        mov             x16, x0
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().8b}, [x16], x3
+        .endr
+
+        // Rows 8-15: store hi 8 bytes of v0-v7
+        // The high 8 bytes are accessed by storing from the .d[1] element
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().d}[1], [x16], x3
+        .endr
+
+        // === Batch 2: columns 8-15 ===
+        mov             w10, w19                // restore angle_acc from batch 1
+        h_neg_16x16_col v0
+        h_neg_16x16_col v1
+        h_neg_16x16_col v2
+        h_neg_16x16_col v3
+        h_neg_16x16_col v4
+        h_neg_16x16_col v5
+        h_neg_16x16_col v6
+        h_neg_16x16_col v7
+.purgem h_neg_16x16_col
+
+        transpose_8x16B v0, v1, v2, v3, v4, v5, v6, v7, v16, v17
+
+        // Store second 8 bytes (cols 8-15) of rows 0-7
+        add             x16, x0, #8            // offset to column 8 of row 0
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().8b}, [x16], x3
+        .endr
+
+        // Store second 8 bytes (cols 8-15) of rows 8-15
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().d}[1], [x16], x3
+        .endr
+
+        add             sp, sp, #144
+        ldr             d15, [sp], #16
+        ldp             x19, x20, [sp], #16
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_h_neg_32x32_8: Horizontal reference negative angle prediction (mode 11-17)
+//
+// Process 32 columns in 4 batches of 8.  Each column produces 32 pixels
+// stored in two q registers (rows 0-15 and rows 16-31).  Each batch is
+// transposed with two transpose_8x16B calls, then stored as contiguous
+// 8-byte row segments.
+//
+// Arguments:
+// x0: src
+// x1: top (used for reference extension)
+// x2: left
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_h_neg_32x32_8_neon, export=1
+        stp             x19, x20, [sp, #-16]!
+        stp             x21, x22, [sp, #-16]!
+        str             d15, [sp, #-16]!
+        // Stack layout: ref_tmp[-64..79] at sp, base at sp+64
+        // last ranges from -26 (mode 11) to -2 (mode 17); data occupies ref_tmp[-26..32]
+        // Allocated 144 bytes (16-byte aligned), offset 64 covers the 64-byte copy
+        sub             sp, sp, #144
+        add             x14, sp, #64            // ref_tmp base
+
+        // Load angle
+        movrel          x6, intra_pred_angle_h_neg
+        sub             w7, w5, #11
+        ldrsb           w8, [x6, w7, sxtw]
+
+        // Calculate last = (32 * angle) >> 5
+        mov             w15, #32
+        mul             w15, w15, w8
+        asr             w15, w15, #5
+
+        // Check if extension needed
+        cmn             w15, #1
+        b.ge            .Lh_neg_32x32_no_extend
+
+        // Copy left[-1..32] to ref_tmp[0..33]
+        sub             x16, x2, #1
+        ldp             q0, q1, [x16]
+        stp             q0, q1, [x14]
+        ldp             q2, q3, [x16, #32]
+        stp             q2, q3, [x14, #32]
+
+        // Load inv_angle
+        movrel          x17, inv_angle_h_neg
+        sxtw            x7, w7
+        ldrsh           w9, [x17, x7, lsl #1]
+
+        // Extend loop
+        mov             w10, w15
+.Lh_neg_32x32_extend:
+        mul             w11, w10, w9
+        add             w11, w11, #128
+        asr             w11, w11, #8
+        sub             w11, w11, #1
+        ldrb            w12, [x1, w11, sxtw]
+        strb            w12, [x14, w10, sxtw]
+        add             w10, w10, #1
+        cmn             w10, #1
+        b.le            .Lh_neg_32x32_extend
+
+        mov             x13, x14
+        b               .Lh_neg_32x32_predict
+
+.Lh_neg_32x32_no_extend:
+        sub             x13, x2, #1
+
+.Lh_neg_32x32_predict:
+        mov             x19, x0                 // save dst base
+        mov             x20, x13                // save ref base
+        movi            v15.16b, #32            // constant 32 for NEON-domain weight computation
+
+        // === Column interpolation macro (32-byte column → two 16B regs) ===
+        // \dst_hi = rows 0-15, \dst_lo = rows 16-31
+.macro h_neg_32_col dst_hi, dst_lo
+        add             w10, w10, w8
+        asr             w11, w10, #5
+        and             w12, w10, #31
+        add             x16, x20, w11, sxtw
+        // Load rows 0-15 ref pair
+        ldr             q18, [x16, #1]
+        ldr             q19, [x16, #2]
+        // Load rows 16-31 ref pair
+        ldr             q20, [x16, #17]
+        ldr             q21, [x16, #18]
+        dup             v17.16b, w12
+        sub             v16.16b, v15.16b, v17.16b
+        // Interpolate rows 0-15
+        umull           v22.8h, v18.8b, v16.8b
+        umlal           v22.8h, v19.8b, v17.8b
+        rshrn           \dst_hi\().8b, v22.8h, #5
+        umull2          v23.8h, v18.16b, v16.16b
+        umlal2          v23.8h, v19.16b, v17.16b
+        rshrn2          \dst_hi\().16b, v23.8h, #5
+        // Interpolate rows 16-31
+        umull           v22.8h, v20.8b, v16.8b
+        umlal           v22.8h, v21.8b, v17.8b
+        rshrn           \dst_lo\().8b, v22.8h, #5
+        umull2          v23.8h, v20.16b, v16.16b
+        umlal2          v23.8h, v21.16b, v17.16b
+        rshrn2          \dst_lo\().16b, v23.8h, #5
+.endm
+
+        // Process 4 batches of 8 columns each.
+        // x21 = current column offset (byte offset into each row)
+        // x22 = saved angle_acc between batches
+        mov             w10, #0                 // angle_acc
+        mov             x21, #0                 // column byte offset
+
+.Lh_neg_32x32_batch:
+        // Compute 8 columns. Upper half (rows 0-15) → v0-v7, lower half (rows 16-31) → v24-v31
+        h_neg_32_col    v0, v24
+        h_neg_32_col    v1, v25
+        h_neg_32_col    v2, v26
+        h_neg_32_col    v3, v27
+        h_neg_32_col    v4, v28
+        h_neg_32_col    v5, v29
+        h_neg_32_col    v6, v30
+        h_neg_32_col    v7, v31
+
+        // Save angle_acc
+        mov             w22, w10
+
+        // Transpose upper half: v0-v7 (each .16b = rows 0-15)
+        // After: vi lo8 = cols of row i (i=0..7), vi hi8 = cols of row i+8
+        transpose_8x16B v0, v1, v2, v3, v4, v5, v6, v7, v16, v17
+
+        // Transpose lower half: v24-v31 (each .16b = rows 16-31)
+        // After: vi lo8 = cols of row i+16, vi hi8 = cols of row i+24
+        transpose_8x16B v24, v25, v26, v27, v28, v29, v30, v31, v16, v17
+
+        // Store this batch's 8 columns for all 32 rows
+        add             x16, x19, x21          // dst + col_offset
+
+        // Rows 0-7: lo8 of v0-v7
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().8b}, [x16], x3
+        .endr
+
+        // Rows 8-15: hi8 of v0-v7
+        // x16 now points to row 8 + col_offset
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().d}[1], [x16], x3
+        .endr
+
+        // Rows 16-23: lo8 of v24-v31
+        // x16 now points to row 16 + col_offset
+        .irp reg, v24, v25, v26, v27, v28, v29, v30, v31
+        st1             {\reg\().8b}, [x16], x3
+        .endr
+
+        // Rows 24-31: hi8 of v24-v31
+        // x16 now points to row 24 + col_offset
+        .irp reg, v24, v25, v26, v27, v28, v29, v30, v31
+        st1             {\reg\().d}[1], [x16], x3
+        .endr
+
+        // Advance to next batch
+        mov             w10, w22                // restore angle_acc
+        add             x21, x21, #8           // next 8 columns
+        cmp             x21, #32
+        b.lt            .Lh_neg_32x32_batch
+
+.purgem h_neg_32_col
+
+        add             sp, sp, #144
+        ldr             d15, [sp], #16
+        ldp             x21, x22, [sp], #16
+        ldp             x19, x20, [sp], #16
+        ret
+endfunc

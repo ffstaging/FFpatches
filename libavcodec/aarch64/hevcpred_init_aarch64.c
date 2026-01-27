@@ -113,6 +113,20 @@ void ff_hevc_pred_angular_v_neg_32x32_8_neon(uint8_t *src, const uint8_t *top,
                                             const uint8_t *left, ptrdiff_t stride,
                                             int c_idx, int mode);
 
+// Negative angle horizontal modes (mode 11-17)
+void ff_hevc_pred_angular_h_neg_4x4_8_neon(uint8_t *src, const uint8_t *top,
+                                          const uint8_t *left, ptrdiff_t stride,
+                                          int c_idx, int mode);
+void ff_hevc_pred_angular_h_neg_8x8_8_neon(uint8_t *src, const uint8_t *top,
+                                          const uint8_t *left, ptrdiff_t stride,
+                                          int c_idx, int mode);
+void ff_hevc_pred_angular_h_neg_16x16_8_neon(uint8_t *src, const uint8_t *top,
+                                            const uint8_t *left, ptrdiff_t stride,
+                                            int c_idx, int mode);
+void ff_hevc_pred_angular_h_neg_32x32_8_neon(uint8_t *src, const uint8_t *top,
+                                            const uint8_t *left, ptrdiff_t stride,
+                                            int c_idx, int mode);
+
 static void pred_dc_neon(uint8_t *src, const uint8_t *top,
                          const uint8_t *left, ptrdiff_t stride,
                          int log2_size, int c_idx)
@@ -154,6 +168,8 @@ static void pred_angular_0_neon(uint8_t *src, const uint8_t *top,
         ff_hevc_pred_angular_v_pos_4x4_8_neon(src, top, left, stride, c_idx, mode);
     } else if (mode > 18 && mode <= 25) {
         ff_hevc_pred_angular_v_neg_4x4_8_neon(src, top, left, stride, c_idx, mode);
+    } else if (mode >= 11 && mode <= 17) {
+        ff_hevc_pred_angular_h_neg_4x4_8_neon(src, top, left, stride, c_idx, mode);
     } else if (mode >= 2 && mode <= 9) {
         ff_hevc_pred_angular_h_pos_4x4_8_neon(src, top, left, stride, c_idx, mode);
     } else {
@@ -175,6 +191,8 @@ static void pred_angular_1_neon(uint8_t *src, const uint8_t *top,
         ff_hevc_pred_angular_v_pos_8x8_8_neon(src, top, left, stride, c_idx, mode);
     } else if (mode > 18 && mode <= 25) {
         ff_hevc_pred_angular_v_neg_8x8_8_neon(src, top, left, stride, c_idx, mode);
+    } else if (mode >= 11 && mode <= 17) {
+        ff_hevc_pred_angular_h_neg_8x8_8_neon(src, top, left, stride, c_idx, mode);
     } else if (mode >= 2 && mode <= 9) {
         ff_hevc_pred_angular_h_pos_8x8_8_neon(src, top, left, stride, c_idx, mode);
     } else {
@@ -196,6 +214,8 @@ static void pred_angular_2_neon(uint8_t *src, const uint8_t *top,
         ff_hevc_pred_angular_v_pos_16x16_8_neon(src, top, left, stride, c_idx, mode);
     } else if (mode > 18 && mode <= 25) {
         ff_hevc_pred_angular_v_neg_16x16_8_neon(src, top, left, stride, c_idx, mode);
+    } else if (mode >= 11 && mode <= 17) {
+        ff_hevc_pred_angular_h_neg_16x16_8_neon(src, top, left, stride, c_idx, mode);
     } else if (mode >= 2 && mode <= 9) {
         ff_hevc_pred_angular_h_pos_16x16_8_neon(src, top, left, stride, c_idx, mode);
     } else {
@@ -217,6 +237,8 @@ static void pred_angular_3_neon(uint8_t *src, const uint8_t *top,
         ff_hevc_pred_angular_v_pos_32x32_8_neon(src, top, left, stride, c_idx, mode);
     } else if (mode > 18 && mode <= 25) {
         ff_hevc_pred_angular_v_neg_32x32_8_neon(src, top, left, stride, c_idx, mode);
+    } else if (mode >= 11 && mode <= 17) {
+        ff_hevc_pred_angular_h_neg_32x32_8_neon(src, top, left, stride, c_idx, mode);
     } else if (mode >= 2 && mode <= 9) {
         ff_hevc_pred_angular_h_pos_32x32_8_neon(src, top, left, stride, c_idx, mode);
     } else {
