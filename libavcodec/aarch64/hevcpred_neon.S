@@ -1021,3 +1021,228 @@ function ff_hevc_pred_angular_mode_26_8_neon, export=1
 
 9:      ret
 endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_mode_18_4x4_8: Mode 18 prediction for 4x4 block
+// Row 0: top[-1], top[0], top[1], top[2]
+// Row 1: left[0], top[-1], top[0], top[1]
+// Row 2: left[1], left[0], top[-1], top[0]
+// Row 3: left[2], left[1], left[0], top[-1]
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_mode_18_4x4_8_neon, export=1
+        // Build ref array in register
+        // ref[-4..-1] = left[3], left[2], left[1], left[0]  (reversed)
+        // ref[0..4] = top[-1..3]
+
+        // Load left[0..3] and reverse
+        ldr             s0, [x2]                // left[0..3]
+        rev32           v0.8b, v0.8b            // v0 = {left[3], left[2], left[1], left[0], ...}
+
+        // Load top[-1..3]
+        sub             x4, x1, #1
+        ldr             d1, [x4]                // top[-1..6]
+
+        // Combine: {left[3,2,1,0], top[-1,0,1,2,3,...]}
+        ins             v0.s[1], v1.s[0]        // v0 = {left[3,2,1,0], top[-1,0,1,2], ...}
+
+        // Row 0: ref[0..3] = top[-1..2] = v0[4..7]
+        ext             v2.8b, v0.8b, v0.8b, #4
+        str             s2, [x0]
+        add             x0, x0, x3
+
+        // Row 1: ref[-1..2] = v0[3..6]
+        ext             v2.8b, v0.8b, v0.8b, #3
+        str             s2, [x0]
+        add             x0, x0, x3
+
+        // Row 2: ref[-2..1] = v0[2..5]
+        ext             v2.8b, v0.8b, v0.8b, #2
+        str             s2, [x0]
+        add             x0, x0, x3
+
+        // Row 3: ref[-3..0] = v0[1..4]
+        ext             v2.8b, v0.8b, v0.8b, #1
+        str             s2, [x0]
+
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_mode_18_8x8_8: Mode 18 prediction for 8x8 block
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_mode_18_8x8_8_neon, export=1
+        // ref[-8..-1] = left[7..0] (reversed)
+        // ref[0..8] = top[-1..7]
+
+        // Load left[0..7] and reverse
+        ldr             d0, [x2]                // left[0..7]
+        rev64           v0.8b, v0.8b            // {left[7..0]}
+
+        // Load top[-1..7]
+        sub             x4, x1, #1
+        ldr             q1, [x4]                // top[-1..14]
+
+        // Combine into v2 (16 bytes): {left[7..0], top[-1..7]}
+        mov             v2.d[0], v0.d[0]        // v2[0..7] = left[7..0]
+        mov             v2.d[1], v1.d[0]        // v2[8..15] = top[-1..6]
+
+        // Row 0: ref[0..7] = top[-1..6] = v2[8..15]
+        mov             v3.d[0], v2.d[1]
+        str             d3, [x0]
+        add             x0, x0, x3
+
+        // Row 1-7: use ext with decreasing offset
+        ext             v3.16b, v2.16b, v2.16b, #7
+        str             d3, [x0]
+        add             x0, x0, x3
+
+        ext             v3.16b, v2.16b, v2.16b, #6
+        str             d3, [x0]
+        add             x0, x0, x3
+
+        ext             v3.16b, v2.16b, v2.16b, #5
+        str             d3, [x0]
+        add             x0, x0, x3
+
+        ext             v3.16b, v2.16b, v2.16b, #4
+        str             d3, [x0]
+        add             x0, x0, x3
+
+        ext             v3.16b, v2.16b, v2.16b, #3
+        str             d3, [x0]
+        add             x0, x0, x3
+
+        ext             v3.16b, v2.16b, v2.16b, #2
+        str             d3, [x0]
+        add             x0, x0, x3
+
+        ext             v3.16b, v2.16b, v2.16b, #1
+        str             d3, [x0]
+
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_mode_18_16x16_8: Mode 18 prediction for 16x16 block
+// ref[-16..-1] = left[15..0] reversed, ref[0..15] = top[-1..14]
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_mode_18_16x16_8_neon, export=1
+        // Register-based approach using EXT to slide a window across {v0:v1}.
+        // v0 = left[15..0] (reversed), v1 = top[-1..14]
+        // Row k: need ref[-k..15-k] = EXT(v0, v1, #16-k) for k=1..15, row 0 = v1.
+
+        ldr             q0, [x2]                // left[0..15]
+        rev64           v0.16b, v0.16b          // reverse in 64-bit lanes
+        ext             v0.16b, v0.16b, v0.16b, #8  // v0 = left[15..0]
+        sub             x4, x1, #1
+        ldr             q1, [x4]                // v1 = top[-1..14]
+
+        // Row 0: ref[0..15] = v1
+        str             q1, [x0]
+        add             x0, x0, x3
+        // Row 1: EXT(v0, v1, #15) = {v0[15], v1[0..14]} = {left[0], top[-1..13]}
+        ext             v2.16b, v0.16b, v1.16b, #15
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 2
+        ext             v2.16b, v0.16b, v1.16b, #14
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 3
+        ext             v2.16b, v0.16b, v1.16b, #13
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 4
+        ext             v2.16b, v0.16b, v1.16b, #12
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 5
+        ext             v2.16b, v0.16b, v1.16b, #11
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 6
+        ext             v2.16b, v0.16b, v1.16b, #10
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 7
+        ext             v2.16b, v0.16b, v1.16b, #9
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 8
+        ext             v2.16b, v0.16b, v1.16b, #8
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 9
+        ext             v2.16b, v0.16b, v1.16b, #7
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 10
+        ext             v2.16b, v0.16b, v1.16b, #6
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 11
+        ext             v2.16b, v0.16b, v1.16b, #5
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 12
+        ext             v2.16b, v0.16b, v1.16b, #4
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 13
+        ext             v2.16b, v0.16b, v1.16b, #3
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 14
+        ext             v2.16b, v0.16b, v1.16b, #2
+        str             q2, [x0]
+        add             x0, x0, x3
+        // Row 15
+        ext             v2.16b, v0.16b, v1.16b, #1
+        str             q2, [x0]
+
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_mode_18_32x32_8: Mode 18 prediction for 32x32 block
+// ref[-32..-1] = left[31..0] reversed, ref[0..31] = top[-1..30]
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_mode_18_32x32_8_neon, export=1
+        // Use memory-based approach: load from combined memory layout
+        // For row y: load 32 bytes from top[-1-y..30-y]
+        // When y > 0, some bytes come from extended left reference
+
+        // Build ref array on stack (64 bytes: ref[-32..31])
+        sub             sp, sp, #64
+
+        // Store left[31..0] reversed at sp[0..31] (ref[-32..-1])
+        ldp             q0, q1, [x2]            // left[0..31]
+        rev64           v0.16b, v0.16b
+        ext             v0.16b, v0.16b, v0.16b, #8  // left[15..0]
+        rev64           v1.16b, v1.16b
+        ext             v1.16b, v1.16b, v1.16b, #8  // left[31..16]
+        stp             q1, q0, [sp]            // {left[31..16], left[15..0]}
+
+        // Store top[-1..30] at sp[32..63] (ref[0..31])
+        sub             x4, x1, #1
+        ldp             q2, q3, [x4]            // top[-1..30]
+        stp             q2, q3, [sp, #32]
+
+        // ref_base = sp + 32 (so ref[0] = sp[32], ref[-1] = sp[31], etc.)
+        add             x4, sp, #32
+
+        mov             w5, #0
+1:
+        // Row y: load from ref[-y..31-y] = &ref_base[-y]
+        sub             x6, x4, w5, sxtw
+        ldp             q0, q1, [x6]
+        stp             q0, q1, [x0]
+        add             x0, x0, x3
+
+        add             w5, w5, #1
+        cmp             w5, #32
+        b.lt            1b
+
+        add             sp, sp, #64
+        ret
+endfunc
