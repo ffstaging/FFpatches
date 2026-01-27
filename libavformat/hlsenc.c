@@ -1242,13 +1242,16 @@ static int parse_playlist(AVFormatContext *s, const char *url, VariantStream *vs
                 if (vs->has_subtitle) {
                     int vtt_index = extract_segment_number(line);
                     const char *vtt_basename = av_basename(vs->vtt_basename);
-                    int len = strlen(vtt_basename) + 11;
+                    const char *fmt = strstr(vtt_basename, "%d");
+                    int base_len = fmt ? (int)(fmt - vtt_basename) : strlen(vtt_basename);
+                    int len = base_len + 25;
                     char *vtt_file = av_mallocz(len);
                     if (!vtt_file) {
                         ret = AVERROR(ENOMEM);
                         goto fail;
                     }
-                    snprintf(vtt_file, len, vtt_basename, vtt_index);
+                    /* Use %.*s to safely copy base without format string interpretation */
+                    snprintf(vtt_file, len, "%.*s%d.vtt", base_len, vtt_basename, vtt_index);
                     ff_format_set_url(vs->vtt_avf, vtt_file);
                 }
 
