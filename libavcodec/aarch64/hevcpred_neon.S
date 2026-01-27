@@ -21,6 +21,7 @@
  */
 
 #include "libavutil/aarch64/asm.S"
+#include "neon.S"
 
 /* HEVC Intra Prediction functions
  *
@@ -1548,5 +1549,481 @@ function ff_hevc_pred_angular_v_pos_32x32_8_neon, export=1
         add             w9, w9, #1
         cmp             w9, #32
         b.lt            .Lv_pos_32x32_mode34_loop
+        ret
+endfunc
+
+// =============================================================================
+// Angular Prediction - Horizontal modes, positive angle (Mode 2-9)
+// =============================================================================
+
+const intra_pred_angle_h, align=4
+        .byte   32      // mode 2
+        .byte   26      // mode 3
+        .byte   21      // mode 4
+        .byte   17      // mode 5
+        .byte   13      // mode 6
+        .byte   9       // mode 7
+        .byte   5       // mode 8
+        .byte   2       // mode 9
+endconst
+
+// -----------------------------------------------------------------------------
+// pred_angular_h_pos_4x4_8: Horizontal reference positive angle prediction (mode 2-9)
+// Arguments:
+// x0: src
+// x1: top (unused for H reference modes)
+// x2: left
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_h_pos_4x4_8_neon, export=1
+        // Load angle from table
+        movrel          x6, intra_pred_angle_h
+        sub             w7, w5, #2              // mode - 2 (index into angle table)
+        ldrb            w8, [x6, w7, uxtw]      // angle = intra_pred_angle_h[mode-2]
+
+        // For mode 2 (angle=32), fact is always 0, optimize as pure copy
+        cmp             w8, #32
+        b.eq            .Lh_pos_4x4_mode2
+
+        // === Fully unrolled 4-column computation with transpose ===
+        str             d15, [sp, #-16]!
+        mov             w10, #0                 // angle_acc
+        movi            v15.16b, #32            // constant 32 for NEON-domain weight computation
+
+.macro h_pos_4x4_col dst
+        add             w10, w10, w8
+        asr             w11, w10, #5
+        and             w12, w10, #31
+        add             x13, x2, w11, sxtw
+        ldr             d18, [x13]
+        ldr             d19, [x13, #1]
+        dup             v17.8b, w12
+        sub             v16.8b, v15.8b, v17.8b
+        umull           v20.8h, v18.8b, v16.8b
+        umlal           v20.8h, v19.8b, v17.8b
+        rshrn           \dst\().8b, v20.8h, #5
+.endm
+        h_pos_4x4_col  v0
+        h_pos_4x4_col  v1
+        h_pos_4x4_col  v2
+        h_pos_4x4_col  v3
+.purgem h_pos_4x4_col
+
+        transpose_4x8B  v0, v1, v2, v3, v16, v17, v18, v19
+
+        str             s0, [x0]
+        add             x0, x0, x3
+        str             s1, [x0]
+        add             x0, x0, x3
+        str             s2, [x0]
+        add             x0, x0, x3
+        str             s3, [x0]
+        ldr             d15, [sp], #16
+        ret
+
+.Lh_pos_4x4_mode2:
+        // Mode 2: Row-wise optimization
+        // Row y contains left[y+1..y+4], which is a contiguous read + contiguous write
+        // Row 0: left[1..4], Row 1: left[2..5], Row 2: left[3..6], Row 3: left[4..7]
+        add             x5, x2, #1              // left + 1
+        ldr             s0, [x5]                // row 0: left[1..4]
+        ldr             s1, [x5, #1]            // row 1: left[2..5]
+        ldr             s2, [x5, #2]            // row 2: left[3..6]
+        ldr             s3, [x5, #3]            // row 3: left[4..7]
+        str             s0, [x0]
+        add             x0, x0, x3
+        str             s1, [x0]
+        add             x0, x0, x3
+        str             s2, [x0]
+        add             x0, x0, x3
+        str             s3, [x0]
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_h_pos_8x8_8: Horizontal reference positive angle prediction (mode 2-9)
+// Arguments:
+// x0: src
+// x1: top (unused for H reference modes)
+// x2: left
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_h_pos_8x8_8_neon, export=1
+        // Load angle from table
+        movrel          x6, intra_pred_angle_h
+        sub             w7, w5, #2
+        ldrb            w8, [x6, w7, uxtw]      // angle
+
+        // Mode 2 optimization
+        cmp             w8, #32
+        b.eq            .Lh_pos_8x8_mode2
+
+        // === Fully unrolled 8-column computation with transpose ===
+        str             d15, [sp, #-16]!
+        mov             w10, #0                 // angle_acc
+        movi            v15.16b, #32            // constant 32 for NEON-domain weight computation
+
+.macro h_pos_8x8_col dst
+        add             w10, w10, w8
+        asr             w11, w10, #5
+        and             w12, w10, #31
+        add             x13, x2, w11, sxtw
+        ldr             d18, [x13]
+        ldr             d19, [x13, #1]
+        dup             v17.8b, w12
+        sub             v16.8b, v15.8b, v17.8b
+        umull           v20.8h, v18.8b, v16.8b
+        umlal           v20.8h, v19.8b, v17.8b
+        rshrn           \dst\().8b, v20.8h, #5
+.endm
+        h_pos_8x8_col  v0
+        h_pos_8x8_col  v1
+        h_pos_8x8_col  v2
+        h_pos_8x8_col  v3
+        h_pos_8x8_col  v4
+        h_pos_8x8_col  v5
+        h_pos_8x8_col  v6
+        h_pos_8x8_col  v7
+.purgem h_pos_8x8_col
+
+        transpose_8x8B  v0, v1, v2, v3, v4, v5, v6, v7, v16, v17
+
+        str             d0, [x0]
+        add             x0, x0, x3
+        str             d1, [x0]
+        add             x0, x0, x3
+        str             d2, [x0]
+        add             x0, x0, x3
+        str             d3, [x0]
+        add             x0, x0, x3
+        str             d4, [x0]
+        add             x0, x0, x3
+        str             d5, [x0]
+        add             x0, x0, x3
+        str             d6, [x0]
+        add             x0, x0, x3
+        str             d7, [x0]
+        ldr             d15, [sp], #16
+        ret
+
+.Lh_pos_8x8_mode2:
+        // Mode 2: Row-wise optimization
+        // Row y contains left[y+1..y+8], contiguous read + contiguous write
+        add             x5, x2, #1              // left + 1
+        ldr             d0, [x5]                // row 0: left[1..8]
+        ldr             d1, [x5, #1]            // row 1: left[2..9]
+        str             d0, [x0]
+        add             x0, x0, x3
+        str             d1, [x0]
+        add             x0, x0, x3
+        ldr             d0, [x5, #2]            // row 2: left[3..10]
+        ldr             d1, [x5, #3]            // row 3: left[4..11]
+        str             d0, [x0]
+        add             x0, x0, x3
+        str             d1, [x0]
+        add             x0, x0, x3
+        ldr             d0, [x5, #4]            // row 4: left[5..12]
+        ldr             d1, [x5, #5]            // row 5: left[6..13]
+        str             d0, [x0]
+        add             x0, x0, x3
+        str             d1, [x0]
+        add             x0, x0, x3
+        ldr             d0, [x5, #6]            // row 6: left[7..14]
+        ldr             d1, [x5, #7]            // row 7: left[8..15]
+        str             d0, [x0]
+        add             x0, x0, x3
+        str             d1, [x0]
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_h_pos_16x16_8: Horizontal reference positive angle prediction (mode 2-9)
+// Arguments:
+// x0: src
+// x1: top (unused for H reference modes)
+// x2: left
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_h_pos_16x16_8_neon, export=1
+        // Load angle from table
+        movrel          x6, intra_pred_angle_h
+        sub             w7, w5, #2
+        ldrb            w8, [x6, w7, uxtw]
+
+        // Mode 2 optimization
+        cmp             w8, #32
+        b.eq            .Lh_pos_16x16_mode2
+
+        // === Two batches of 8 columns with 16-byte transpose ===
+        str             d15, [sp, #-16]!
+        mov             x15, x0                 // save base dst
+        movi            v15.16b, #32            // constant 32 for NEON-domain weight computation
+
+.macro h_pos_16x16_col dst
+        add             w10, w10, w8
+        asr             w11, w10, #5
+        and             w12, w10, #31
+        add             x13, x2, w11, sxtw
+        ldr             q18, [x13]
+        ldr             q19, [x13, #1]
+        dup             v17.16b, w12
+        sub             v16.16b, v15.16b, v17.16b
+        umull           v20.8h, v18.8b, v16.8b
+        umlal           v20.8h, v19.8b, v17.8b
+        rshrn           \dst\().8b, v20.8h, #5
+        umull2          v21.8h, v18.16b, v16.16b
+        umlal2          v21.8h, v19.16b, v17.16b
+        rshrn2          \dst\().16b, v21.8h, #5
+.endm
+
+        // Batch 1: columns 0-7
+        mov             w10, #0
+        h_pos_16x16_col v0
+        h_pos_16x16_col v1
+        h_pos_16x16_col v2
+        h_pos_16x16_col v3
+        h_pos_16x16_col v4
+        h_pos_16x16_col v5
+        h_pos_16x16_col v6
+        h_pos_16x16_col v7
+
+        mov             w9, w10                 // save angle_acc
+
+        transpose_8x16B v0, v1, v2, v3, v4, v5, v6, v7, v16, v17
+
+        // Store cols 0-7 of rows 0-7
+        mov             x16, x15
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().8b}, [x16], x3
+        .endr
+        // Store cols 0-7 of rows 8-15
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().d}[1], [x16], x3
+        .endr
+
+        // Batch 2: columns 8-15
+        mov             w10, w9
+        h_pos_16x16_col v0
+        h_pos_16x16_col v1
+        h_pos_16x16_col v2
+        h_pos_16x16_col v3
+        h_pos_16x16_col v4
+        h_pos_16x16_col v5
+        h_pos_16x16_col v6
+        h_pos_16x16_col v7
+.purgem h_pos_16x16_col
+
+        transpose_8x16B v0, v1, v2, v3, v4, v5, v6, v7, v16, v17
+
+        // Store cols 8-15 of rows 0-7
+        add             x16, x15, #8
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().8b}, [x16], x3
+        .endr
+        // Store cols 8-15 of rows 8-15
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().d}[1], [x16], x3
+        .endr
+
+        ldr             d15, [sp], #16
+        ret
+
+.Lh_pos_16x16_mode2:
+        // Mode 2: Row-wise optimization with loop unrolling
+        // Row y contains left[y+1..y+16], contiguous read + contiguous write
+        add             x5, x2, #1              // left + 1
+
+        // Rows 0-3
+        ldr             q0, [x5]
+        ldr             q1, [x5, #1]
+        ldr             q2, [x5, #2]
+        ldr             q3, [x5, #3]
+        str             q0, [x0]
+        add             x0, x0, x3
+        str             q1, [x0]
+        add             x0, x0, x3
+        str             q2, [x0]
+        add             x0, x0, x3
+        str             q3, [x0]
+        add             x0, x0, x3
+
+        // Rows 4-7
+        ldr             q0, [x5, #4]
+        ldr             q1, [x5, #5]
+        ldr             q2, [x5, #6]
+        ldr             q3, [x5, #7]
+        str             q0, [x0]
+        add             x0, x0, x3
+        str             q1, [x0]
+        add             x0, x0, x3
+        str             q2, [x0]
+        add             x0, x0, x3
+        str             q3, [x0]
+        add             x0, x0, x3
+
+        // Rows 8-11
+        ldr             q0, [x5, #8]
+        ldr             q1, [x5, #9]
+        ldr             q2, [x5, #10]
+        ldr             q3, [x5, #11]
+        str             q0, [x0]
+        add             x0, x0, x3
+        str             q1, [x0]
+        add             x0, x0, x3
+        str             q2, [x0]
+        add             x0, x0, x3
+        str             q3, [x0]
+        add             x0, x0, x3
+
+        // Rows 12-15
+        ldr             q0, [x5, #12]
+        ldr             q1, [x5, #13]
+        ldr             q2, [x5, #14]
+        ldr             q3, [x5, #15]
+        str             q0, [x0]
+        add             x0, x0, x3
+        str             q1, [x0]
+        add             x0, x0, x3
+        str             q2, [x0]
+        add             x0, x0, x3
+        str             q3, [x0]
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_h_pos_32x32_8: Horizontal reference positive angle prediction (mode 2-9)
+// Arguments:
+// x0: src
+// x1: top (unused for H reference modes)
+// x2: left
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_h_pos_32x32_8_neon, export=1
+        // Load angle from table
+        movrel          x6, intra_pred_angle_h
+        sub             w7, w5, #2
+        ldrb            w8, [x6, w7, uxtw]
+
+        // Mode 2 optimization
+        cmp             w8, #32
+        b.eq            .Lh_pos_32x32_mode2
+
+        // === 4 batches of 8 columns with 32-byte transpose ===
+        str             d15, [sp, #-16]!
+        mov             x15, x0                 // save base dst
+        movi            v15.16b, #32            // constant 32 for NEON-domain weight computation
+
+.macro h_pos_32_col dst_hi, dst_lo
+        add             w10, w10, w8
+        asr             w11, w10, #5
+        and             w12, w10, #31
+        add             x13, x2, w11, sxtw
+        ldr             q18, [x13]              // ref rows 0-15
+        ldr             q19, [x13, #1]
+        ldr             q20, [x13, #16]         // ref rows 16-31
+        ldr             q21, [x13, #17]
+        dup             v17.16b, w12
+        sub             v16.16b, v15.16b, v17.16b
+        umull           v22.8h, v18.8b, v16.8b
+        umlal           v22.8h, v19.8b, v17.8b
+        rshrn           \dst_hi\().8b, v22.8h, #5
+        umull2          v23.8h, v18.16b, v16.16b
+        umlal2          v23.8h, v19.16b, v17.16b
+        rshrn2          \dst_hi\().16b, v23.8h, #5
+        umull           v22.8h, v20.8b, v16.8b
+        umlal           v22.8h, v21.8b, v17.8b
+        rshrn           \dst_lo\().8b, v22.8h, #5
+        umull2          v23.8h, v20.16b, v16.16b
+        umlal2          v23.8h, v21.16b, v17.16b
+        rshrn2          \dst_lo\().16b, v23.8h, #5
+.endm
+
+        mov             w10, #0                 // angle_acc
+        mov             x9, #0                  // column byte offset
+
+.Lh_pos_32x32_batch:
+        h_pos_32_col    v0, v24
+        h_pos_32_col    v1, v25
+        h_pos_32_col    v2, v26
+        h_pos_32_col    v3, v27
+        h_pos_32_col    v4, v28
+        h_pos_32_col    v5, v29
+        h_pos_32_col    v6, v30
+        h_pos_32_col    v7, v31
+
+        mov             w11, w10                // save angle_acc
+
+        // Transpose upper half (rows 0-15)
+        transpose_8x16B v0, v1, v2, v3, v4, v5, v6, v7, v16, v17
+        // Transpose lower half (rows 16-31)
+        transpose_8x16B v24, v25, v26, v27, v28, v29, v30, v31, v16, v17
+
+        add             x16, x15, x9
+
+        // Rows 0-7
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().8b}, [x16], x3
+        .endr
+        // Rows 8-15
+        .irp reg, v0, v1, v2, v3, v4, v5, v6, v7
+        st1             {\reg\().d}[1], [x16], x3
+        .endr
+        // Rows 16-23
+        .irp reg, v24, v25, v26, v27, v28, v29, v30, v31
+        st1             {\reg\().8b}, [x16], x3
+        .endr
+        // Rows 24-31
+        .irp reg, v24, v25, v26, v27, v28, v29, v30, v31
+        st1             {\reg\().d}[1], [x16], x3
+        .endr
+
+        mov             w10, w11                // restore angle_acc
+        add             x9, x9, #8
+        cmp             x9, #32
+        b.lt            .Lh_pos_32x32_batch
+
+.purgem h_pos_32_col
+
+        ldr             d15, [sp], #16
+        ret
+
+.Lh_pos_32x32_mode2:
+        // Mode 2: Row-wise optimization with loop unrolling (4 rows per iteration)
+        // Row y contains left[y+1..y+32], contiguous read + contiguous write
+        add             x5, x2, #1              // left + 1
+        mov             w6, #0                  // row counter (0, 4, 8, ... 28)
+.Lh_pos_32x32_mode2_row4:
+        // Process 4 rows at a time
+        add             x7, x5, w6, uxtw        // base for row y
+        ldp             q0, q1, [x7]            // row y
+        stp             q0, q1, [x0]
+        add             x0, x0, x3
+
+        add             x8, x7, #1              // base for row y+1
+        ldp             q0, q1, [x8]
+        stp             q0, q1, [x0]
+        add             x0, x0, x3
+
+        add             x8, x7, #2              // base for row y+2
+        ldp             q0, q1, [x8]
+        stp             q0, q1, [x0]
+        add             x0, x0, x3
+
+        add             x8, x7, #3              // base for row y+3
+        ldp             q0, q1, [x8]
+        stp             q0, q1, [x0]
+        add             x0, x0, x3
+
+        add             w6, w6, #4
+        cmp             w6, #32
+        b.lt            .Lh_pos_32x32_mode2_row4
         ret
 endfunc
