@@ -1246,3 +1246,307 @@ function ff_hevc_pred_angular_mode_18_32x32_8_neon, export=1
         add             sp, sp, #64
         ret
 endfunc
+
+// =============================================================================
+// Angular Prediction - Vertical reference modes (Mode 27-34)
+// =============================================================================
+
+// Angle table for V reference positive angles (mode 27-34)
+// angle = intra_pred_angle_v[mode - 27]
+const intra_pred_angle_v, align=4
+        .byte   2       // mode 27
+        .byte   5       // mode 28
+        .byte   9       // mode 29
+        .byte   13      // mode 30
+        .byte   17      // mode 31
+        .byte   21      // mode 32
+        .byte   26      // mode 33
+        .byte   32      // mode 34
+endconst
+
+// -----------------------------------------------------------------------------
+// pred_angular_v_pos_4x4_8: Vertical reference positive angle prediction (mode 27-34)
+// Arguments:
+// x0: src
+// x1: top
+// x2: left (unused for V reference modes)
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_v_pos_4x4_8_neon, export=1
+        // Load angle from table
+        movrel          x6, intra_pred_angle_v
+        sub             w7, w5, #27            // mode - 27 (index into angle table)
+        ldrsb           w8, [x6, w7, sxtw]     // angle = intra_pred_angle_v[mode-27]
+
+        // For mode 34 (angle=32), fact is always 0, optimize as pure copy
+        cmp             w8, #32
+        b.eq            .Lv_pos_4x4_mode34
+
+        mov             w10, #0                 // angle_acc = 0
+        movi            v18.16b, #32            // constant 32 for NEON-domain weight computation
+
+.macro v_pos_4x4_row
+        add             w10, w10, w8            // angle_acc = (y+1) * angle
+        asr             w11, w10, #5            // idx = angle_acc >> 5
+        and             w12, w10, #31           // fact = angle_acc & 31
+
+        // Load reference pixels top[idx..idx+4]
+        add             x13, x1, w11, sxtw      // x13 = top + idx
+        ldr             s0, [x13]
+        ldr             s1, [x13, #1]
+
+        // Unconditional interpolation: ((32-fact)*ref[idx+1] + fact*ref[idx+2] + 16) >> 5
+        // When fact=0, this simplifies to ref[idx+1] exactly due to rounding in rshrn.
+        dup             v17.8b, w12             // broadcast fact
+        sub             v16.8b, v18.8b, v17.8b
+
+        umull           v20.8h, v0.8b, v16.8b   // (32-fact) * ref[idx+1]
+        umlal           v20.8h, v1.8b, v17.8b   // + fact * ref[idx+2]
+        rshrn           v0.8b, v20.8h, #5       // (result + 16) >> 5
+
+        st1             {v0.s}[0], [x0], x3
+.endm
+        v_pos_4x4_row
+        v_pos_4x4_row
+        v_pos_4x4_row
+        v_pos_4x4_row
+.purgem v_pos_4x4_row
+
+        ret
+
+.Lv_pos_4x4_mode34:
+        // Mode 34: angle=32, each row copies from top[y+1..y+4]
+        // Row 0: top[1..4], Row 1: top[2..5], Row 2: top[3..6], Row 3: top[4..7]
+        ldr             s0, [x1, #1]
+        st1             {v0.s}[0], [x0], x3
+        ldr             s0, [x1, #2]
+        st1             {v0.s}[0], [x0], x3
+        ldr             s0, [x1, #3]
+        st1             {v0.s}[0], [x0], x3
+        ldr             s0, [x1, #4]
+        str             s0, [x0]
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_v_pos_8x8_8: Vertical reference positive angle prediction (mode 27-34)
+// Arguments:
+// x0: src
+// x1: top
+// x2: left (unused for V reference modes)
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_v_pos_8x8_8_neon, export=1
+        // Load angle from table
+        movrel          x6, intra_pred_angle_v
+        sub             w7, w5, #27            // mode - 27 (index into angle table)
+        ldrsb           w8, [x6, w7, sxtw]     // angle = intra_pred_angle_v[mode-27]
+
+        // Mode 34 optimization
+        cmp             w8, #32
+        b.eq            .Lv_pos_8x8_mode34
+
+        mov             w9, #0                  // y = 0
+        mov             w10, #0                 // angle_acc = 0
+        movi            v18.16b, #32            // constant 32 for NEON-domain weight computation
+
+.Lv_pos_8x8_row_loop:
+        add             w10, w10, w8            // angle_acc = (y+1) * angle
+        asr             w11, w10, #5            // idx
+        and             w12, w10, #31           // fact
+
+        add             x13, x1, w11, sxtw
+        ldr             d0, [x13]               // ref[idx+1..idx+8]
+        ldr             d1, [x13, #1]           // ref[idx+2..idx+9]
+
+        // Unconditional interpolation: ((32-fact)*ref[idx+1] + fact*ref[idx+2] + 16) >> 5
+        dup             v17.8b, w12
+        sub             v16.8b, v18.8b, v17.8b
+
+        umull           v20.8h, v0.8b, v16.8b
+        umlal           v20.8h, v1.8b, v17.8b
+        rshrn           v0.8b, v20.8h, #5
+
+        st1             {v0.8b}, [x0], x3
+
+        add             w9, w9, #1
+        cmp             w9, #8
+        b.lt            .Lv_pos_8x8_row_loop
+
+        ret
+
+.Lv_pos_8x8_mode34:
+        // Mode 34: each row copies from top[y+1..y+8]
+        ldr             d0, [x1, #1]
+        st1             {v0.8b}, [x0], x3
+        ldr             d0, [x1, #2]
+        st1             {v0.8b}, [x0], x3
+        ldr             d0, [x1, #3]
+        st1             {v0.8b}, [x0], x3
+        ldr             d0, [x1, #4]
+        st1             {v0.8b}, [x0], x3
+        ldr             d0, [x1, #5]
+        st1             {v0.8b}, [x0], x3
+        ldr             d0, [x1, #6]
+        st1             {v0.8b}, [x0], x3
+        ldr             d0, [x1, #7]
+        st1             {v0.8b}, [x0], x3
+        ldr             d0, [x1, #8]
+        str             d0, [x0]
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_v_pos_16x16_8: Vertical reference positive angle prediction (mode 27-34)
+// Arguments:
+// x0: src
+// x1: top
+// x2: left (unused for V reference modes)
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_v_pos_16x16_8_neon, export=1
+        // Load angle from table
+        movrel          x6, intra_pred_angle_v
+        sub             w7, w5, #27            // mode - 27 (index into angle table)
+        ldrsb           w8, [x6, w7, sxtw]     // angle = intra_pred_angle_v[mode-27]
+
+        // Mode 34 optimization
+        cmp             w8, #32
+        b.eq            .Lv_pos_16x16_mode34
+
+        mov             w9, #0                  // y = 0
+        mov             w10, #0                 // angle_acc = 0
+        movi            v18.16b, #32            // constant 32 for NEON-domain weight computation
+
+.Lv_pos_16x16_row_loop:
+        add             w10, w10, w8            // angle_acc = (y+1) * angle
+        asr             w11, w10, #5            // idx
+        and             w12, w10, #31           // fact
+
+        add             x13, x1, w11, sxtw
+        ldr             q0, [x13]               // ref[idx+1..idx+16]
+        ldr             q1, [x13, #1]           // ref[idx+2..idx+17]
+
+        // Unconditional interpolation: ((32-fact)*ref[idx+1] + fact*ref[idx+2] + 16) >> 5
+        dup             v17.16b, w12
+        sub             v16.16b, v18.16b, v17.16b
+
+        // Low 8 bytes
+        umull           v20.8h, v0.8b, v16.8b
+        umlal           v20.8h, v1.8b, v17.8b
+        rshrn           v2.8b, v20.8h, #5
+
+        // High 8 bytes
+        umull2          v21.8h, v0.16b, v16.16b
+        umlal2          v21.8h, v1.16b, v17.16b
+        rshrn2          v2.16b, v21.8h, #5
+
+        st1             {v2.16b}, [x0], x3
+
+        add             w9, w9, #1
+        cmp             w9, #16
+        b.lt            .Lv_pos_16x16_row_loop
+
+        ret
+
+.Lv_pos_16x16_mode34:
+        // Mode 34: each row copies from top[y+1..y+16]
+        mov             w9, #0
+.Lv_pos_16x16_mode34_loop:
+        add             w10, w9, #1
+        add             x13, x1, w10, sxtw
+        ldr             q0, [x13]
+        st1             {v0.16b}, [x0], x3
+        add             w9, w9, #1
+        cmp             w9, #16
+        b.lt            .Lv_pos_16x16_mode34_loop
+        ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_v_pos_32x32_8: Vertical reference positive angle prediction (mode 27-34)
+// Arguments:
+// x0: src
+// x1: top
+// x2: left (unused for V reference modes)
+// x3: stride
+// w4: c_idx
+// w5: mode
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_v_pos_32x32_8_neon, export=1
+        // Load angle from table
+        movrel          x6, intra_pred_angle_v
+        sub             w7, w5, #27            // mode - 27 (index into angle table)
+        ldrsb           w8, [x6, w7, sxtw]     // angle = intra_pred_angle_v[mode-27]
+
+        // Mode 34 optimization
+        cmp             w8, #32
+        b.eq            .Lv_pos_32x32_mode34
+
+        mov             w9, #0                  // y = 0
+        mov             w10, #0                 // angle_acc = 0
+        movi            v18.16b, #32            // constant 32 for NEON-domain weight computation
+
+.Lv_pos_32x32_row_loop:
+        add             w10, w10, w8            // angle_acc = (y+1) * angle
+        asr             w11, w10, #5            // idx
+        and             w12, w10, #31           // fact
+
+        add             x13, x1, w11, sxtw
+
+        // Load 32 bytes + 1 for interpolation (unconditionally)
+        ldr             q0, [x13]               // ref[idx+1..idx+16]
+        ldr             q1, [x13, #1]           // ref[idx+2..idx+17]
+        ldr             q2, [x13, #16]          // ref[idx+17..idx+32]
+        ldr             q3, [x13, #17]          // ref[idx+18..idx+33]
+
+        // Unconditional interpolation: ((32-fact)*ref[idx+1] + fact*ref[idx+2] + 16) >> 5
+        dup             v17.16b, w12
+        sub             v16.16b, v18.16b, v17.16b
+
+        // First 16 bytes
+        umull           v20.8h, v0.8b, v16.8b
+        umlal           v20.8h, v1.8b, v17.8b
+        rshrn           v4.8b, v20.8h, #5
+
+        umull2          v21.8h, v0.16b, v16.16b
+        umlal2          v21.8h, v1.16b, v17.16b
+        rshrn2          v4.16b, v21.8h, #5
+
+        // Second 16 bytes
+        umull           v22.8h, v2.8b, v16.8b
+        umlal           v22.8h, v3.8b, v17.8b
+        rshrn           v5.8b, v22.8h, #5
+
+        umull2          v23.8h, v2.16b, v16.16b
+        umlal2          v23.8h, v3.16b, v17.16b
+        rshrn2          v5.16b, v23.8h, #5
+
+        st1             {v4.16b, v5.16b}, [x0], x3
+
+        add             w9, w9, #1
+        cmp             w9, #32
+        b.lt            .Lv_pos_32x32_row_loop
+
+        ret
+
+.Lv_pos_32x32_mode34:
+        // Mode 34: each row copies from top[y+1..y+32]
+        mov             w9, #0
+.Lv_pos_32x32_mode34_loop:
+        add             w10, w9, #1
+        add             x13, x1, w10, sxtw
+        ldr             q0, [x13]
+        ldr             q1, [x13, #16]
+        st1             {v0.16b, v1.16b}, [x0], x3
+        add             w9, w9, #1
+        cmp             w9, #32
+        b.lt            .Lv_pos_32x32_mode34_loop
+        ret
+endfunc
