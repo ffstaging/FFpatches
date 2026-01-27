@@ -755,3 +755,269 @@ const planar_weights_32, align=4
         .byte   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
         .byte   17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
 endconst
+
+// =============================================================================
+// Angular Prediction
+// =============================================================================
+	
+// -----------------------------------------------------------------------------
+// pred_angular_mode_10_8: Horizontal prediction (mode 10)
+// Caller must ensure top[-1] and left[-1] are valid (used for edge smoothing
+// when c_idx == 0 and size < 32).
+// Arguments:
+// x0: src
+// x1: top (unused for H reference modes)
+// x2: left
+// x3: stride
+// w4: c_idx
+// w5: log2_size
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_mode_10_8_neon, export=1
+        cmp             w5, #2
+        b.eq            .Lmode10_4x4
+        cmp             w5, #3
+        b.eq            .Lmode10_8x8
+        cmp             w5, #4
+        b.eq            .Lmode10_16x16
+
+        // --- size 32 ---
+        mov             w7, #0
+.Lmode10_32x32_row:
+        ldrb            w8, [x2, w7, uxtw]     // left[y]
+        dup             v0.16b, w8
+        st1             {v0.16b}, [x0]
+        str             q0, [x0, #16]
+        add             x0, x0, x3
+        add             w7, w7, #1
+        cmp             w7, #32
+        b.lt            .Lmode10_32x32_row
+        // size 32 never does edge smoothing
+        ret
+
+        // --- size 16 ---
+.Lmode10_16x16:
+        mov             x6, x0                  // save src base
+        mov             w7, #0
+.Lmode10_16x16_row:
+        ldrb            w8, [x2, w7, uxtw]
+        dup             v0.16b, w8
+        st1             {v0.16b}, [x0], x3
+        add             w7, w7, #1
+        cmp             w7, #16
+        b.lt            .Lmode10_16x16_row
+        b               .Lmode10_edge_smooth
+
+        // --- size 8, fully unrolled ---
+.Lmode10_8x8:
+        mov             x6, x0                  // save src base
+.irp idx, 0, 1, 2, 3, 4, 5, 6, 7
+        ldrb            w8, [x2, #\idx]
+        dup             v0.8b, w8
+        st1             {v0.8b}, [x0], x3
+.endr
+        b               .Lmode10_edge_smooth
+
+        // --- size 4, fully unrolled ---
+.Lmode10_4x4:
+        mov             x6, x0                  // save src base
+.irp idx, 0, 1, 2, 3
+        ldrb            w8, [x2, #\idx]
+        dup             v0.8b, w8
+        str             s0, [x0]
+        add             x0, x0, x3
+.endr
+
+.Lmode10_edge_smooth:
+        cbnz            w4, 9f
+
+        mov             x0, x6                  // restore src base
+
+        ldrb            w8, [x2]                // left[0]
+        dup             v5.16b, w8
+
+        ldrb            w9, [x1, #-1]           // top[-1]
+        dup             v1.16b, w9
+        uxtl            v1.8h, v1.8b
+
+        cmp             w5, #2
+        b.eq            .Lmode10_smooth_4
+        cmp             w5, #3
+        b.eq            .Lmode10_smooth_8
+
+        // size 16 edge smoothing
+        ldr             q2, [x1]                // top[0..15]
+        uxtl            v3.8h, v2.8b
+        uxtl2           v4.8h, v2.16b
+        sub             v3.8h, v3.8h, v1.8h
+        sub             v4.8h, v4.8h, v1.8h
+        sshr            v3.8h, v3.8h, #1
+        sshr            v4.8h, v4.8h, #1
+        uaddw           v3.8h, v3.8h, v5.8b
+        uaddw2          v4.8h, v4.8h, v5.16b
+        sqxtun          v2.8b, v3.8h
+        sqxtun2         v2.16b, v4.8h
+        st1             {v2.16b}, [x0]
+        ret
+
+.Lmode10_smooth_4:
+        ldr             s2, [x1]
+        uxtl            v3.8h, v2.8b
+        sub             v3.8h, v3.8h, v1.8h
+        sshr            v3.8h, v3.8h, #1
+        uaddw           v3.8h, v3.8h, v5.8b
+        sqxtun          v2.8b, v3.8h
+        st1             {v2.s}[0], [x0]
+        ret
+
+.Lmode10_smooth_8:
+        ldr             d2, [x1]
+        uxtl            v3.8h, v2.8b
+        sub             v3.8h, v3.8h, v1.8h
+        sshr            v3.8h, v3.8h, #1
+        uaddw           v3.8h, v3.8h, v5.8b
+        sqxtun          v2.8b, v3.8h
+        st1             {v2.8b}, [x0]
+
+9:      ret
+endfunc
+
+// -----------------------------------------------------------------------------
+// pred_angular_mode_26_8: Vertical prediction (mode 26)
+// Caller must ensure top[-1] and left[-1] are valid (used for edge smoothing
+// when c_idx == 0 and size < 32).
+// Arguments:
+// x0: src
+// x1: top
+// x2: left (unused for V reference modes)
+// x3: stride
+// w4: c_idx
+// w5: log2_size
+// -----------------------------------------------------------------------------
+function ff_hevc_pred_angular_mode_26_8_neon, export=1
+        mov             w6, #1
+        lsl             w6, w6, w5      // size
+        mov             x7, x0          // x7 = write pointer (preserve x0)
+
+        cmp             w5, #2
+        b.ne            3f
+        // size 4: copy top[0..3], 4 rows
+        ldr             s0, [x1]        // Load top[0..3] once
+        mov             w9, w6          // Loop counter = 4
+
+104:    st1             {v0.s}[0], [x7], x3 // Store 4 bytes, increment stride
+        subs            w9, w9, #1
+        b.gt            104b
+        b               .Lmode26_edge_smooth
+
+3:      cmp             w5, #3
+        b.ne            4f
+        // size 8: copy top[0..7], 8 rows
+        ldr             d0, [x1]        // Load top[0..7] once
+        mov             w9, w6          // Loop counter = 8
+
+108:    st1             {v0.8b}, [x7], x3
+        subs            w9, w9, #1
+        b.gt            108b
+        b               .Lmode26_edge_smooth
+
+4:      cmp             w5, #4
+        b.ne            0f
+        // size 16: copy top[0..15], 16 rows
+        ldr             q0, [x1]        // Load top[0..15] once
+        mov             w9, w6          // Loop counter = 16
+
+116:    st1             {v0.16b}, [x7], x3
+        subs            w9, w9, #1
+        b.gt            116b
+        b               .Lmode26_edge_smooth
+
+0:      // size >= 32: load and copy
+        ldp             q0, q1, [x1]    // Load top[0..31] once
+        mov             x7, x0
+        mov             w9, w6          // Loop counter = size
+
+132:    stp             q0, q1, [x7]    // Store 32 bytes
+        add             x7, x7, x3      // Advance output pointer
+        subs            w9, w9, #1
+        b.gt            132b
+
+.Lmode26_edge_smooth:
+        cbnz            w4, 9f
+        cmp             w5, #5
+        b.ge            9f
+
+        // Restore x0 to original src (x7 has moved to src + size*stride)
+        mul             x9, x3, x6
+        sub             x0, x7, x9              // x0 = x7 - size*stride = original src
+
+        ldrb            w8, [x1]
+        ldrb            w9, [x2, #-1]
+        dup             v5.16b, w8              // v5 = top[0] (keep bytes for uaddw)
+        dup             v1.16b, w9
+        uxtl            v1.8h, v1.8b            // Unsigned extend left[-1] to halfwords in v1
+
+        cmp             w5, #2
+        b.eq            224f
+        cmp             w5, #3
+        b.eq            228f
+
+        ldr             q2, [x2]
+        uxtl            v3.8h, v2.8b           // Unsigned extend left[0..7] to halfwords
+        uxtl2           v4.8h, v2.16b          // Unsigned extend left[8..15] to halfwords
+        sub             v3.8h, v3.8h, v1.8h    // Subtract left[-1] (result can be negative)
+        sub             v4.8h, v4.8h, v1.8h
+        sshr            v3.8h, v3.8h, #1       // Arithmetic shift right by 1
+        sshr            v4.8h, v4.8h, #1
+        uaddw           v3.8h, v3.8h, v5.8b    // Add top[0] from v5 (unsigned extend, top[0] is unsigned)
+        uaddw2          v4.8h, v4.8h, v5.16b
+        sqxtun          v3.8b, v3.8h           // Saturate back to bytes
+        sqxtun2         v3.16b, v4.8h
+        
+        st1             {v3.b}[0], [x0], x3
+        st1             {v3.b}[1], [x0], x3
+        st1             {v3.b}[2], [x0], x3
+        st1             {v3.b}[3], [x0], x3
+        st1             {v3.b}[4], [x0], x3
+        st1             {v3.b}[5], [x0], x3
+        st1             {v3.b}[6], [x0], x3
+        st1             {v3.b}[7], [x0], x3
+        st1             {v3.b}[8], [x0], x3
+        st1             {v3.b}[9], [x0], x3
+        st1             {v3.b}[10], [x0], x3
+        st1             {v3.b}[11], [x0], x3
+        st1             {v3.b}[12], [x0], x3
+        st1             {v3.b}[13], [x0], x3
+        st1             {v3.b}[14], [x0], x3
+        st1             {v3.b}[15], [x0], x3
+        b               9f
+        
+224:    ldr             s2, [x2]
+        uxtl            v3.8h, v2.8b           // Unsigned extend left[0..3] to halfwords
+        sub             v3.8h, v3.8h, v1.8h    // Subtract left[-1] (result can be negative)
+        sshr            v3.8h, v3.8h, #1       // Arithmetic shift right by 1
+        uaddw           v3.8h, v3.8h, v5.8b    // Add top[0] from v5 (unsigned extend, top[0] is unsigned)
+        sqxtun          v3.8b, v3.8h           // Saturate back to bytes
+        st1             {v3.b}[0], [x0], x3
+        st1             {v3.b}[1], [x0], x3
+        st1             {v3.b}[2], [x0], x3
+        st1             {v3.b}[3], [x0], x3
+        b               9f
+
+228:    ldr             d2, [x2]
+        uxtl            v3.8h, v2.8b           // Unsigned extend left[0..7] to halfwords
+        sub             v3.8h, v3.8h, v1.8h    // Subtract left[-1] (result can be negative)
+        sshr            v3.8h, v3.8h, #1       // Arithmetic shift right by 1
+        uaddw           v3.8h, v3.8h, v5.8b    // Add top[0] from v5 (unsigned extend, top[0] is unsigned)
+        sqxtun          v3.8b, v3.8h           // Saturate back to bytes
+        st1             {v3.b}[0], [x0], x3
+        st1             {v3.b}[1], [x0], x3
+        st1             {v3.b}[2], [x0], x3
+        st1             {v3.b}[3], [x0], x3
+        st1             {v3.b}[4], [x0], x3
+        st1             {v3.b}[5], [x0], x3
+        st1             {v3.b}[6], [x0], x3
+        st1             {v3.b}[7], [x0], x3
+        b               9f
+
+9:      ret
+endfunc
