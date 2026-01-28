@@ -102,6 +102,12 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     uint8_t *dst[AV_VIDEO_MAX_PLANES] = { 0 };
     struct SwsContext *sws = NULL;
     const AVPixFmtDescriptor *desc_src, *desc_dst;
+    SwsFilter *src_filter = NULL;
+    SwsFilter *dst_filter = NULL;
+    int use_filter = 0;
+    float filter_luma_gblur = 0, filter_chroma_gblur = 0;
+    float filter_luma_sharpen = 0, filter_chroma_sharpen = 0;
+    float filter_chroma_hshift = 0, filter_chroma_vshift = 0;
 
     if (size > 128) {
         GetByteContext gbc;
@@ -140,6 +146,24 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         flags64 = bytestream2_get_le64(&gbc);
         if (flags64 & 0x10)
             av_force_cpu_flags(0);
+
+        use_filter = flags64 & 0x20;
+        if (use_filter) {
+            const uint32_t param_max = 0xFF;
+            uint32_t luma_gblur = bytestream2_get_le32(&gbc) % param_max;
+            uint32_t chroma_gblur = bytestream2_get_le32(&gbc) % param_max;
+            uint32_t luma_sharpen = bytestream2_get_le32(&gbc) % param_max;
+            uint32_t chroma_sharpen = bytestream2_get_le32(&gbc) % param_max;
+            uint32_t chroma_hshift = bytestream2_get_le32(&gbc) % param_max;
+            uint32_t chroma_vshift = bytestream2_get_le32(&gbc) % param_max;
+
+            filter_luma_gblur = (float)luma_gblur / param_max * 200.0f - 100.0f;
+            filter_chroma_gblur = (float)chroma_gblur / param_max * 200.0f - 100.0f;
+            filter_luma_sharpen = (float)luma_sharpen / param_max * 200.0f - 100.0f;
+            filter_chroma_sharpen = (float)chroma_sharpen / param_max * 200.0f - 100.0f;
+            filter_chroma_hshift = (float)chroma_hshift / param_max * 200.0f - 100.0f;
+            filter_chroma_vshift = (float)chroma_vshift / param_max * 200.0f - 100.0f;
+        }
 
         if (av_image_check_size(srcW, srcH, srcFormat, NULL) < 0)
             srcW = srcH = 23;
@@ -186,7 +210,16 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     av_opt_set_int(sws, "dst_format", dstFormat, 0);
     av_opt_set(sws, "alphablend", "none", 0);
 
-    ret = sws_init_context(sws, NULL, NULL);
+    if (use_filter) {
+        src_filter = sws_getDefaultFilter(filter_luma_gblur, filter_chroma_gblur,
+                                          filter_luma_sharpen, filter_chroma_sharpen,
+                                          filter_chroma_hshift, filter_chroma_vshift, 0);
+        dst_filter = sws_getDefaultFilter(filter_luma_gblur, filter_chroma_gblur,
+                                          filter_luma_sharpen, filter_chroma_sharpen,
+                                          filter_chroma_hshift, filter_chroma_vshift, 0);
+    }
+
+    ret = sws_init_context(sws, src_filter, dst_filter);
     if (ret < 0)
         goto end;
 
@@ -194,6 +227,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     sws_scale(sws, (const uint8_t * const*)src, srcStride, 0, srcH, dst, dstStride);
 
 end:
+    sws_freeFilter(dst_filter);
+    sws_freeFilter(src_filter);
     sws_freeContext(sws);
 
     free_plane(src);
