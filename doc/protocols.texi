@@ -1567,6 +1567,31 @@ If set to any value, listen for an incoming connection. Outgoing connection is d
 Set the maximum number of streams. By default no limit is set.
 @end table
 
+@section shared
+
+Thread-safe, persistent, cross-process cache wrapper for input streams. Caches
+the input stream to a given path. This is similar to @ref{cache}, but with a
+persistent cache on disk that may be shared between multiple processes or
+demuxers, even concurrently.
+
+The accepted options are:
+@table @option
+
+@item shared_path
+Path to the shared cache base filename. This option is required.
+
+@item block_shift
+Shift factor (log2) of the block size used for internal reads/writes. Defaults
+to 15, i.e. 32KB blocks. This value must agree between mulitple processes,
+otherwise an error is raised.
+
+@end table
+
+URL Syntax is
+@example
+shared:@var{URL}
+@end example
+
 @section srt
 
 Haivision Secure Reliable Transport Protocol via libsrt.
