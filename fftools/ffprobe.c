@@ -1695,8 +1695,6 @@ static int read_interval_packets(AVTextFormatContext *tfc, InputFile *ifile,
         pkt->stream_index = i;
         if (do_read_frames) {
             while (process_frame(tfc, ifile, frame, pkt, &(int){1}) > 0);
-            if (ifile->streams[i].dec_ctx)
-                avcodec_flush_buffers(ifile->streams[i].dec_ctx);
         }
     }
 
@@ -1710,6 +1708,18 @@ end:
     return ret;
 }
 
+static void flush_buffers(InputFile *ifile)
+{
+    int i;
+
+    if (!do_read_frames)
+        return;
+    for (i = 0; i < ifile->nb_streams; i++) {
+        if (ifile->streams[i].dec_ctx)
+            avcodec_flush_buffers(ifile->streams[i].dec_ctx);
+    }
+}
+
 static int read_packets(AVTextFormatContext *tfc, InputFile *ifile)
 {
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
@@ -1721,6 +1731,10 @@ static int read_packets(AVTextFormatContext *tfc, InputFile *ifile)
         ret = read_interval_packets(tfc, ifile, &interval, &cur_ts);
     } else {
         for (i = 0; i < read_intervals_nb; i++) {
+            /* flushing buffers can reset parts of the private context which may be
+             * readen by show_streams(), so only flush between each read_interval */
+            if (i)
+                flush_buffers(ifile);
             ret = read_interval_packets(tfc, ifile, &read_intervals[i], &cur_ts);
             if (ret < 0)
                 break;
