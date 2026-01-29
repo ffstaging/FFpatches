@@ -9399,6 +9399,174 @@ fail:
     return ret;
 }
 
+/* Based on ISO 14496-12:2021(E), section 12.2.7 Audio stream loudness */
+static int mov_read_loudness_base(MOVContext *c, AVIOContext *pb, MOVAtom atom,
+    const char *scope)
+{
+    AVStream *st = get_curr_st(c);
+    if (!st) {
+        avio_skip(pb, atom.size);
+        return 0;
+    }
+
+    int64_t end = avio_tell(pb) + atom.size;
+
+    if (atom.size < 1) {
+        return AVERROR_INVALIDDATA;
+    }
+    uint8_t version = avio_r8(pb);
+
+    const int8_t min_loudness_box_size =
+        (version < 2) ? 16  /* Containing only one measurement chunk */
+                      : 17; /* Additional 1B for MAE metadata */
+    if (atom.size < min_loudness_box_size) {
+        av_log(c->fc, AV_LOG_ERROR,
+            "atom data [%"PRId64"B] too small for reading loudness box [%dB].\n",
+            atom.size, min_loudness_box_size);
+        return AVERROR_INVALIDDATA;
+    }
+
+    AVDictionary *md = st->metadata;
+    av_dict_set_int(&md, av_asprintf("loudness.%s.version",
+        scope), version, 0);
+    uint32_t flags = avio_rb24(pb);
+    av_dict_set_int(&md, av_asprintf("loudness.%s.flags",
+        scope), flags, 0);
+
+    uint8_t data_8b = 0;
+    uint8_t base_count = 1;
+    if (version > 0) {
+        data_8b = avio_r8(pb);
+        base_count = data_8b & 0x3f;
+    }
+    av_dict_set_int(&md, av_asprintf("loudness.%s.baseCount",
+        scope), base_count, 0);
+
+    if (version > 1) {
+        uint8_t info_type = (data_8b >> 6);
+        data_8b = avio_r8(pb);
+        if (info_type == 1 || info_type == 2) {
+            uint8_t mae_group_ID = data_8b & 0x7f;
+            av_dict_set_int(&md, av_asprintf("loudness.%s.maeGroupID",
+                scope), mae_group_ID, 0);
+        } else if (info_type == 3) {
+            uint8_t mae_group_preset_ID = data_8b & 0x1f;
+            av_dict_set_int(&md, av_asprintf("loudness.%s.maeGroupPresetID",
+                scope), mae_group_preset_ID, 0);
+        }
+    }
+
+    for (uint8_t b = 0; b < base_count; ++b) {
+        if (version > 0) {
+            data_8b = avio_r8(pb);
+            uint8_t eq_set_id = data_8b & 0x3f;
+            av_dict_set_int(&md, av_asprintf("loudness.%s.%u.eqSetID",
+                scope, b), eq_set_id, 0);
+        }
+
+        uint16_t data_16b = avio_rb16(pb);
+        uint16_t drc_set_id = data_16b & 0x3f;
+        av_dict_set_int(&md, av_asprintf("loudness.%s.%u.drcSetID",
+            scope, b), drc_set_id, 0);
+        uint16_t downmix_id = (data_16b >> 6) & 0x7f;
+        av_dict_set_int(&md, av_asprintf("loudness.%s.%u.downmixID",
+            scope, b), downmix_id, 0);
+
+        uint32_t data_32b = avio_rb32(pb);
+        uint8_t reliability_for_TP = data_32b & 0xf;
+        av_dict_set_int(&md, av_asprintf("loudness.%s.%u.reliabilityTP",
+            scope, b), reliability_for_TP, 0);
+        uint8_t measurement_system_for_TP = (data_32b >> 4) & 0xf;
+        av_dict_set_int(&md, av_asprintf("loudness.%s.%u.measurementSystemTP",
+            scope, b), measurement_system_for_TP, 0);
+
+        data_16b = (data_32b >> 8) & 0xfff;
+        int16_t bs_true_peak_level = 0;
+        if (data_16b & 0x800) {
+            bs_true_peak_level = (int16_t)(data_16b | 0xF000);
+        } else {
+            bs_true_peak_level = (int16_t)data_16b;
+        }
+        av_dict_set_int(&md, av_asprintf("loudness.%s.%u.bsTruePeakLevel",
+            scope, b), bs_true_peak_level, 0);
+
+        data_16b = data_32b >> 20;
+        int16_t bs_sample_peak_level = 0;
+        if (data_16b & 0x800) {
+            bs_sample_peak_level = (int16_t)(data_16b | 0xF000);
+        } else {
+            bs_sample_peak_level = (int16_t)data_16b;
+        }
+        av_dict_set_int(&md, av_asprintf("loudness.%s.%u.bsSamplePeakLevel",
+            scope, b), bs_sample_peak_level, 0);
+
+        uint8_t num_measurements = avio_r8(pb);
+        av_dict_set_int(&md, av_asprintf("loudness.%s.%u.numMeasurements",
+            scope, b), num_measurements, 0);
+
+        const int8_t measurement_chunk_size = 3;
+        for (uint8_t m = 0; m < num_measurements &&
+            avio_tell(pb) + measurement_chunk_size <= end; ++m) {
+            uint8_t method_definition = avio_r8(pb);
+            av_dict_set_int(&md, av_asprintf("loudness.%s.%u.%u.methodDefinition",
+                scope, b, m), method_definition, 0);
+            uint8_t method_value = avio_r8(pb);
+            av_dict_set_int(&md, av_asprintf("loudness.%s.%u.%u.methodValue",
+                scope, b, m), method_value, 0);
+
+            data_8b = avio_r8(pb);
+            uint8_t reliability = data_8b & 0xf;
+            av_dict_set_int(&md, av_asprintf("loudness.%s.%u.%u.reliability",
+                scope, b, m), reliability, 0);
+            uint8_t measurement_system = data_8b >> 4;
+            av_dict_set_int(&md, av_asprintf("loudness.%s.%u.%u.measurementSystem",
+                scope, b, m), measurement_system, 0);
+        }
+    }
+
+    /* Skip to end if there is any padding */
+    if (avio_tell(pb) < end) {
+        avio_skip(pb, end - avio_tell(pb));
+    }
+    return 0;
+}
+
+static int mov_read_ludt(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+{
+    int ret = 0;
+    const uint8_t tag_size = 8;
+    int64_t end = avio_tell(pb) + atom.size;
+    while (avio_tell(pb) + tag_size <= end) {
+        MOVAtom a;
+        a.size = avio_rb32(pb);
+        a.type = avio_rl32(pb);
+
+        if (a.size < tag_size) {
+            return AVERROR_INVALIDDATA;
+        }
+
+        if (a.type == MKTAG('t','l','o','u')) {
+            a.size -= tag_size;
+            ret = mov_read_loudness_base(c, pb, a, "tlou");
+        } else if (a.type == MKTAG('a','l','o','u')) {
+            a.size -= tag_size;
+            ret = mov_read_loudness_base(c, pb, a, "alou");
+        } else {
+            /* Skip unknown child */
+            avio_skip(pb, a.size - tag_size);
+            ret = 0;
+        }
+        if (ret < 0) {
+            return ret;
+        }
+    }
+    /* Skip to end if there is any padding */
+    if (avio_tell(pb) < end) {
+        avio_skip(pb, end - avio_tell(pb));
+    }
+    return 0;
+}
+
 static const MOVParseTableEntry mov_default_parse_table[] = {
 { MKTAG('A','C','L','R'), mov_read_aclr },
 { MKTAG('A','P','R','G'), mov_read_avid },
@@ -9522,6 +9690,7 @@ static const MOVParseTableEntry mov_default_parse_table[] = {
 { MKTAG('l','h','v','C'), mov_read_lhvc },
 { MKTAG('l','v','c','C'), mov_read_glbl },
 { MKTAG('a','p','v','C'), mov_read_glbl },
+{ MKTAG('l','u','d','t'), mov_read_ludt }, /* loudness box */
 #if CONFIG_IAMFDEC
 { MKTAG('i','a','c','b'), mov_read_iacb },
 #endif
