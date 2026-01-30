@@ -205,13 +205,8 @@ static av_cold int init(AVFilterContext *ctx)
             return AVERROR(EINVAL);
         }
 
-        cover->cover_frame = av_frame_alloc();
-        if (!cover->cover_frame)
-            return AVERROR(ENOMEM);
-
-        if ((ret = ff_load_image(cover->cover_frame->data, cover->cover_frame->linesize,
-                                &cover->cover_frame->width, &cover->cover_frame->height,
-                                &cover->cover_frame->format, cover->cover_filename, ctx)) < 0)
+        ret = ff_load_image(&cover->cover_frame, cover->cover_filename, ctx);
+        if (ret < 0)
             return ret;
 
         if (cover->cover_frame->format != AV_PIX_FMT_YUV420P && cover->cover_frame->format != AV_PIX_FMT_YUVJ420P) {
