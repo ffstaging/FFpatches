@@ -1,0 +1,7 @@
+ffmpeg -i /Users/sam/git/fate-suite/exr/rgba_slice_piz.exr -vf ocio=config=/Users/sam/git/FFmpeg/simpleconfig.ocio:input=ACEScg:display=sRGB:view=ACES_1.0_SDR -bitexact -f framecrc -
+#tb 0: 1/25
+#media_type 0: video
+#codec_id 0: rawvideo
+#dimensions 0: 587x675
+#sar 0: 1/1
+0,          0,          0,        1,  6339600, 0x275bc9bf

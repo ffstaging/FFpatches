@@ -482,6 +482,9 @@ FATE_FILTER_VSYNTH_PGMYUV-$(call ALLYES, SCALE_FILTER FORMAT_FILTER SPLIT_FILTER
 $(FATE_FILTER_ALPHAEXTRACT_ALPHAMERGE): fate-filter-alphaextract_alphamerge_%: tests/data/filtergraphs/alphamerge_alphaextract_%
 $(FATE_FILTER_ALPHAEXTRACT_ALPHAMERGE): CMD = framecrc -auto_conversion_filters -c:v pgmyuv -i $(SRC) -/filter_complex $(TARGET_PATH)/tests/data/filtergraphs/alphamerge_alphaextract$(@:fate-filter-alphaextract_alphamerge%=%)
 
+FATE_FILTER-$(CONFIG_OCIO_FILTER) += fate-filter-ocio fate-filter-ocio-alt
+fate-filter-ocio: CMD = OCIO=ocio\://studio-config-v1.0.0_aces-v1.3_ocio-v2.1 framecrc -i $(TARGET_SAMPLES)/exr/rgba_slice_piz.exr -vf "ocio=input=ACEScg:output=ACEScct"
+
 FATE_FILTER_VSYNTH_VIDEO_FILTER-$(CONFIG_CROP_FILTER) += fate-filter-crop
 fate-filter-crop: CMD = video_filter "crop=iw-100:ih-100:100:100"
 
