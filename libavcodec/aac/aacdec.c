@@ -1220,6 +1220,8 @@ av_cold int ff_aac_decode_init(AVCodecContext *avctx)
     ac->avctx = avctx;
     ac->oc[1].m4ac.sample_rate = avctx->sample_rate;
 
+    avctx->internal->skip_samples = avctx->delay;
+
     if (avctx->extradata_size > 0) {
         if ((ret = decode_audio_specific_config(ac, ac->avctx, &ac->oc[1],
                                                 avctx->extradata,

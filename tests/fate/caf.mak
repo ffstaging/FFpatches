@@ -1,6 +1,12 @@
 FATE_CAF_FFMPEG-$(call CRC, CAF) += fate-caf-demux
 fate-caf-demux: CMD = crc -i $(TARGET_SAMPLES)/caf/caf-pcm16.caf -c copy
 
+FATE_CAF_FFMPEG-$(call FRAMECRC, CAF) += fate-caf-aac-demux
+fate-caf-aac-demux: CMD = framecrc -i $(TARGET_SAMPLES)/caf/aac.caf -c:a copy
+
+FATE_CAF_FFMPEG-$(call FRAMECRC, CAF) += fate-caf-opus-demux
+fate-caf-opus-demux: CMD = framecrc -i $(TARGET_SAMPLES)/caf/opus.caf -c:a copy
+
 FATE_CAF_FFMPEG_FFPROBE-$(call REMUX, CAF, MOV_DEMUXER) += fate-caf-alac-remux
 fate-caf-alac-remux: CMD = transcode m4a $(TARGET_SAMPLES)/lossless-audio/inside.m4a caf "-map 0:a -c copy -metadata major_brand= " "-c copy -t 0.2" "-show_entries format_tags"
 
