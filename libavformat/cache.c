@@ -54,6 +54,7 @@ typedef struct CacheEntry {
 
 typedef struct CacheContext {
     AVClass *class;
+    char *name;
     int fd;
     char *filename;
     struct AVTreeNode *root;
@@ -66,6 +67,12 @@ typedef struct CacheContext {
     int64_t cache_hit, cache_miss;
     int read_ahead_limit;
 } CacheContext;
+
+static const char *cache_item_name(void *ptr)
+{
+    CacheContext *c = ptr;
+    return c->name ? c->name : av_default_item_name(ptr);
+}
 
 static int cmp(const void *key, const void *node)
 {
@@ -93,8 +100,13 @@ static int cache_open(URLContext *h, const char *arg, int flags, AVDictionary **
     else
         c->filename = buffername;
 
-    return ffurl_open_whitelist(&c->inner, arg, flags, &h->interrupt_callback,
-                                options, h->protocol_whitelist, h->protocol_blacklist, h);
+    ret = ffurl_open_whitelist(&c->inner, arg, flags, &h->interrupt_callback,
+                               options, h->protocol_whitelist, h->protocol_blacklist, h);
+    if (ret < 0)
+        return ret;
+
+    c->name = av_asprintf("cache:%s", ffurl_item_name(c->inner));
+    return ret;
 }
 
 static int add_entry(URLContext *h, const unsigned char *buf, int size)
@@ -314,6 +326,7 @@ static int cache_close(URLContext *h)
     ffurl_closep(&c->inner);
     av_tree_enumerate(c->root, NULL, NULL, enu_free);
     av_tree_destroy(c->root);
+    av_freep(&c->name);
 
     return 0;
 }
@@ -328,7 +341,7 @@ static const AVOption options[] = {
 
 static const AVClass cache_context_class = {
     .class_name = "cache",
-    .item_name  = av_default_item_name,
+    .item_name  = cache_item_name,
     .option     = options,
     .version    = LIBAVUTIL_VERSION_INT,
 };

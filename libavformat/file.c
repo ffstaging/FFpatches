@@ -91,6 +91,7 @@
 
 typedef struct FileContext {
     const AVClass *class;
+    char *name;
     int fd;
     int trunc;
     int blocksize;
@@ -117,23 +118,29 @@ static const AVOption pipe_options[] = {
     { NULL }
 };
 
+static const char *file_item_name(void *ctx)
+{
+    FileContext *c = ctx;
+    return c->name ? c->name : av_default_item_name(ctx);
+}
+
 static const AVClass file_class = {
     .class_name = "file",
-    .item_name  = av_default_item_name,
+    .item_name  = file_item_name,
     .option     = file_options,
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
 static const AVClass pipe_class = {
     .class_name = "pipe",
-    .item_name  = av_default_item_name,
+    .item_name  = file_item_name,
     .option     = pipe_options,
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
 static const AVClass fd_class = {
     .class_name = "fd",
-    .item_name  = av_default_item_name,
+    .item_name  = file_item_name,
     .option     = pipe_options,
     .version    = LIBAVUTIL_VERSION_INT,
 };
@@ -223,6 +230,7 @@ static int fd_dup(URLContext *h, int oldfd)
 static int file_close(URLContext *h)
 {
     FileContext *c = h->priv_data;
+    av_freep(&c->name);
     int ret = close(c->fd);
     return (ret == -1) ? AVERROR(errno) : 0;
 }
@@ -290,6 +298,7 @@ static int file_open(URLContext *h, const char *filename, int flags)
     struct stat st;
 
     av_strstart(filename, "file:", &filename);
+    c->name = av_asprintf("file:%s", av_basename(filename));
 
     if (flags & AVIO_FLAG_WRITE && flags & AVIO_FLAG_READ) {
         access = O_CREAT | O_RDWR;
@@ -445,6 +454,7 @@ static int pipe_open(URLContext *h, const char *filename, int flags)
     char *final;
 
     if (c->fd < 0) {
+        c->name = av_strdup(filename);
         av_strstart(filename, "pipe:", &filename);
 
         if (!*filename) {
@@ -507,6 +517,7 @@ static int fd_open(URLContext *h, const char *filename, int flags)
         return AVERROR(errno);
     h->is_streamed = !(S_ISREG(st.st_mode) || S_ISBLK(st.st_mode));
     c->fd = fd_dup(h, c->fd);
+    c->name = av_strdup(filename);
     if (c->fd == -1)
         return AVERROR(errno);
 

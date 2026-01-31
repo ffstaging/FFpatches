@@ -71,6 +71,7 @@ typedef enum {
 
 typedef struct HTTPContext {
     const AVClass *class;
+    char *name;
     URLContext *hd;
     unsigned char buffer[BUFFER_SIZE], *buf_ptr, *buf_end;
     int line_count;
@@ -743,6 +744,20 @@ fail:
     return ret;
 }
 
+static char *uri_basename(const char *uri)
+{
+    /* Strip anything after a '?' or '#' */
+    const char *end = uri + strcspn(uri, "?#");
+
+    /* Find the last '/' before that */
+    const char *start = end;
+    while (start > uri && start[-1] != '/')
+        start--;
+
+    const int len = end - start;
+    return len ? av_asprintf("http:%.*s", len, start) : av_strdup("http");
+}
+
 static int http_open(URLContext *h, const char *uri, int flags,
                      AVDictionary **options)
 {
@@ -762,6 +777,10 @@ static int http_open(URLContext *h, const char *uri, int flags,
 
     s->uri = av_strdup(uri);
     if (!s->uri)
+        return AVERROR(ENOMEM);
+
+    s->name = uri_basename(uri);
+    if (!s->name)
         return AVERROR(ENOMEM);
 
     if (options)
@@ -1994,6 +2013,7 @@ static int http_close(URLContext *h)
     av_dict_free(&s->redirect_cache);
     av_freep(&s->new_location);
     av_freep(&s->uri);
+    av_freep(&s->name);
     return ret;
 }
 
@@ -2084,10 +2104,16 @@ static int http_get_short_seek(URLContext *h)
     return ffurl_get_short_seek(s->hd);
 }
 
+static const char *http_item_name(void *ctx)
+{
+    HTTPContext *s = ctx;
+    return s->name ? s->name : av_default_item_name(ctx);
+}
+
 #define HTTP_CLASS(flavor)                          \
 static const AVClass flavor ## _context_class = {   \
     .class_name = # flavor,                         \
-    .item_name  = av_default_item_name,             \
+    .item_name  = http_item_name,                   \
     .option     = options,                          \
     .version    = LIBAVUTIL_VERSION_INT,            \
 }

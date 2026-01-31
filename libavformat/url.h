@@ -48,6 +48,11 @@ typedef struct URLContext {
     int min_packet_size;        /**< if non zero, the stream is packetized with this min packet size */
 } URLContext;
 
+/**
+ * Get the (friendly) name of a URLContext, for debugging / logging purposes.
+ */
+const char *ffurl_item_name(URLContext *h);
+
 typedef struct URLProtocol {
     const char *name;
     int     (*url_open)( URLContext *h, const char *url, int flags);

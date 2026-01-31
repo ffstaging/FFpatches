@@ -37,13 +37,21 @@
 
 /** @name Logging context. */
 /*@{*/
+const char *ffurl_item_name(URLContext *h)
+{
+    if (h->priv_data) {
+        const AVClass *c = *(AVClass **) h->priv_data;
+        return c->item_name(h->priv_data);
+    } else if (h->prot) {
+        return h->prot->name;
+    } else
+        return "NULL";
+}
+
 static const char *urlcontext_to_name(void *ptr)
 {
     URLContext *h = (URLContext *)ptr;
-    if (h->prot)
-        return h->prot->name;
-    else
-        return "NULL";
+    return ffurl_item_name(h);
 }
 
 static void *urlcontext_child_next(void *obj, void *prev)
