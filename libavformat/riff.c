@@ -635,19 +635,20 @@ const AVCodecTag *const ff_wav_codec_tags_list[] = { ff_codec_wav_tags, NULL };
 #endif
 
 const AVMetadataConv ff_riff_info_conv[] = {
-    { "IART", "artist"     },
-    { "ICMT", "comment"    },
-    { "ICOP", "copyright"  },
-    { "ICRD", "date"       },
-    { "IGNR", "genre"      },
-    { "ILNG", "language"   },
-    { "INAM", "title"      },
-    { "IPRD", "album"      },
-    { "IPRT", "track"      },
-    { "ITRK", "track"      },
-    { "ISFT", "encoder"    },
-    { "ISMP", "timecode"   },
-    { "ITCH", "encoded_by" },
+    { "IART", "artist"        },
+    { "ICMT", "comment"       },
+    { "ICOP", "copyright"     },
+    { "ICRD", "date"          },
+    { "IGNR", "genre"         },
+    { "ILNG", "language"      },
+    { "INAM", "title"         },
+    { "IPRD", "album"         },
+    { "IPRT", "track"         },
+    { "ITRK", "track"         },
+    { "ISFT", "encoder"       },
+    { "ISMP", "timecode"      },
+    { "ITCH", "encoded_by"    },
+    { "PRT1", "disc_subtitle" },
     { 0 },
 };
 
