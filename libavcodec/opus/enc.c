@@ -132,7 +132,13 @@ static void celt_frame_setup_input(OpusEncContext *s, CeltFrame *f)
         CeltBlock *b = &f->block[ch];
         const void *input = cur->extended_data[ch];
         size_t bps = av_get_bytes_per_sample(cur->format);
-        memcpy(b->overlap, input, bps*cur->nb_samples);
+        const int overlap_len = FFMIN(cur->nb_samples, CELT_OVERLAP);
+        const size_t overlap_off = (cur->nb_samples - overlap_len) * bps;
+        memcpy(b->overlap, (const uint8_t *)input + overlap_off,
+               bps * overlap_len);
+        if (overlap_len < CELT_OVERLAP)
+            memset(b->overlap + overlap_len, 0,
+                   (CELT_OVERLAP - overlap_len) * sizeof(*b->overlap));
     }
 
     av_frame_free(&cur);
