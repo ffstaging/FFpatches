@@ -37,6 +37,87 @@ ending_lut: dd -1, -1, -1, -1, -1, -1, -1, -1,\
 
 SECTION .text
 
+%macro PROCESS_8_SSD_INTEGRAL 0
+    pmovzxbd      m0, [s1q + xq]
+    pmovzxbd      m1, [s2q + xq]
+    psubd         m0, m1
+    pmulld        m0, m0
+
+    movu          m1, [dst_topq + xq*4]
+    movu          m2, [dst_topq + xq*4 - 4]
+    psubd         m1, m2
+    paddd         m0, m1
+
+    mova          m5, m0
+    pslldq        m5, 4
+    paddd         m0, m5
+    mova          m5, m0
+    pslldq        m5, 8
+    paddd         m0, m5
+    mova          m5, m0
+    pslldq        m5, 16
+    paddd         m0, m5
+
+    vextracti128 xm5, m0, 0
+    pshufd      xm5, xm5, 0xff
+    pxor          m4, m4
+    vinserti128   m4, m4, xm5, 1
+    paddd         m0, m4
+
+    movd        xm5, carryd
+    vpbroadcastd  m4, xm5
+    paddd         m0, m4
+
+    movu [dstq + xq*4], m0
+
+    vextracti128 xm5, m0, 1
+    pshufd      xm5, xm5, 0xff
+    movd      carryd, xm5
+
+    add           xq, 8
+%endmacro
+
+; void ff_compute_safe_ssd_integral_image(uint32_t *dst, ptrdiff_t dst_linesize_32,
+;                                         const uint8_t *s1, ptrdiff_t linesize1,
+;                                         const uint8_t *s2, ptrdiff_t linesize2,
+;                                         int w, int h);
+;
+; Assumptions (see C version):
+; - w is multiple of 16 and w >= 16
+; - h >= 1
+; - dst[-1] and dst_top[-1] are readable
+
+INIT_YMM avx2
+cglobal compute_safe_ssd_integral_image, 8, 14, 6, 0, dst, dst_lz, s1, ls1, s2, ls2, w, h, dst_top, dst_stride, x, carry, tmp
+    mov            wd, dword wm
+    mov            hd, dword hm
+    movsxd         wq, wd
+
+    mov   dst_strideq, dst_lzq
+    shl   dst_strideq, 2
+    mov      dst_topq, dstq
+    sub      dst_topq, dst_strideq
+
+.yloop:
+    xor           xq, xq
+    mov       carryd, [dstq - 4]
+
+.xloop:
+    ; ---- process 8 pixels ----
+    PROCESS_8_SSD_INTEGRAL
+    ; ---- process 8 pixels ----
+    PROCESS_8_SSD_INTEGRAL
+    cmp           xq, wq
+    jl .xloop
+
+    add          s1q, ls1q
+    add          s2q, ls2q
+    add         dstq, dst_strideq
+    add     dst_topq, dst_strideq
+    dec           hd
+    jg .yloop
+    RET
+
 ; void ff_compute_weights_line(const uint32_t *const iia,
 ;                              const uint32_t *const iib,
 ;                              const uint32_t *const iid,
