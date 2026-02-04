@@ -675,6 +675,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
             break;
         case 0x22121100:
         case 0x22111200:
+        case 0x41212100:
         case 0x41211100:
             if (s->bits <= 8) s->avctx->pix_fmt = s->cs_itu601 ? AV_PIX_FMT_YUV422P : AV_PIX_FMT_YUVJ422P;
             else
