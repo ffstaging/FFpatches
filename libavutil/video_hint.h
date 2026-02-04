@@ -70,6 +70,7 @@ av_video_hint_rects(const AVVideoHint *hints) {
 
 static av_always_inline AVVideoRect *
 av_video_hint_get_rect(const AVVideoHint *hints, size_t idx) {
+    av_assert0(idx < hints->nb_rects);
     return (AVVideoRect *)((uint8_t *)hints + hints->rect_offset + idx * hints->rect_size);
 }
 
