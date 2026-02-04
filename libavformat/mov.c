@@ -3254,7 +3254,7 @@ static int mov_read_stsd(MOVContext *c, AVIOContext *pb, MOVAtom atom)
 fail:
     if (sc->extradata) {
         int j;
-        for (j = 0; j < sc->stsd_count; j++)
+        for (j = 0; j < entries; j++)
             av_freep(&sc->extradata[j]);
     }
 
