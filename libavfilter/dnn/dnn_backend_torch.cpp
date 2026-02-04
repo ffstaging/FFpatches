@@ -515,10 +515,13 @@ static DNNModel *dnn_load_model_th(DnnContext *ctx, DNNFunctionType func_type, A
 
     try {
         th_model->jit_model = new torch::jit::Module;
-        (*th_model->jit_model) = torch::jit::load(ctx->model_filename);
-        th_model->jit_model->to(device);
+        *th_model->jit_model = torch::jit::load(ctx->model_filename, device);
+        av_log(ctx, AV_LOG_VERBOSE, "LibTorch model loaded on device: %s\n", device_name);
     } catch (const c10::Error& e) {
-        av_log(ctx, AV_LOG_ERROR, "Failed to load torch model\n");
+        av_log(ctx, AV_LOG_ERROR, "LibTorch error loading model '%s': %s\n",
+               ctx->model_filename, e.what());
+        delete th_model->jit_model;
+        th_model->jit_model = NULL;
         goto fail;
     }
 
@@ -591,45 +594,42 @@ static int dnn_execute_model_th(const DNNModel *model, DNNExecBaseParams *exec_p
 
     ret = ff_check_exec_params(ctx, DNN_TH, model->func_type, exec_params);
     if (ret != 0) {
-        av_log(ctx, AV_LOG_ERROR, "exec parameter checking fail.\n");
+        av_log(ctx, AV_LOG_ERROR, "Exec parameter checking failed.\n");
         return ret;
     }
 
-    task = (TaskItem *)av_malloc(sizeof(TaskItem));
+    task = (TaskItem *)av_mallocz(sizeof(*task));
     if (!task) {
-        av_log(ctx, AV_LOG_ERROR, "unable to alloc memory for task item.\n");
+        av_log(ctx, AV_LOG_ERROR, "Unable to allocate memory for task item.\n");
         return AVERROR(ENOMEM);
     }
 
     ret = ff_dnn_fill_task(task, exec_params, th_model, 0, 1);
     if (ret != 0) {
         av_freep(&task);
-        av_log(ctx, AV_LOG_ERROR, "unable to fill task.\n");
+        av_log(ctx, AV_LOG_ERROR, "Unable to fill task.\n");
         return ret;
     }
 
-    ret = ff_queue_push_back(th_model->task_queue, task);
-    if (ret < 0) {
+    if (ff_queue_push_back(th_model->task_queue, task) < 0) {
         av_freep(&task);
-        av_log(ctx, AV_LOG_ERROR, "unable to push back task_queue.\n");
-        return ret;
+        av_log(ctx, AV_LOG_ERROR, "Unable to push back task_queue.\n");
+        return AVERROR(ENOMEM);
     }
 
     ret = extract_lltask_from_task(task, th_model->lltask_queue);
     if (ret != 0) {
-        av_log(ctx, AV_LOG_ERROR, "unable to extract last level task from task.\n");
         return ret;
     }
 
     request = (THRequestItem *)ff_safe_queue_pop_front(th_model->request_queue);
     if (!request) {
-        av_log(ctx, AV_LOG_ERROR, "unable to get infer request.\n");
-        return AVERROR(EINVAL);
+        av_log(ctx, AV_LOG_ERROR, "No inference request available in the queue.\n");
+        return AVERROR(EAGAIN);
     }
 
     return execute_model_th(request, th_model->lltask_queue);
 }
-
 static DNNAsyncStatusType dnn_get_result_th(const DNNModel *model, AVFrame **in, AVFrame **out)
 {
     THModel *th_model = (THModel *)model;
@@ -642,7 +642,6 @@ static int dnn_flush_th(const DNNModel *model)
     THRequestItem *request;
 
     if (ff_queue_size(th_model->lltask_queue) == 0)
-        // no pending task need to flush
         return 0;
 
     request = (THRequestItem *)ff_safe_queue_pop_front(th_model->request_queue);
