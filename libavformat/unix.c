@@ -78,11 +78,19 @@ static int unix_open(URLContext *h, const char *filename, int flags)
         s->timeout = h->rw_timeout / 1000;
 
     if (s->listen) {
-        ret = ff_listen_bind(fd, (struct sockaddr *)&s->addr,
-                             sizeof(s->addr), s->timeout, h);
-        if (ret < 0)
-            goto fail;
-        fd = ret;
+        if (s->type == SOCK_DGRAM) {
+            ret = bind(fd, (struct sockaddr *)&s->addr, sizeof(s->addr));
+            if (ret) {
+                ret = ff_neterrno();
+                goto fail;
+            }
+        } else {
+            ret = ff_listen_bind(fd, (struct sockaddr *)&s->addr,
+                                sizeof(s->addr), s->timeout, h);
+            if (ret < 0)
+                goto fail;
+            fd = ret;
+        }
     } else {
         ret = ff_listen_connect(fd, (struct sockaddr *)&s->addr,
                                 sizeof(s->addr), s->timeout, h, 0);
