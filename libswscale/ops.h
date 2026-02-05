@@ -230,6 +230,9 @@ typedef struct SwsOpList {
     SwsOp *ops;
     int num_ops;
 
+    /* Input/output plane pointer swizzle mask */
+    SwsSwizzleOp order_src, order_dst;
+
     /* Purely informative metadata associated with this operation list */
     SwsFormat src, dst;
 } SwsOpList;
@@ -241,6 +244,12 @@ void ff_sws_op_list_free(SwsOpList **ops);
  * Returns a duplicate of `ops`, or NULL on OOM.
  */
 SwsOpList *ff_sws_op_list_duplicate(const SwsOpList *ops);
+
+/**
+ * Returns whether an op list represents a true no-op operation, i.e. may be
+ * elimenated entirely from an execution graph.
+ */
+bool ff_sws_op_list_is_noop(const SwsOpList *ops);
 
 /**
  * Returns the size of the largest pixel type used in `ops`.
