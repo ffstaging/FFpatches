@@ -25,6 +25,7 @@
 #include "libavutil/mem.h"
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
+#include "libavutil/refstruct.h"
 #include "libavutil/slicethread.h"
 
 #include "libswscale/swscale.h"
@@ -38,16 +39,36 @@
 
 static int pass_alloc_output(SwsPass *pass)
 {
-    if (!pass || pass->output.fmt != AV_PIX_FMT_NONE)
+    if (!pass || pass->output->fmt != AV_PIX_FMT_NONE)
         return 0;
-    pass->output.fmt = pass->format;
-    return av_image_alloc(pass->output.data, pass->output.linesize, pass->width,
+    pass->output->fmt = pass->format;
+    return av_image_alloc(pass->output->data, pass->output->linesize, pass->width,
                           pass->num_slices * pass->slice_h, pass->format, 64);
+}
+
+static void pass_free(SwsPass *pass)
+{
+    if (!pass)
+        return;
+
+    if (pass->free)
+        pass->free(pass->priv);
+
+    av_refstruct_unref(&pass->output);
+    av_free(pass);
+}
+
+static void free_output_img(AVRefStructOpaque opaque, void *obj)
+{
+    SwsImg *img = obj;
+    if (img->fmt != AV_PIX_FMT_NONE)
+        av_free(img->data[0]);
 }
 
 SwsPass *ff_sws_graph_add_pass(SwsGraph *graph, enum AVPixelFormat fmt,
                                int width, int height, SwsPass *input,
-                               int align, void *priv, sws_filter_run_t run)
+                               SwsImg *output, int align, void *priv,
+                               sws_filter_run_t run)
 {
     int ret;
     SwsPass *pass = av_mallocz(sizeof(*pass));
@@ -61,11 +82,28 @@ SwsPass *ff_sws_graph_add_pass(SwsGraph *graph, enum AVPixelFormat fmt,
     pass->width  = width;
     pass->height = height;
     pass->input  = input;
-    pass->output.fmt = AV_PIX_FMT_NONE;
+
+    if (output) {
+        av_assert0(output->fmt == AV_PIX_FMT_NONE || output->fmt == fmt);
+        pass->output = av_refstruct_ref(output);
+    } else {
+        /**
+        * Allocate an output SwsImg in any case, even if we end up not using it,
+        * because other passes may want to ref this SwsImg and still inherit the
+        * decision about whether or not a buffer needs to be allocated.
+        */
+        pass->output = av_refstruct_alloc_ext(sizeof(*pass->output), 0, NULL,
+                                            free_output_img);
+        if (!pass->output) {
+            pass_free(pass);
+            return NULL;
+        }
+        pass->output->fmt = AV_PIX_FMT_NONE;
+    }
 
     ret = pass_alloc_output(input);
     if (ret < 0) {
-        av_free(pass);
+        pass_free(pass);
         return NULL;
     }
 
@@ -79,8 +117,11 @@ SwsPass *ff_sws_graph_add_pass(SwsGraph *graph, enum AVPixelFormat fmt,
     }
 
     ret = av_dynarray_add_nofree(&graph->passes, &graph->num_passes, pass);
-    if (ret < 0)
-        av_freep(&pass);
+    if (ret < 0) {
+        pass_free(pass);
+        return NULL;
+    }
+
     return pass;
 }
 
@@ -88,7 +129,7 @@ SwsPass *ff_sws_graph_add_pass(SwsGraph *graph, enum AVPixelFormat fmt,
 static int pass_append(SwsGraph *graph, enum AVPixelFormat fmt, int w, int h,
                        SwsPass **pass, int align, void *priv, sws_filter_run_t run)
 {
-    SwsPass *new = ff_sws_graph_add_pass(graph, fmt, w, h, *pass, align, priv, run);
+    SwsPass *new = ff_sws_graph_add_pass(graph, fmt, w, h, *pass, NULL, align, priv, run);
     if (!new)
         return AVERROR(ENOMEM);
     *pass = new;
@@ -333,7 +374,7 @@ static int init_legacy_subpass(SwsGraph *graph, SwsContext *sws,
         }
     }
 
-    pass = ff_sws_graph_add_pass(graph, sws->dst_format, dst_w, dst_h, input, align, sws,
+    pass = ff_sws_graph_add_pass(graph, sws->dst_format, dst_w, dst_h, input, NULL, align, sws,
                                  c->convert_unscaled ? run_legacy_unscaled : run_legacy_swscale);
     if (!pass) {
         sws_free_context(&sws);
@@ -624,8 +665,8 @@ static int adapt_colors(SwsGraph *graph, SwsFormat src, SwsFormat dst,
         return ret;
     }
 
-    pass = ff_sws_graph_add_pass(graph, fmt_out, src.width, src.height,
-                                 input, 1, lut, run_lut3d);
+    pass = ff_sws_graph_add_pass(graph, fmt_out, src.width, src.height, input,
+                                 NULL, 1, lut, run_lut3d);
     if (!pass) {
         ff_sws_lut3d_free(&lut);
         return AVERROR(ENOMEM);
@@ -666,7 +707,7 @@ static int init_passes(SwsGraph *graph)
 
         /* Add threaded memcpy pass */
         pass = ff_sws_graph_add_pass(graph, dst.format, dst.width, dst.height,
-                                     pass, 1, NULL, run_copy);
+                                     pass, NULL, 1, NULL, run_copy);
         if (!pass)
             return AVERROR(ENOMEM);
     }
@@ -679,8 +720,8 @@ static void sws_graph_worker(void *priv, int jobnr, int threadnr, int nb_jobs,
 {
     SwsGraph *graph = priv;
     const SwsPass *pass = graph->exec.pass;
-    const SwsImg *input  = pass->input ? &pass->input->output : &graph->exec.input;
-    const SwsImg *output = pass->output.fmt != AV_PIX_FMT_NONE ? &pass->output : &graph->exec.output;
+    const SwsImg *input  = pass->input ? pass->input->output : &graph->exec.input;
+    const SwsImg *output = pass->output->fmt != AV_PIX_FMT_NONE ? pass->output : &graph->exec.output;
     const int slice_y = jobnr * pass->slice_h;
     const int slice_h = FFMIN(pass->slice_h, pass->height - slice_y);
 
@@ -733,14 +774,8 @@ void ff_sws_graph_free(SwsGraph **pgraph)
 
     avpriv_slicethread_free(&graph->slicethread);
 
-    for (int i = 0; i < graph->num_passes; i++) {
-        SwsPass *pass = graph->passes[i];
-        if (pass->free)
-            pass->free(pass->priv);
-        if (pass->output.fmt != AV_PIX_FMT_NONE)
-            av_free(pass->output.data[0]);
-        av_free(pass);
-    }
+    for (int i = 0; i < graph->num_passes; i++)
+        pass_free(graph->passes[i]);
     av_free(graph->passes);
 
     av_free(graph);
@@ -804,8 +839,8 @@ void ff_sws_graph_run(SwsGraph *graph, uint8_t *const out_data[4],
         const SwsPass *pass = graph->passes[i];
         graph->exec.pass = pass;
         if (pass->setup) {
-            pass->setup(pass->output.fmt != AV_PIX_FMT_NONE ? &pass->output : out,
-                        pass->input ? &pass->input->output : in, pass);
+            pass->setup(pass->output->fmt != AV_PIX_FMT_NONE ? pass->output : out,
+                        pass->input ? pass->input->output : in, pass);
         }
         avpriv_slicethread_execute(graph->slicethread, pass->num_slices, 0);
     }
