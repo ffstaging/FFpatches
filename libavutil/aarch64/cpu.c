@@ -24,7 +24,9 @@
 #include <stdint.h>
 #include <sys/auxv.h>
 
+#define HWCAP_AARCH64_PMULL   (1 << 4)
 #define HWCAP_AARCH64_CRC32   (1 << 7)
+#define HWCAP_AARCH64_SHA3    (1 << 17)
 #define HWCAP_AARCH64_ASIMDDP (1 << 20)
 #define HWCAP_AARCH64_SVE     (1 << 22)
 #define HWCAP2_AARCH64_SVE2   (1 << 1)
@@ -38,6 +40,8 @@ static int detect_flags(void)
     unsigned long hwcap = ff_getauxval(AT_HWCAP);
     unsigned long hwcap2 = ff_getauxval(AT_HWCAP2);
 
+    if (hwcap & (HWCAP_AARCH64_PMULL | HWCAP_AARCH64_SHA3))
+        flags |= AV_CPU_FLAG_PMULL | AV_CPU_FLAG_EOR3;
     if (hwcap & HWCAP_AARCH64_CRC32)
         flags |= AV_CPU_FLAG_ARM_CRC;
     if (hwcap & HWCAP_AARCH64_ASIMDDP)
