@@ -179,7 +179,7 @@ const AVInputFormat *av_probe_input_format3(const AVProbeData *pd,
                 nodat = ID3_ALMOST_GREATER_PROBE;
             lpd.buf      += id3len;
             lpd.buf_size -= id3len;
-        } else if (id3len >= PROBE_BUF_MAX) {
+        } else if (id3len >= PROBE_BUF_DEFAULT) {
             nodat = ID3_GREATER_MAX_PROBE;
             break;
         } else {
@@ -260,12 +260,15 @@ int av_probe_input_buffer2(AVIOContext *pb, const AVInputFormat **fmt,
     AVProbeData pd = { filename ? filename : "" };
     uint8_t *buf = NULL;
     int ret = 0, probe_size, buf_offset = 0;
+    unsigned int max_probeext_size = 0, max_probe_size0;
     int score = 0;
     int ret2;
     int eof = 0;
 
-    if (!max_probe_size)
-        max_probe_size = PROBE_BUF_MAX;
+    if (!max_probe_size) {
+        max_probe_size = PROBE_BUF_DEFAULT;
+        max_probeext_size = PROBE_BUFEXT_DEFAULT;
+    }
     else if (max_probe_size < PROBE_BUF_MIN) {
         av_log(logctx, AV_LOG_ERROR,
                "Specified probe size value %u cannot be < %u\n", max_probe_size, PROBE_BUF_MIN);
@@ -286,6 +289,7 @@ int av_probe_input_buffer2(AVIOContext *pb, const AVInputFormat **fmt,
         }
     }
 
+    max_probe_size0 = max_probe_size;
     for (probe_size = PROBE_BUF_MIN; probe_size <= max_probe_size && !*fmt && !eof;
          probe_size = FFMIN(probe_size << 1,
                             FFMAX(max_probe_size, probe_size + 1))) {
@@ -305,6 +309,12 @@ int av_probe_input_buffer2(AVIOContext *pb, const AVInputFormat **fmt,
             eof   = 1;
         }
         buf_offset += ret;
+        while (offset + ID3v2_HEADER_SIZE < buf_offset && ff_id3v2_match(&buf[offset], ID3v2_DEFAULT_MAGIC)) {
+            int id3len = ff_id3v2_tag_len(&buf[offset]);
+            if (max_probe_size + id3len <= max_probe_size0 + max_probeext_size)
+                max_probe_size += id3len;
+            offset += id3len;
+        }
         if (buf_offset < offset)
             continue;
         pd.buf_size = buf_offset - offset;

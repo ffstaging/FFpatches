@@ -21,6 +21,15 @@ Possible values:
 Reduce buffering.
 @end table
 
+@item formatprobesize @var{unsigned int} (@emph{input})
+Maximum number of bytes read from input in order to identify the
+input format. Only used when the format is not set
+explicitly by the caller.
+A limited value may result in a low probe score, missdetection, or
+no detection at all.
+Must be an integer not lesser than 2048, or 0 (auto).
+Default value is 0.
+
 @item probesize @var{integer} (@emph{input})
 Set probing size in bytes, i.e. the size of the data to analyze to get
 stream information. A higher value will enable detecting more
