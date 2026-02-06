@@ -23,6 +23,7 @@
 #include "libavutil/avassert.h"
 #include "libavutil/channel_layout.h"
 #include "libavutil/fifo.h"
+#include "libavutil/intreadwrite.h"
 #include "libavutil/mem.h"
 #include "libavutil/opt.h"
 #include "avcodec.h"
@@ -357,10 +358,11 @@ static int libvorbis_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
 
     duration = av_vorbis_parse_frame(s->vp, avpkt->data, avpkt->size);
     if (duration > 0) {
+        int discard_padding, delay = 0;
         /* we do not know encoder delay until we get the first packet from
          * libvorbis, so we have to update the AudioFrameQueue counts */
         if (!avctx->initial_padding && s->afq.frames) {
-            avctx->initial_padding    = duration;
+            avctx->initial_padding = delay = duration;
             av_assert0(!s->afq.remaining_delay);
             s->afq.frames->duration  += duration;
             if (s->afq.frames->pts != AV_NOPTS_VALUE)
@@ -368,6 +370,17 @@ static int libvorbis_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
             s->afq.remaining_samples += duration;
         }
         ff_af_queue_remove(&s->afq, duration, &avpkt->pts, &avpkt->duration);
+
+        discard_padding = duration - avpkt->duration;
+        if (delay > 0 || discard_padding > 0) {
+            uint8_t *side_data = av_packet_new_side_data(avpkt,
+                                                         AV_PKT_DATA_SKIP_SAMPLES,
+                                                         10);
+            if (!side_data)
+                return AVERROR(ENOMEM);
+            AV_WL32(side_data, delay);
+            AV_WL32(side_data + 4, discard_padding);
+        }
     }
 
     *got_packet_ptr = 1;
