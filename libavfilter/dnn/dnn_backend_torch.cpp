@@ -507,7 +507,7 @@ static DNNModel *dnn_load_model_th(DnnContext *ctx, DNNFunctionType func_type, A
             av_log(ctx, AV_LOG_ERROR, "No XPU device found\n");
             goto fail;
         }
-        at::detail::getXPUHooks().initXPU();
+        at::detail::getXPUHooks().init();
     } else if (!device.is_cpu()) {
         av_log(ctx, AV_LOG_ERROR, "Not supported device:\"%s\"\n", device_name);
         goto fail;
