@@ -105,4 +105,29 @@ fate-eac3-core-bsf: REF = b704bf851e99b7442e9bed368b60e6ca
 
 FATE_SAMPLES_AVCONV += $(FATE_AC3-yes) $(FATE_EAC3-yes)
 
-fate-ac3: $(FATE_AC3-yes) $(FATE_EAC3-yes)
+# E-AC-3 dependent substream encoding tests.
+# These test encoding multichannel layouts that use dependent substreams
+# for channels beyond 5.1. Self-generated samples, no external SAMPLES needed.
+FATE_EAC3_DEP_ENC-$(call FRAMECRC, WAV, PCM_S16LE, ARESAMPLE_FILTER EAC3_ENCODER) += fate-eac3-encode-7.1
+fate-eac3-encode-7.1: tests/data/asynth-44100-8.wav
+fate-eac3-encode-7.1: SRC = $(TARGET_PATH)/tests/data/asynth-44100-8.wav
+fate-eac3-encode-7.1: CMD = framecrc -i $(SRC) -c:a eac3 -b:a 640k -frames:a 6 -af aresample
+
+FATE_EAC3_DEP_ENC-$(call FRAMECRC, WAV, PCM_S16LE, ARESAMPLE_FILTER EAC3_ENCODER) += fate-eac3-encode-5.1.2
+fate-eac3-encode-5.1.2: tests/data/asynth-44100-8.wav
+fate-eac3-encode-5.1.2: SRC = $(TARGET_PATH)/tests/data/asynth-44100-8.wav
+fate-eac3-encode-5.1.2: CMD = framecrc -i $(SRC) -c:a eac3 -b:a 640k -frames:a 6 -af "aresample=ochl=5.1.2"
+
+FATE_EAC3_DEP_ENC-$(call FRAMECRC, WAV, PCM_S16LE, ARESAMPLE_FILTER EAC3_ENCODER) += fate-eac3-encode-5.1.4
+fate-eac3-encode-5.1.4: tests/data/asynth-44100-10.wav
+fate-eac3-encode-5.1.4: SRC = $(TARGET_PATH)/tests/data/asynth-44100-10.wav
+fate-eac3-encode-5.1.4: CMD = framecrc -i $(SRC) -c:a eac3 -b:a 640k -frames:a 6 -af "aresample=ochl=5.1.4"
+
+FATE_EAC3_DEP_ENC-$(call FRAMECRC, WAV, PCM_S16LE, ARESAMPLE_FILTER EAC3_ENCODER) += fate-eac3-encode-7.1.2
+fate-eac3-encode-7.1.2: tests/data/asynth-44100-10.wav
+fate-eac3-encode-7.1.2: SRC = $(TARGET_PATH)/tests/data/asynth-44100-10.wav
+fate-eac3-encode-7.1.2: CMD = framecrc -i $(SRC) -c:a eac3 -b:a 640k -frames:a 6 -af "aresample=ochl=7.1.2"
+
+FATE_AVCONV += $(FATE_EAC3_DEP_ENC-yes)
+
+fate-ac3: $(FATE_AC3-yes) $(FATE_EAC3-yes) $(FATE_EAC3_DEP_ENC-yes)

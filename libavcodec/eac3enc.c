@@ -27,6 +27,7 @@
 #define AC3ENC_FLOAT 1
 
 #include "libavutil/attributes.h"
+#include "libavutil/channel_layout.h"
 #include "libavutil/thread.h"
 #include "ac3enc.h"
 #include "codec_internal.h"
@@ -40,6 +41,63 @@ static const AVClass eac3enc_class = {
     .item_name  = av_default_item_name,
     .option     = &ff_ac3_enc_options[2], /* First two options are AC-3 only. */
     .version    = LIBAVUTIL_VERSION_INT,
+};
+
+/**
+ * List of supported channel layouts for E-AC-3.
+ * Includes extended layouts (7.1, 5.1.2, etc.) not supported by AC-3.
+ * These use the dependent substream mechanism for extra channels.
+ * Layouts with more than 5 dependent channels (e.g., 7.1.4) would require
+ * multiple dependent substreams and are not yet supported.
+ */
+const AVChannelLayout ff_eac3_ch_layouts[] = {
+    AV_CHANNEL_LAYOUT_MONO,
+    AV_CHANNEL_LAYOUT_STEREO,
+    AV_CHANNEL_LAYOUT_2_1,
+    AV_CHANNEL_LAYOUT_SURROUND,
+    AV_CHANNEL_LAYOUT_2_2,
+    AV_CHANNEL_LAYOUT_QUAD,
+    AV_CHANNEL_LAYOUT_4POINT0,
+    AV_CHANNEL_LAYOUT_5POINT0,
+    AV_CHANNEL_LAYOUT_5POINT0_BACK,
+    {
+        .nb_channels = 2,
+        .order       = AV_CHANNEL_ORDER_NATIVE,
+        .u.mask      = AV_CH_LAYOUT_MONO | AV_CH_LOW_FREQUENCY,
+    },
+    {
+        .nb_channels = 3,
+        .order       = AV_CHANNEL_ORDER_NATIVE,
+        .u.mask      = AV_CH_LAYOUT_STEREO | AV_CH_LOW_FREQUENCY,
+    },
+    {
+        .nb_channels = 4,
+        .order       = AV_CHANNEL_ORDER_NATIVE,
+        .u.mask      = AV_CH_LAYOUT_2_1 | AV_CH_LOW_FREQUENCY,
+    },
+    {
+        .nb_channels = 4,
+        .order       = AV_CHANNEL_ORDER_NATIVE,
+        .u.mask      = AV_CH_LAYOUT_SURROUND | AV_CH_LOW_FREQUENCY,
+    },
+    {
+        .nb_channels = 5,
+        .order       = AV_CHANNEL_ORDER_NATIVE,
+        .u.mask      = AV_CH_LAYOUT_4POINT0 | AV_CH_LOW_FREQUENCY,
+    },
+    AV_CHANNEL_LAYOUT_5POINT1,
+    AV_CHANNEL_LAYOUT_5POINT1_BACK,
+    /* E-AC-3 extended layouts using dependent substream */
+    AV_CHANNEL_LAYOUT_7POINT1,           /* 5.1 + Lb/Rb */
+    AV_CHANNEL_LAYOUT_5POINT1POINT2_BACK,/* 5.1.2 - 5.1 + TBL/TBR */
+    {   /* 5.1.2 with top front instead of top back */
+        .nb_channels = 8,
+        .order       = AV_CHANNEL_ORDER_NATIVE,
+        .u.mask      = AV_CH_LAYOUT_5POINT1 | AV_CH_TOP_FRONT_LEFT | AV_CH_TOP_FRONT_RIGHT,
+    },
+    AV_CHANNEL_LAYOUT_5POINT1POINT4_BACK,/* 5.1.4 - 5.1 + TFL/TFR + TBL/TBR */
+    AV_CHANNEL_LAYOUT_7POINT1POINT2,     /* 7.1.2 - 7.1 + TFL/TFR */
+    { 0 },
 };
 
 /**
@@ -125,6 +183,106 @@ void ff_eac3_set_cpl_states(AC3EncodeContext *s)
             break;
         }
     }
+}
+
+
+/**
+ * Get the acmod value for the dependent substream based on channel count.
+ * The dependent stream uses standard acmod values for its channel configuration.
+ */
+static int get_dep_acmod(int dep_channels)
+{
+    switch (dep_channels) {
+    case 1:  return AC3_CHMODE_MONO;    /* 1/0 */
+    case 2:  return AC3_CHMODE_STEREO;  /* 2/0 */
+    case 3:  return AC3_CHMODE_3F;      /* 3/0 */
+    case 4:  return AC3_CHMODE_2F2R;    /* 2/2 */
+    case 5:  return AC3_CHMODE_3F2R;    /* 3/2 */
+    default: return AC3_CHMODE_STEREO;  /* fallback to stereo */
+    }
+}
+
+/**
+ * Write the E-AC-3 dependent substream frame header to the output bitstream.
+ * Used for extended channel layouts (7.1, 5.1.2, 5.1.4, 7.1.2, etc.) where extra
+ * channels are encoded in a dependent substream.
+ */
+void ff_eac3_output_dep_frame_header(AC3EncodeContext *s, PutBitContext *pb)
+{
+    int blk, ch;
+    AC3EncOptions *opt = &s->options;
+    int dep_acmod = get_dep_acmod(s->dependent_channels);
+    int frmsiz = (s->dependent_frame_size / 2) - 1;
+
+    put_bits_assume_flushed(pb);
+
+    put_bits(pb, 16, 0x0b77);                   /* sync word */
+
+    /* BSI header for dependent substream */
+    put_bits(pb,  2, 1);                        /* stream type = dependent */
+    put_bits(pb,  3, 0);                        /* substream id = 0 */
+    put_bits(pb, 11, frmsiz);                   /* frame size */
+    put_bits(pb, 2, s->bit_alloc.sr_code);      /* sample rate code */
+    put_bits(pb, 2, s->num_blks_code);          /* number of blocks */
+    put_bits(pb, 3, dep_acmod);                 /* acmod based on dep channels */
+    put_bits(pb, 1, 0);                         /* LFE off in dependent */
+    put_bits(pb, 5, s->bitstream_id);           /* bitstream id (16 for EAC3) */
+    put_bits(pb, 5, -opt->dialogue_level);      /* dialogue normalization */
+    put_bits(pb, 1, 0);                         /* no compression gain */
+
+    /* Custom channel map - critical for dependent streams */
+    put_bits(pb, 1, 1);                         /* channel map exists */
+    put_bits(pb, 16, s->dependent_channel_map); /* 16-bit channel map */
+
+    /* No mixing metadata for dependent stream */
+    put_bits(pb, 1, 0);
+
+    /* No info metadata for dependent stream */
+    put_bits(pb, 1, 0);
+
+    /* Note: converter sync flag is NOT output for dependent frames.
+     * It's only used for independent frames with num_blocks != 6. */
+
+    put_bits(pb, 1, 0);                         /* no additional bit stream info */
+
+    /* Frame header */
+    if (s->num_blocks == 6) {
+        put_bits(pb, 1, 1);                     /* use block exponent strategy */
+        put_bits(pb, 1, 0);                     /* aht enabled = no */
+    }
+    put_bits(pb, 2, 0);                         /* snr offset strategy = 1 */
+    put_bits(pb, 1, 0);                         /* transient pre-noise processing enabled = no */
+    put_bits(pb, 1, 0);                         /* block switch syntax enabled = no */
+    put_bits(pb, 1, 0);                         /* dither flag syntax enabled = no */
+    put_bits(pb, 1, 0);                         /* bit allocation model syntax enabled = no */
+    put_bits(pb, 1, 0);                         /* fast gain codes enabled = no */
+    put_bits(pb, 1, 0);                         /* dba syntax enabled = no */
+    put_bits(pb, 1, 0);                         /* skip field syntax enabled = no */
+    put_bits(pb, 1, 0);                         /* spx enabled = no */
+
+    /* Coupling strategy - no coupling for dependent stream */
+    if (dep_acmod > AC3_CHMODE_MONO) {
+        put_bits(pb, 1, 0);                     /* blk 0: coupling not in use */
+        for (blk = 1; blk < s->num_blocks; blk++)
+            put_bits(pb, 1, 0);                 /* blk N: no new coupling strategy */
+    }
+
+    /* Exponent strategy - block-based: EXP_D15 for blk0, EXP_REUSE for rest */
+    for (blk = 0; blk < s->num_blocks; blk++)
+        for (ch = 0; ch < s->dependent_channels; ch++)
+            put_bits(pb, 2, s->dep_exp_strategy[ch][blk]);
+
+    /* E-AC-3 to AC-3 converter exponent strategy - NOT used for dependent frames
+     * The decoder only reads this for independent frames (frame_type == 0).
+     * For dependent frames (frame_type == 1), skip this entirely. */
+
+    /* SNR offsets */
+    put_bits(pb, 6, s->dep_coarse_snr_offset);
+    put_bits(pb, 4, s->dep_fine_snr_offset[0]);
+
+    /* Block start info */
+    if (s->num_blocks > 1)
+        put_bits(pb, 1, 0);
 }
 
 /**
@@ -278,7 +436,7 @@ const FFCodec ff_eac3_encoder = {
     CODEC_SAMPLEFMTS(AV_SAMPLE_FMT_FLTP),
     .p.priv_class    = &eac3enc_class,
     CODEC_SAMPLERATES_ARRAY(ff_ac3_sample_rate_tab),
-    CODEC_CH_LAYOUTS_ARRAY(ff_ac3_ch_layouts),
+    CODEC_CH_LAYOUTS_ARRAY(ff_eac3_ch_layouts),
     .defaults        = ff_ac3_enc_defaults,
     .caps_internal   = FF_CODEC_CAP_INIT_CLEANUP,
 };

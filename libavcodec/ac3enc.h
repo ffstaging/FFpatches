@@ -266,9 +266,39 @@ typedef struct AC3EncodeContext {
         DECLARE_ALIGNED(32, float,   windowed_samples_float)[AC3_WINDOW_SIZE];
         DECLARE_ALIGNED(32, int32_t, windowed_samples_fixed)[AC3_WINDOW_SIZE];
     };
+
+    /* E-AC-3 dependent substream support (7.1, 5.1.2, 5.1.4, 7.1.2, etc.) */
+    int eac3_dependent_enabled;              ///< dependent substream enabled
+    uint16_t dependent_channel_map;          ///< 16-bit custom channel map for dependent
+    int dependent_channels;                  ///< number of channels in dependent stream
+    int dependent_frame_size;                ///< frame size for dependent substream
+
+    /* Channel mapping for dependent substream */
+    int input_channels;                      ///< total channels from input
+    uint8_t channel_map_dep[16];             ///< input channel indices for dependent stream
+
+    /* Separate buffers for dependent substream */
+    uint8_t *dep_samples[16];                ///< sample buffers for dependent channels
+    CoefType *dep_mdct_coef_buffer;
+    int32_t *dep_fixed_coef_buffer;
+    uint8_t *dep_exp_buffer;
+    uint8_t *dep_grouped_exp_buffer;
+    uint8_t *dep_bap_buffer;
+    int16_t *dep_psd_buffer;
+    int16_t *dep_band_psd_buffer;
+    int16_t *dep_mask_buffer;
+    uint16_t *dep_qmant_buffer;
+    AC3Block dep_blocks[AC3_MAX_BLOCKS];     ///< blocks for dependent substream
+    uint8_t dep_exp_strategy[16][AC3_MAX_BLOCKS]; ///< exponent strategies for dependent
+    uint8_t dep_exp_ref_block[16][AC3_MAX_BLOCKS]; ///< reference blocks for EXP_REUSE
+    uint8_t *dep_ref_bap[16][AC3_MAX_BLOCKS]; ///< bit allocation pointers for dependent
+    int dep_coarse_snr_offset;               ///< coarse SNR offset for dependent
+    int dep_fine_snr_offset[16];             ///< fine SNR offsets for dependent
+    int dep_fast_gain_code[16];              ///< fast gain codes for dependent
 } AC3EncodeContext;
 
 extern const AVChannelLayout ff_ac3_ch_layouts[19];
+extern const AVChannelLayout ff_eac3_ch_layouts[];
 extern const AVOption ff_ac3_enc_options[];
 extern const AVClass ff_ac3enc_class;
 extern const FFCodecDefault ff_ac3_enc_defaults[];

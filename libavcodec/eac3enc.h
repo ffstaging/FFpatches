@@ -29,6 +29,8 @@
 
 #include "ac3enc.h"
 
+struct PutBitContext;
+
 /**
  * Determine frame exponent strategy use and indices.
  */
@@ -40,5 +42,11 @@ void ff_eac3_get_frame_exp_strategy(AC3EncodeContext *s);
  * whether they will be implicitly already known by the decoder.
  */
 void ff_eac3_set_cpl_states(AC3EncodeContext *s);
+
+/**
+ * Write the E-AC-3 dependent substream frame header.
+ * Used for encodings where extra channels are in a dependent substream.
+ */
+void ff_eac3_output_dep_frame_header(AC3EncodeContext *s, struct PutBitContext *pb);
 
 #endif /* AVCODEC_EAC3ENC_H */
