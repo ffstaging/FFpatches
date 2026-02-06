@@ -552,6 +552,144 @@ function ff_hevc_put_hevc_\type\()_h12_8_neon, export=1
         ret             mx
 endfunc
 
+// h24: process 24 pixels per row
+// Strategy: Process 3 blocks of 8 pixels (0-7, 8-15, 16-23) inline.
+function ff_hevc_put_hevc_\type\()_h24_8_neon, export=1
+        load_filter     mx
+        sxtw            height, heightw
+.ifc \type, qpel_bi
+        ldrh            w8, [sp] // width
+        mov             x16, #(HEVC_MAX_PB_SIZE << 2) // src2bstridel
+        lsl             x17, height, #7 // src2b reset
+        add             x15, x4, #(HEVC_MAX_PB_SIZE << 1) // src2b
+.endif
+        sub             src, src, #3
+        mov             mx, x30
+.ifc \type, qpel
+        mov             dststride, #(HEVC_MAX_PB_SIZE << 1)
+        lsl             x13, srcstride, #1 // srcstridel
+        mov             x14, #((HEVC_MAX_PB_SIZE << 2) - 24)
+.else
+        lsl             x14, dststride, #1 // dststridel
+        lsl             x13, srcstride, #1 // srcstridel
+        sub             x14, x14, #16
+.endif
+        add             x10, dst, dststride // dstb
+        add             x12, src, srcstride // srcb
+0:
+        cmp             heightw, #2
+        b.lt            2f
+        // Load 32 bytes for row1 and row2 (need 24+7=31)
+        ld1             {v16.8b-v19.8b}, [src], x13
+        ld1             {v20.8b-v23.8b}, [x12], x13
+
+        // Extend all loaded data to 16-bit
+        // Row 1 (v16-v19 -> v24-v27, v28-v31)
+        uxtl            v24.8h, v16.8b
+        uxtl2           v25.8h, v16.16b
+        uxtl            v26.8h, v17.8b
+        uxtl2           v27.8h, v17.16b
+        uxtl            v28.8h, v18.8b
+        uxtl2           v29.8h, v18.16b
+        uxtl            v30.8h, v19.8b
+        uxtl2           v31.8h, v19.16b
+
+        // Row 2 (v20-v23 -> v16-v19, v20-v23)
+        // Note: Reusing low registers v16-v23 for Row 2 extended data
+        // We need to save Row 1 results temporarily if we overwrite, 
+        // or process Row 1 fully then Row 2.
+        // Since we have plenty of regs, let's keep Row 1 in v24-v31 
+        // and put Row 2 in v16-v23.
+        uxtl            v16.8h, v20.8b
+        uxtl2           v17.8h, v20.16b
+        uxtl            v18.8h, v21.8b
+        uxtl2           v19.8h, v21.16b
+        uxtl            v20.8h, v22.8b
+        uxtl2           v21.8h, v22.16b
+        uxtl            v22.8h, v23.8b
+        uxtl2           v23.8h, v23.16b
+
+        // Filter Row 1 Block 1 (0-7) using v24, v25
+        mul             v0.8h,  v24.8h, v0.h[0]
+.irpc i, 1234567
+        ext             v4.16b, v24.16b, v25.16b, #(2*\i)
+        mla             v0.8h,  v4.8h,  v0.h[\i]
+.endr
+        // Filter Row 1 Block 2 (8-15) using v26, v27
+        mul             v1.8h,  v26.8h, v0.h[0]
+.irpc i, 1234567
+        ext             v4.16b, v26.16b, v27.16b, #(2*\i)
+        mla             v1.8h,  v4.8h,  v0.h[\i]
+.endr
+        // Filter Row 1 Block 3 (16-23) using v28, v29
+        mul             v2.8h,  v28.8h, v0.h[0]
+.irpc i, 1234567
+        ext             v4.16b, v28.16b, v29.16b, #(2*\i)
+        mla             v2.8h,  v4.8h,  v0.h[\i]
+.endr
+
+        // Filter Row 2 Block 1 (0-7) using v16, v17
+        mul             v3.8h,  v16.8h, v0.h[0]
+.irpc i, 1234567
+        ext             v4.16b, v16.16b, v17.16b, #(2*\i)
+        mla             v3.8h,  v4.8h,  v0.h[\i]
+.endr
+        // Filter Row 2 Block 2 (8-15) using v18, v19
+        mul             v4.8h,  v18.8h, v0.h[0]  // reuse v4 as dest, filter src in v18/v19
+.irpc i, 1234567
+        ext             v5.16b, v18.16b, v19.16b, #(2*\i)
+        mla             v4.8h,  v5.8h,  v0.h[\i]
+.endr
+        // Filter Row 2 Block 3 (16-23) using v20, v21
+        mul             v5.8h,  v20.8h, v0.h[0]
+.irpc i, 1234567
+        ext             v6.16b, v20.16b, v21.16b, #(2*\i)
+        mla             v5.8h,  v6.8h,  v0.h[\i]
+.endr
+
+        subs            heightw, heightw, #2
+.ifc \type, qpel
+        // Store results
+        st1             {v0.8h, v1.8h, v2.8h}, [dst], x14
+        st1             {v3.8h, v4.8h, v5.8h}, [x10], x14
+.else
+.ifc \type, qpel_bi
+        // Load src2 and add
+        ld1             {v6.8h, v7.8h, v8.8h}, [x4], x16
+        sqadd           v0.8h, v0.8h, v6.8h
+        sqadd           v1.8h, v1.8h, v7.8h
+        sqadd           v2.8h, v2.8h, v8.8h
+        ld1             {v6.8h, v7.8h, v8.8h}, [x15], x16
+        sqadd           v3.8h, v3.8h, v6.8h
+        sqadd           v4.8h, v4.8h, v7.8h
+        sqadd           v5.8h, v5.8h, v8.8h
+        sub             x4,  x4,  #48
+        sub             x15, x15, #48
+
+        sqrshrun        v0.8b, v0.8h, #7
+        sqrshrun        v1.8b, v1.8h, #7
+        sqrshrun        v2.8b, v2.8h, #7
+        sqrshrun        v3.8b, v3.8h, #7
+        sqrshrun        v4.8b, v4.8h, #7
+        sqrshrun        v5.8b, v5.8h, #7
+        st1             {v0.8b, v1.8b, v2.8b}, [dst], x14
+        st1             {v3.8b, v4.8b, v5.8b}, [x10], x14
+.else
+        sqrshrun        v0.8b, v0.8h, #6
+        sqrshrun        v1.8b, v1.8h, #6
+        sqrshrun        v2.8b, v2.8h, #6
+        sqrshrun        v3.8b, v3.8h, #6
+        sqrshrun        v4.8b, v4.8h, #6
+        sqrshrun        v5.8b, v5.8h, #6
+        st1             {v0.8b, v1.8b, v2.8b}, [dst], x14
+        st1             {v3.8b, v4.8b, v5.8b}, [x10], x14
+.endif
+.endif
+        b.gt            0b
+2:
+        ret             mx
+endfunc
+
 .ifnc \type, qpel_bi
 function ff_vvc_put_\type\()_h16_8_neon, export=1
         vvc_load_filter mx
@@ -2220,6 +2358,91 @@ function ff_hevc_put_hevc_qpel_uni_w_v8_8_neon, export=1
         ret
 endfunc
 
+// Store 6 bytes: 4 bytes + 2 bytes, then advance dst pointer by dststride
+.macro QPEL_UNI_W_V_6
+        smull           v24.4s, v26.4h, v30.4h
+        smull2          v25.4s, v26.8h, v30.8h
+        sqrshl          v24.4s, v24.4s, v31.4s
+        sqrshl          v25.4s, v25.4s, v31.4s
+        sqadd           v24.4s, v24.4s, v29.4s
+        sqadd           v25.4s, v25.4s, v29.4s
+        sqxtn           v24.4h, v24.4s
+        sqxtn2          v24.8h, v25.4s
+        sqxtun          v24.8b, v24.8h
+        st1             {v24.s}[0], [x0], #4
+        st1             {v24.h}[2], [x0]
+        sub             x0, x0, #4
+        add             x0, x0, x1
+.endm
+
+function ff_hevc_put_hevc_qpel_uni_w_v6_8_neon, export=1
+        QPEL_UNI_W_V_HEADER
+        ldr             d16, [x2]
+        ldr             d17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             d18, [x2]
+        ldr             d19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             d20, [x2]
+        ldr             d21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             d22, [x2]
+
+1:      ldr             d23, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_UNI_W_V_6
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             d16, [x2]
+        QPEL_FILTER_B   v26, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_UNI_W_V_6
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             d17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_UNI_W_V_6
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             d18, [x2]
+        QPEL_FILTER_B   v26, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_UNI_W_V_6
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             d19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_UNI_W_V_6
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             d20, [x2]
+        QPEL_FILTER_B   v26, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_UNI_W_V_6
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             d21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_UNI_W_V_6
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             d22, [x2]
+        QPEL_FILTER_B   v26, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_UNI_W_V_6
+        subs            w4, w4, #1
+        b.ne            1b
+2:
+        ret
+endfunc
+
 .macro QPEL_UNI_W_V_16
         smull           v24.4s, v26.4h, v30.4h
         smull2          v25.4s, v26.8h, v30.8h
@@ -2318,6 +2541,104 @@ function ff_hevc_put_hevc_qpel_uni_w_v16_8_neon, export=1
         ret
 endfunc
 
+// Store 12 bytes: 8 bytes + 4 bytes, then advance dst pointer by dststride
+.macro QPEL_UNI_W_V_12
+        smull           v24.4s, v26.4h, v30.4h
+        smull2          v25.4s, v26.8h, v30.8h
+        smull           v26.4s, v27.4h, v30.4h
+        sqrshl          v24.4s, v24.4s, v31.4s
+        sqrshl          v25.4s, v25.4s, v31.4s
+        sqrshl          v26.4s, v26.4s, v31.4s
+        sqadd           v24.4s, v24.4s, v29.4s
+        sqadd           v25.4s, v25.4s, v29.4s
+        sqadd           v26.4s, v26.4s, v29.4s
+        sqxtn           v24.4h, v24.4s
+        sqxtn2          v24.8h, v25.4s
+        sqxtn           v26.4h, v26.4s
+        sqxtun          v24.8b, v24.8h
+        sqxtun          v26.8b, v26.8h
+        st1             {v24.d}[0], [x0], #8
+        st1             {v26.s}[0], [x0]
+        sub             x0, x0, #8
+        add             x0, x0, x1
+.endm
+
+function ff_hevc_put_hevc_qpel_uni_w_v12_8_neon, export=1
+        QPEL_UNI_W_V_HEADER
+        ldr             q16, [x2]
+        ldr             q17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q18, [x2]
+        ldr             q19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q20, [x2]
+        ldr             q21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q22, [x2]
+
+1:      ldr             q23, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_FILTER_B2  v27, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_UNI_W_V_12
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q16, [x2]
+        QPEL_FILTER_B   v26, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_FILTER_B2  v27, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_UNI_W_V_12
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_FILTER_B2  v27, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_UNI_W_V_12
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q18, [x2]
+        QPEL_FILTER_B   v26, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_FILTER_B2  v27, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_UNI_W_V_12
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_FILTER_B2  v27, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_UNI_W_V_12
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q20, [x2]
+        QPEL_FILTER_B   v26, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_FILTER_B2  v27, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_UNI_W_V_12
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_FILTER_B2  v27, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_UNI_W_V_12
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q22, [x2]
+        QPEL_FILTER_B   v26, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_FILTER_B2  v27, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_UNI_W_V_12
+        subs            w4, w4, #1
+        b.ne            1b
+2:
+        ret
+endfunc
+
 function ff_hevc_put_hevc_qpel_uni_w_v64_8_neon, export=1
         QPEL_UNI_W_V_HEADER
         ldur            w13, [sp, #16]
@@ -2337,6 +2658,345 @@ function ff_hevc_put_hevc_qpel_uni_w_v64_8_neon, export=1
         add             x2, x2, x3, lsl #1
         ldr             q22, [x2]
 
+
+1:      ldr             q23, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_FILTER_B2  v27, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q16, [x2]
+        QPEL_FILTER_B   v26, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_FILTER_B2  v27, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_FILTER_B2  v27, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q18, [x2]
+        QPEL_FILTER_B   v26, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_FILTER_B2  v27, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_FILTER_B2  v27, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q20, [x2]
+        QPEL_FILTER_B   v26, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_FILTER_B2  v27, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_FILTER_B2  v27, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q22, [x2]
+        QPEL_FILTER_B   v26, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_FILTER_B2  v27, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.ne            1b
+2:
+        subs            w13, w13, #16
+        add             x14, x14, #16
+        add             x15, x15, #16
+        mov             x0, x14
+        mov             x2, x15
+        mov             w4, w11
+        b.hi            3b
+        ret
+endfunc
+
+// Store 24 bytes: process as 16 + 8 in a loop
+function ff_hevc_put_hevc_qpel_uni_w_v24_8_neon, export=1
+        QPEL_UNI_W_V_HEADER
+        mov             w13, #24               // width
+        mov             x14, x0
+        mov             x15, x2
+        mov             w11, w4
+
+3:
+        cmp             w13, #16
+        b.le            4f
+        // Process 16 bytes
+        ldr             q16, [x2]
+        ldr             q17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q18, [x2]
+        ldr             q19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q20, [x2]
+        ldr             q21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q22, [x2]
+
+1:      ldr             q23, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_FILTER_B2  v27, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q16, [x2]
+        QPEL_FILTER_B   v26, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_FILTER_B2  v27, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_FILTER_B2  v27, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q18, [x2]
+        QPEL_FILTER_B   v26, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_FILTER_B2  v27, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_FILTER_B2  v27, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q20, [x2]
+        QPEL_FILTER_B   v26, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_FILTER_B2  v27, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_FILTER_B2  v27, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q22, [x2]
+        QPEL_FILTER_B   v26, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_FILTER_B2  v27, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.ne            1b
+2:
+        subs            w13, w13, #16
+        add             x14, x14, #16
+        add             x15, x15, #16
+        mov             x0, x14
+        mov             x2, x15
+        mov             w4, w11
+        b.hi            3b
+        ret
+
+4:      // Process remaining 8 bytes
+        ldr             d16, [x2]
+        ldr             d17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             d18, [x2]
+        ldr             d19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             d20, [x2]
+        ldr             d21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             d22, [x2]
+
+5:      ldr             d23, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_UNI_W_V_8
+        subs            w4, w4, #1
+        b.eq            6f
+
+        ldr             d16, [x2]
+        QPEL_FILTER_B   v26, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_UNI_W_V_8
+        subs            w4, w4, #1
+        b.eq            6f
+
+        ldr             d17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_UNI_W_V_8
+        subs            w4, w4, #1
+        b.eq            6f
+
+        ldr             d18, [x2]
+        QPEL_FILTER_B   v26, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_UNI_W_V_8
+        subs            w4, w4, #1
+        b.eq            6f
+
+        ldr             d19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_UNI_W_V_8
+        subs            w4, w4, #1
+        b.eq            6f
+
+        ldr             d20, [x2]
+        QPEL_FILTER_B   v26, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_UNI_W_V_8
+        subs            w4, w4, #1
+        b.eq            6f
+
+        ldr             d21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_UNI_W_V_8
+        subs            w4, w4, #1
+        b.eq            6f
+
+        ldr             d22, [x2]
+        QPEL_FILTER_B   v26, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_UNI_W_V_8
+        subs            w4, w4, #1
+        b.ne            5b
+6:
+        ret
+endfunc
+
+// v32: process as two 16-byte columns
+function ff_hevc_put_hevc_qpel_uni_w_v32_8_neon, export=1
+        QPEL_UNI_W_V_HEADER
+        mov             w13, #32               // width
+        mov             x14, x0
+        mov             x15, x2
+        mov             w11, w4
+
+3:
+        ldr             q16, [x2]
+        ldr             q17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q18, [x2]
+        ldr             q19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q20, [x2]
+        ldr             q21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q22, [x2]
+
+1:      ldr             q23, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_FILTER_B2  v27, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q16, [x2]
+        QPEL_FILTER_B   v26, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_FILTER_B2  v27, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_FILTER_B2  v27, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q18, [x2]
+        QPEL_FILTER_B   v26, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_FILTER_B2  v27, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_FILTER_B2  v27, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q20, [x2]
+        QPEL_FILTER_B   v26, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_FILTER_B2  v27, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        QPEL_FILTER_B   v26, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_FILTER_B2  v27, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.eq            2f
+
+        ldr             q22, [x2]
+        QPEL_FILTER_B   v26, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_FILTER_B2  v27, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_UNI_W_V_16
+        subs            w4, w4, #1
+        b.ne            1b
+2:
+        subs            w13, w13, #16
+        add             x14, x14, #16
+        add             x15, x15, #16
+        mov             x0, x14
+        mov             x2, x15
+        mov             w4, w11
+        b.hi            3b
+        ret
+endfunc
+
+// v48: process as three 16-byte columns
+function ff_hevc_put_hevc_qpel_uni_w_v48_8_neon, export=1
+        QPEL_UNI_W_V_HEADER
+        mov             w13, #48               // width
+        mov             x14, x0
+        mov             x15, x2
+        mov             w11, w4
+
+3:
+        ldr             q16, [x2]
+        ldr             q17, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q18, [x2]
+        ldr             q19, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q20, [x2]
+        ldr             q21, [x2, x3]
+        add             x2, x2, x3, lsl #1
+        ldr             q22, [x2]
 
 1:      ldr             q23, [x2, x3]
         add             x2, x2, x3, lsl #1
@@ -4654,7 +5314,14 @@ DISABLE_I8MM
 .if \width >= 32
         mov             w6,  #\width
         bl              X(ff_hevc_put_hevc_qpel_h32_8_neon)
+.elseif \width == 24
+#if HAVE_I8MM
+        bl              X(ff_hevc_put_hevc_qpel_h24_8_neon_i8mm)
+#else
+        bl              X(ff_hevc_put_hevc_qpel_h24_8_neon)
+#endif
 .else
+        mov             w6,  #\width
         bl              X(ff_hevc_put_hevc_qpel_h\width\()_8_\suffix)
 .endif
 .else
@@ -4785,6 +5452,107 @@ function hevc_put_hevc_qpel_uni_w_hv4_8_end_neon
         ret
 endfunc
 
+// hv6: process 6 pixels (4 + 2), use 8-element loads/stores
+.macro QPEL_UNI_W_HV_6
+        sshr            v26.4s, v26.4s, #6
+        sshr            v27.4s, v27.4s, #6
+        mul             v24.4s, v26.4s, v28.4s
+        mul             v25.4s, v27.4s, v28.4s
+        sqrshl          v24.4s, v24.4s, v30.4s
+        sqrshl          v25.4s, v25.4s, v30.4s
+        sqadd           v24.4s, v24.4s, v29.4s
+        sqadd           v25.4s, v25.4s, v29.4s
+        sqxtn           v24.4h, v24.4s
+        sqxtn2          v24.8h, v25.4s
+        sqxtun          v24.8b, v24.8h
+        st1             {v24.s}[0], [x20], #4
+        st1             {v24.h}[2], [x20]
+        sub             x20, x20, #4
+        add             x20, x20, x21
+.endm
+
+function hevc_put_hevc_qpel_uni_w_hv6_8_end_neon
+        ldr             q16, [sp]
+        ldr             q17, [sp, x10]
+        add             sp, sp, x10, lsl #1
+        ldr             q18, [sp]
+        ldr             q19, [sp, x10]
+        add             sp, sp, x10, lsl #1
+        ldr             q20, [sp]
+        ldr             q21, [sp, x10]
+        add             sp, sp, x10, lsl #1
+        ldr             q22, [sp]
+        add             sp, sp, x10
+1:
+        ldr             q23, [sp]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v26, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_FILTER_H2  v27, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_UNI_W_HV_6
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q16, [sp]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v26, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_FILTER_H2  v27, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_UNI_W_HV_6
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q17, [sp]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v26, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_FILTER_H2  v27, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_UNI_W_HV_6
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q18, [sp]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v26, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_FILTER_H2  v27, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_UNI_W_HV_6
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q19, [sp]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v26, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_FILTER_H2  v27, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_UNI_W_HV_6
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q20, [sp]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v26, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_FILTER_H2  v27, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_UNI_W_HV_6
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q21, [sp]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v26, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_FILTER_H2  v27, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_UNI_W_HV_6
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q22, [sp]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v26, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_FILTER_H2  v27, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_UNI_W_HV_6
+        subs            w22, w22, #1
+        b.hi            1b
+
+2:
+        QPEL_UNI_W_HV_END
+        ret
+endfunc
+
 .macro QPEL_UNI_W_HV_8
         sshr            v26.4s, v26.4s, #6
         sshr            v27.4s, v27.4s, #6
@@ -4874,6 +5642,144 @@ function hevc_put_hevc_qpel_uni_w_hv8_8_end_neon
         QPEL_FILTER_H   v26, v23, v16, v17, v18, v19, v20, v21, v22
         QPEL_FILTER_H2  v27, v23, v16, v17, v18, v19, v20, v21, v22
         QPEL_UNI_W_HV_8
+        subs            w22, w22, #1
+        b.hi            1b
+
+2:
+        QPEL_UNI_W_HV_END
+        ret
+endfunc
+
+// hv12: process 12 pixels = 8 + 4
+// Input: v16-v23 hold first 8 elements per row (q registers)
+//        v1-v7,v31 hold elements 8-11 per row (d registers, only .4h used)
+// Output: 12 bytes to [x20], advance by x21
+.macro QPEL_UNI_W_HV_12
+        sshr            v24.4s, v24.4s, #6
+        sshr            v25.4s, v25.4s, #6
+        sshr            v26.4s, v26.4s, #6
+        mul             v24.4s, v24.4s, v28.4s
+        mul             v25.4s, v25.4s, v28.4s
+        mul             v26.4s, v26.4s, v28.4s
+        sqrshl          v24.4s, v24.4s, v30.4s
+        sqrshl          v25.4s, v25.4s, v30.4s
+        sqrshl          v26.4s, v26.4s, v30.4s
+        sqadd           v24.4s, v24.4s, v29.4s
+        sqadd           v25.4s, v25.4s, v29.4s
+        sqadd           v26.4s, v26.4s, v29.4s
+        sqxtn           v24.4h, v24.4s
+        sqxtn2          v24.8h, v25.4s
+        sqxtn           v26.4h, v26.4s
+        sqxtun          v24.8b, v24.8h
+        sqxtun          v26.8b, v26.8h
+        st1             {v24.d}[0], [x20], #8
+        st1             {v26.s}[0], [x20]
+        sub             x20, x20, #8
+        add             x20, x20, x21
+.endm
+
+function hevc_put_hevc_qpel_uni_w_hv12_8_end_neon
+        // Load first 7 rows of 12 elements each
+        // Each row: q16-q22 (first 8 elements) + d1-d7 (elements 8-11)
+        ldr             q16, [sp]
+        ldr             d1, [sp, #16]
+        add             sp, sp, x10
+        ldr             q17, [sp]
+        ldr             d2, [sp, #16]
+        add             sp, sp, x10
+        ldr             q18, [sp]
+        ldr             d3, [sp, #16]
+        add             sp, sp, x10
+        ldr             q19, [sp]
+        ldr             d4, [sp, #16]
+        add             sp, sp, x10
+        ldr             q20, [sp]
+        ldr             d5, [sp, #16]
+        add             sp, sp, x10
+        ldr             q21, [sp]
+        ldr             d6, [sp, #16]
+        add             sp, sp, x10
+        ldr             q22, [sp]
+        ldr             d7, [sp, #16]
+        add             sp, sp, x10
+1:
+        ldr             q23, [sp]
+        ldr             d31, [sp, #16]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v24, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_FILTER_H2  v25, v16, v17, v18, v19, v20, v21, v22, v23
+        QPEL_FILTER_H   v26,  v1,  v2,  v3,  v4,  v5,  v6,  v7, v31
+        QPEL_UNI_W_HV_12
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q16, [sp]
+        ldr             d1, [sp, #16]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v24, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_FILTER_H2  v25, v17, v18, v19, v20, v21, v22, v23, v16
+        QPEL_FILTER_H   v26,  v2,  v3,  v4,  v5,  v6,  v7, v31,  v1
+        QPEL_UNI_W_HV_12
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q17, [sp]
+        ldr             d2, [sp, #16]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v24, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_FILTER_H2  v25, v18, v19, v20, v21, v22, v23, v16, v17
+        QPEL_FILTER_H   v26,  v3,  v4,  v5,  v6,  v7, v31,  v1,  v2
+        QPEL_UNI_W_HV_12
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q18, [sp]
+        ldr             d3, [sp, #16]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v24, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_FILTER_H2  v25, v19, v20, v21, v22, v23, v16, v17, v18
+        QPEL_FILTER_H   v26,  v4,  v5,  v6,  v7, v31,  v1,  v2,  v3
+        QPEL_UNI_W_HV_12
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q19, [sp]
+        ldr             d4, [sp, #16]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v24, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_FILTER_H2  v25, v20, v21, v22, v23, v16, v17, v18, v19
+        QPEL_FILTER_H   v26,  v5,  v6,  v7, v31,  v1,  v2,  v3,  v4
+        QPEL_UNI_W_HV_12
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q20, [sp]
+        ldr             d5, [sp, #16]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v24, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_FILTER_H2  v25, v21, v22, v23, v16, v17, v18, v19, v20
+        QPEL_FILTER_H   v26,  v6,  v7, v31,  v1,  v2,  v3,  v4,  v5
+        QPEL_UNI_W_HV_12
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q21, [sp]
+        ldr             d6, [sp, #16]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v24, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_FILTER_H2  v25, v22, v23, v16, v17, v18, v19, v20, v21
+        QPEL_FILTER_H   v26,  v7, v31,  v1,  v2,  v3,  v4,  v5,  v6
+        QPEL_UNI_W_HV_12
+        subs            w22, w22, #1
+        b.eq            2f
+
+        ldr             q22, [sp]
+        ldr             d7, [sp, #16]
+        add             sp, sp, x10
+        QPEL_FILTER_H   v24, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_FILTER_H2  v25, v23, v16, v17, v18, v19, v20, v21, v22
+        QPEL_FILTER_H   v26, v31,  v1,  v2,  v3,  v4,  v5,  v6,  v7
+        QPEL_UNI_W_HV_12
         subs            w22, w22, #1
         b.hi            1b
 
@@ -5014,11 +5920,21 @@ function hevc_put_hevc_qpel_uni_w_hv16_8_end_neon
         add             x11, x14, #32
         add             x20, x13, #16
         mov             w22, w12
+        cmp             w27, #8
+        b.eq            .Lqpel_uni_w_hv24_tail
         mov             x14, x11
         mov             x13, x20
         b.hi            3b
         QPEL_UNI_W_HV_END
         ret
+
+// hv24 tail: process remaining 8 columns (16-23) via tail-call to hv8
+// sp is set to the start of tail data.
+// This reuses the stack frame setup by ff_hevc_put_hevc_qpel_uni_w_hv24_8_neon.
+// hv8 will restore the original lr and return to the caller.
+.Lqpel_uni_w_hv24_tail:
+        mov             sp, x11
+        b               hevc_put_hevc_qpel_uni_w_hv8_8_end_neon
 endfunc
 
 .macro qpel_uni_w_hv suffix
@@ -5027,9 +5943,24 @@ function ff_hevc_put_hevc_qpel_uni_w_hv4_8_\suffix, export=1
         b               hevc_put_hevc_qpel_uni_w_hv4_8_end_neon
 endfunc
 
+function ff_hevc_put_hevc_qpel_uni_w_hv6_8_\suffix, export=1
+        QPEL_UNI_W_HV_HEADER 6, \suffix
+        b               hevc_put_hevc_qpel_uni_w_hv6_8_end_neon
+endfunc
+
 function ff_hevc_put_hevc_qpel_uni_w_hv8_8_\suffix, export=1
         QPEL_UNI_W_HV_HEADER 8, \suffix
         b               hevc_put_hevc_qpel_uni_w_hv8_8_end_neon
+endfunc
+
+function ff_hevc_put_hevc_qpel_uni_w_hv12_8_\suffix, export=1
+        QPEL_UNI_W_HV_HEADER 12, \suffix
+        b               hevc_put_hevc_qpel_uni_w_hv12_8_end_neon
+endfunc
+
+function ff_hevc_put_hevc_qpel_uni_w_hv24_8_\suffix, export=1
+        QPEL_UNI_W_HV_HEADER 24, \suffix
+        b               hevc_put_hevc_qpel_uni_w_hv16_8_end_neon
 endfunc
 
 function ff_hevc_put_hevc_qpel_uni_w_hv16_8_\suffix, export=1
@@ -5039,6 +5970,11 @@ endfunc
 
 function ff_hevc_put_hevc_qpel_uni_w_hv32_8_\suffix, export=1
         QPEL_UNI_W_HV_HEADER 32, \suffix
+        b               hevc_put_hevc_qpel_uni_w_hv16_8_end_neon
+endfunc
+
+function ff_hevc_put_hevc_qpel_uni_w_hv48_8_\suffix, export=1
+        QPEL_UNI_W_HV_HEADER 48, \suffix
         b               hevc_put_hevc_qpel_uni_w_hv16_8_end_neon
 endfunc
 
