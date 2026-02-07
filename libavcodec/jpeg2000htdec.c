@@ -1254,6 +1254,9 @@ ff_jpeg2000_decode_htj2k(const Jpeg2000DecoderContext *s, Jpeg2000CodingStyle *c
                "Cleanup pass length must be at least 2 bytes in length\n");
         return AVERROR_INVALIDDATA;
     }
+    if (Lcup + Lref != cblk->length)
+        return AVERROR_INVALIDDATA;
+
     Dcup = cblk->data;
     Dref  = cblk->data + Lcup; // Dref comes after the refinement segment
 
