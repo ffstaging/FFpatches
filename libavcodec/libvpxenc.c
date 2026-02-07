@@ -825,6 +825,7 @@ static int set_pix_fmt(AVCodecContext *avctx, vpx_codec_caps_t codec_caps,
         *img_fmt = VPX_IMG_FMT_I420;
         return 0;
     case AV_PIX_FMT_YUV422P:
+    case AV_PIX_FMT_YUVA422P:
         enccfg->g_profile = 1;
         *img_fmt = VPX_IMG_FMT_I422;
         return 0;
@@ -833,12 +834,15 @@ static int set_pix_fmt(AVCodecContext *avctx, vpx_codec_caps_t codec_caps,
         *img_fmt = VPX_IMG_FMT_I440;
         return 0;
     case AV_PIX_FMT_GBRP:
+    case AV_PIX_FMT_GBRAP:
         ctx->vpx_cs = VPX_CS_SRGB;
     case AV_PIX_FMT_YUV444P:
+    case AV_PIX_FMT_YUVA444P:
         enccfg->g_profile = 1;
         *img_fmt = VPX_IMG_FMT_I444;
         return 0;
     case AV_PIX_FMT_YUV420P10:
+    case AV_PIX_FMT_YUVA420P10:
     case AV_PIX_FMT_YUV420P12:
         if (codec_caps & VPX_CODEC_CAP_HIGHBITDEPTH) {
             enccfg->g_profile = 2;
@@ -848,6 +852,7 @@ static int set_pix_fmt(AVCodecContext *avctx, vpx_codec_caps_t codec_caps,
         }
         break;
     case AV_PIX_FMT_YUV422P10:
+    case AV_PIX_FMT_YUVA422P10:
     case AV_PIX_FMT_YUV422P12:
         if (codec_caps & VPX_CODEC_CAP_HIGHBITDEPTH) {
             enccfg->g_profile = 3;
@@ -866,10 +871,14 @@ static int set_pix_fmt(AVCodecContext *avctx, vpx_codec_caps_t codec_caps,
         }
         break;
     case AV_PIX_FMT_GBRP10:
+    case AV_PIX_FMT_GBRAP10:
     case AV_PIX_FMT_GBRP12:
+    case AV_PIX_FMT_GBRAP12:
         ctx->vpx_cs = VPX_CS_SRGB;
     case AV_PIX_FMT_YUV444P10:
+    case AV_PIX_FMT_YUVA444P10:
     case AV_PIX_FMT_YUV444P12:
+    case AV_PIX_FMT_YUVA444P12:
         if (codec_caps & VPX_CODEC_CAP_HIGHBITDEPTH) {
             enccfg->g_profile = 3;
             *img_fmt = VPX_IMG_FMT_I44416;
@@ -1004,12 +1013,21 @@ static av_cold int vpx_init(AVCodecContext *avctx,
     vpx_svc_extra_cfg_t svc_params;
 #endif
     const AVDictionaryEntry* en = NULL;
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(avctx->pix_fmt);
 
     av_log(avctx, AV_LOG_INFO, "%s\n", vpx_codec_version_str());
     av_log(avctx, AV_LOG_VERBOSE, "%s\n", vpx_codec_build_config());
 
-    if (avctx->pix_fmt == AV_PIX_FMT_YUVA420P)
+    if (desc && (desc->flags & AV_PIX_FMT_FLAG_ALPHA)) {
         ctx->is_alpha = 1;
+        if (avctx->pix_fmt != AV_PIX_FMT_YUVA420P && avctx->strict_std_compliance > FF_COMPLIANCE_EXPERIMENTAL) {
+            av_log(avctx, AV_LOG_ERROR,
+                   "Pixel format '%s' is not widely supported. "
+                   "Use -strict experimental to use it anyway, or use 'yuva420p' pixel format instead.\n",
+                   av_get_pix_fmt_name(avctx->pix_fmt));
+            return AVERROR(EINVAL);
+        }
+    }
 
     if ((res = vpx_codec_enc_config_default(iface, &enccfg, 0)) != VPX_CODEC_OK) {
         av_log(avctx, AV_LOG_ERROR, "Failed to get config: %s\n",
@@ -1695,15 +1713,24 @@ static int realloc_alpha_uv(AVCodecContext *avctx, int width, int height)
         av_freep(&planes[VPX_PLANE_U]);
         av_freep(&planes[VPX_PLANE_V]);
 
-        vpx_img_wrap(rawimg_alpha, VPX_IMG_FMT_I420, width, height, 1,
+        vpx_img_wrap(rawimg_alpha, ctx->rawimg.fmt, width, height, 1,
                      (unsigned char*)1);
         planes[VPX_PLANE_U] = av_malloc_array(stride[VPX_PLANE_U], height);
         planes[VPX_PLANE_V] = av_malloc_array(stride[VPX_PLANE_V], height);
         if (!planes[VPX_PLANE_U] || !planes[VPX_PLANE_V])
             return AVERROR(ENOMEM);
 
-        memset(planes[VPX_PLANE_U], 0x80, stride[VPX_PLANE_U] * height);
-        memset(planes[VPX_PLANE_V], 0x80, stride[VPX_PLANE_V] * height);
+        if (ctx->rawimg.bit_depth > 8 && ctx->vpx_cs != VPX_CS_SRGB) {
+            int val = 0x80 << (ctx->rawimg.bit_depth - 8);
+            AV_WN16(planes[VPX_PLANE_U], val);
+            AV_WN16(planes[VPX_PLANE_V], val);
+            av_memcpy_backptr(planes[VPX_PLANE_U] + 2, 2, stride[VPX_PLANE_U] * height - 2);
+            av_memcpy_backptr(planes[VPX_PLANE_V] + 2, 2, stride[VPX_PLANE_V] * height - 2);
+        } else {
+            int val = (ctx->vpx_cs == VPX_CS_SRGB) ? 0x00 : 0x80;
+            memset(planes[VPX_PLANE_U], val, stride[VPX_PLANE_U] * height);
+            memset(planes[VPX_PLANE_V], val, stride[VPX_PLANE_V] * height);
+        }
     }
 
     return 0;
@@ -2085,9 +2112,12 @@ static const enum AVPixelFormat vp9_pix_fmts_highcol[] = {
     AV_PIX_FMT_YUV420P,
     AV_PIX_FMT_YUVA420P,
     AV_PIX_FMT_YUV422P,
+    AV_PIX_FMT_YUVA422P,
     AV_PIX_FMT_YUV440P,
     AV_PIX_FMT_YUV444P,
+    AV_PIX_FMT_YUVA444P,
     AV_PIX_FMT_GBRP,
+    AV_PIX_FMT_GBRAP,
     AV_PIX_FMT_NONE
 };
 
@@ -2095,19 +2125,28 @@ static const enum AVPixelFormat vp9_pix_fmts_highbd[] = {
     AV_PIX_FMT_YUV420P,
     AV_PIX_FMT_YUVA420P,
     AV_PIX_FMT_YUV422P,
+    AV_PIX_FMT_YUVA422P,
     AV_PIX_FMT_YUV440P,
     AV_PIX_FMT_YUV444P,
+    AV_PIX_FMT_YUVA444P,
     AV_PIX_FMT_YUV420P10,
+    AV_PIX_FMT_YUVA420P10,
     AV_PIX_FMT_YUV422P10,
+    AV_PIX_FMT_YUVA422P10,
     AV_PIX_FMT_YUV440P10,
     AV_PIX_FMT_YUV444P10,
+    AV_PIX_FMT_YUVA444P10,
     AV_PIX_FMT_YUV420P12,
     AV_PIX_FMT_YUV422P12,
     AV_PIX_FMT_YUV440P12,
     AV_PIX_FMT_YUV444P12,
+    AV_PIX_FMT_YUVA444P12,
     AV_PIX_FMT_GBRP,
+    AV_PIX_FMT_GBRAP,
     AV_PIX_FMT_GBRP10,
+    AV_PIX_FMT_GBRAP10,
     AV_PIX_FMT_GBRP12,
+    AV_PIX_FMT_GBRAP12,
     AV_PIX_FMT_NONE
 };
 

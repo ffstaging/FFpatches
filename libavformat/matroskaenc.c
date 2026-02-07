@@ -19,6 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "config_components.h"
@@ -1787,6 +1788,15 @@ static void mkv_write_blockadditionmapping(AVFormatContext *s, const MatroskaMux
 #endif
 }
 
+static bool codec_has_blockadditional_alpha(const AVCodecParameters *par)
+{
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(par->format);
+    if (par->codec_id != AV_CODEC_ID_VP8 &&
+        par->codec_id != AV_CODEC_ID_VP9)
+        return false;
+    return desc && (desc->flags & AV_PIX_FMT_FLAG_ALPHA);
+}
+
 static int mkv_write_track_video(AVFormatContext *s, MatroskaMuxContext *mkv,
                                  const AVStream *st, const AVCodecParameters *par,
                                  AVIOContext *pb)
@@ -1815,7 +1825,7 @@ static int mkv_write_track_video(AVFormatContext *s, MatroskaMuxContext *mkv,
     if (ret < 0)
         return ret;
 
-    if (par->format == AV_PIX_FMT_YUVA420P ||
+    if (codec_has_blockadditional_alpha(par) ||
         ((tag = av_dict_get(st->metadata, "alpha_mode", NULL, 0)) ||
          (tag = av_dict_get( s->metadata, "alpha_mode", NULL, 0))) && strtol(tag->value, NULL, 0))
         ebml_writer_add_uint(&writer, MATROSKA_ID_VIDEOALPHAMODE, 1);
