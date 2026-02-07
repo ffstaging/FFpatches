@@ -642,6 +642,11 @@ static int param_parse(void *s, IAMFContext *c, AVIOContext *pb,
         }
     }
 
+    if (nb_subblocks > duration) {
+        av_log(s, AV_LOG_ERROR, "Invalid duration or subblock count in parameter_id %u\n", parameter_id);
+        return AVERROR_INVALIDDATA;
+    }
+
     param = av_iamf_param_definition_alloc(type, nb_subblocks, &param_size);
     if (!param)
         return AVERROR(ENOMEM);
@@ -652,6 +657,11 @@ static int param_parse(void *s, IAMFContext *c, AVIOContext *pb,
 
         if (constant_subblock_duration == 0) {
             subblock_duration = ffio_read_leb(pb);
+            if (duration - total_duration > subblock_duration) {
+                av_log(s, AV_LOG_ERROR, "Invalid subblock durations in parameter_id %u\n", parameter_id);
+                av_free(param);
+                return AVERROR_INVALIDDATA;
+            }
             total_duration += subblock_duration;
         } else if (i == nb_subblocks - 1)
             subblock_duration = duration - i * constant_subblock_duration;

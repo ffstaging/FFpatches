@@ -158,6 +158,12 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,
         nb_subblocks = param->nb_subblocks;
     }
 
+    if (nb_subblocks > duration) {
+        av_log(s, AV_LOG_ERROR, "Invalid duration or subblock count in parameter_id %u\n", parameter_id);
+        ret = AVERROR_INVALIDDATA;
+        goto fail;
+    }
+
     out_param = av_iamf_param_definition_alloc(param->type, nb_subblocks, &out_param_size);
     if (!out_param) {
         ret = AVERROR(ENOMEM);
@@ -177,6 +183,11 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,
 
         if (!param_definition->mode && !constant_subblock_duration) {
             subblock_duration = ffio_read_leb(pb);
+            if (duration - total_duration > subblock_duration) {
+                av_log(s, AV_LOG_ERROR, "Invalid subblock durations in parameter_id %u\n", parameter_id);
+                ret = AVERROR_INVALIDDATA;
+                goto fail;
+            }
             total_duration += subblock_duration;
         } else if (i == nb_subblocks - 1)
             subblock_duration = duration - i * constant_subblock_duration;
