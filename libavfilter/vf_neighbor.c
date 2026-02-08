@@ -371,31 +371,34 @@ static const AVOption options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(erosion_dilation, "erosion/dilation", options);
+AVFILTER_DEFINE_CLASS_EXT(erosion, "erosion", options);
+AVFILTER_DEFINE_CLASS_EXT(dilation, "dilation", options);
 
 #if CONFIG_EROSION_FILTER
 
-DEFINE_NEIGHBOR_FILTER(erosion, "Apply erosion effect.", erosion_dilation);
+DEFINE_NEIGHBOR_FILTER(erosion, "Apply erosion effect.", erosion);
 
 #endif /* CONFIG_EROSION_FILTER */
 
 #if CONFIG_DILATION_FILTER
 
-DEFINE_NEIGHBOR_FILTER(dilation, "Apply dilation effect.", erosion_dilation);
+DEFINE_NEIGHBOR_FILTER(dilation, "Apply dilation effect.", dilation);
 
 #endif /* CONFIG_DILATION_FILTER */
 
-AVFILTER_DEFINE_CLASS_EXT(deflate_inflate, "deflate/inflate",
+AVFILTER_DEFINE_CLASS_EXT(deflate, "deflate",
+                          &options[DEINFLATE_OPTIONS_OFFSET]);
+AVFILTER_DEFINE_CLASS_EXT(inflate, "inflate",
                           &options[DEINFLATE_OPTIONS_OFFSET]);
 
 #if CONFIG_DEFLATE_FILTER
 
-DEFINE_NEIGHBOR_FILTER(deflate, "Apply deflate effect.", deflate_inflate);
+DEFINE_NEIGHBOR_FILTER(deflate, "Apply deflate effect.", deflate);
 
 #endif /* CONFIG_DEFLATE_FILTER */
 
 #if CONFIG_INFLATE_FILTER
 
-DEFINE_NEIGHBOR_FILTER(inflate, "Apply inflate effect.", deflate_inflate);
+DEFINE_NEIGHBOR_FILTER(inflate, "Apply inflate effect.", inflate);
 
 #endif /* CONFIG_INFLATE_FILTER */

@@ -62,7 +62,9 @@ static const AVOption options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(premultiply, "(un)premultiply", options);
+AVFILTER_DEFINE_CLASS_EXT(premultiply, "premultiply", options);
+AVFILTER_DEFINE_CLASS_EXT(unpremultiply, "unpremultiply", options);
+AVFILTER_DEFINE_CLASS_EXT(premultiply_dynamic, "premultiply_dynamic", options);
 
 static int query_formats(const AVFilterContext *ctx,
                          AVFilterFormatsConfig **cfg_in,
@@ -880,7 +882,7 @@ const FFFilter ff_vf_premultiply = {
 const FFFilter ff_vf_unpremultiply = {
     .p.name        = "unpremultiply",
     .p.description = NULL_IF_CONFIG_SMALL("UnPreMultiply first stream with first plane of second stream."),
-    .p.priv_class  = &premultiply_class,
+    .p.priv_class  = &unpremultiply_class,
     .p.flags       = AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL |
                      AVFILTER_FLAG_DYNAMIC_INPUTS |
                      AVFILTER_FLAG_SLICE_THREADS,
@@ -907,7 +909,7 @@ static const AVFilterPad premultiply_input[] = {
 const FFFilter ff_vf_premultiply_dynamic = {
     .p.name        = "premultiply_dynamic",
     .p.description = NULL_IF_CONFIG_SMALL("Premultiply or unpremultiply an image in-place, as needed."),
-    .p.priv_class  = &premultiply_class,
+    .p.priv_class  = &premultiply_dynamic_class,
     .p.flags       = AVFILTER_FLAG_SLICE_THREADS,
     .priv_size     = sizeof(PreMultiplyContext),
     .init          = init,

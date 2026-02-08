@@ -85,7 +85,8 @@ static const AVOption drawgraph_options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(drawgraph, "(a)drawgraph", drawgraph_options);
+AVFILTER_DEFINE_CLASS_EXT(drawgraph, "drawgraph", drawgraph_options);
+AVFILTER_DEFINE_CLASS_EXT(adrawgraph, "adrawgraph", drawgraph_options);
 
 static const char *const var_names[] = {   "MAX",   "MIN",   "VAL", NULL };
 enum                                   { VAR_MAX, VAR_MIN, VAR_VAL, VAR_VARS_NB };
@@ -501,7 +502,7 @@ static const AVFilterPad adrawgraph_inputs[] = {
 const FFFilter ff_avf_adrawgraph = {
     .p.name        = "adrawgraph",
     .p.description = NULL_IF_CONFIG_SMALL("Draw a graph using input audio metadata."),
-    .p.priv_class  = &drawgraph_class,
+    .p.priv_class  = &adrawgraph_class,
     .priv_size     = sizeof(DrawGraphContext),
     .init          = init,
     .uninit        = uninit,

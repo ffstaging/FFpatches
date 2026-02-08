@@ -682,7 +682,8 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
     return ret;
 }
 
-AVFILTER_DEFINE_CLASS_EXT(movie, "(a)movie", movie_options);
+AVFILTER_DEFINE_CLASS_EXT(movie, "movie", movie_options);
+AVFILTER_DEFINE_CLASS_EXT(amovie, "amovie", movie_options);
 
 #if CONFIG_MOVIE_FILTER
 
@@ -707,7 +708,7 @@ const FFFilter ff_avsrc_movie = {
 const FFFilter ff_avsrc_amovie = {
     .p.name        = "amovie",
     .p.description = NULL_IF_CONFIG_SMALL("Read audio from a movie source."),
-    .p.priv_class  = &movie_class,
+    .p.priv_class  = &amovie_class,
     .p.flags       = AVFILTER_FLAG_DYNAMIC_OUTPUTS,
     .priv_size     = sizeof(MovieContext),
     .init          = movie_common_init,

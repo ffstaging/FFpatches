@@ -1552,13 +1552,14 @@ static const AVOption bass_lowshelf_options[] = {
     {NULL}
 };
 
-AVFILTER_DEFINE_CLASS_EXT(bass_lowshelf, "bass/lowshelf", bass_lowshelf_options);
+AVFILTER_DEFINE_CLASS_EXT(bass, "bass", bass_lowshelf_options);
+AVFILTER_DEFINE_CLASS_EXT(lowshelf, "lowshelf", bass_lowshelf_options);
 #if CONFIG_BASS_FILTER
-DEFINE_BIQUAD_FILTER_2(bass, "Boost or cut lower frequencies.", bass_lowshelf);
+DEFINE_BIQUAD_FILTER_2(bass, "Boost or cut lower frequencies.", bass);
 #endif  /* CONFIG_BASS_FILTER */
 
 #if CONFIG_LOWSHELF_FILTER
-DEFINE_BIQUAD_FILTER_2(lowshelf, "Apply a low shelf filter.", bass_lowshelf);
+DEFINE_BIQUAD_FILTER_2(lowshelf, "Apply a low shelf filter.", lowshelf);
 #endif  /* CONFIG_LOWSHELF_FILTER */
 #endif  /* CONFIG_BASS_FILTER || CONFIG LOWSHELF_FILTER */
 #if CONFIG_TREBLE_FILTER || CONFIG_HIGHSHELF_FILTER || CONFIG_TILTSHELF_FILTER
@@ -1578,19 +1579,20 @@ static const AVOption treble_highshelf_options[] = {
     {NULL}
 };
 
-AVFILTER_DEFINE_CLASS_EXT(treble_highshelf, "treble/high/tiltshelf",
-                          treble_highshelf_options);
+AVFILTER_DEFINE_CLASS_EXT(treble, "treble", treble_highshelf_options);
+AVFILTER_DEFINE_CLASS_EXT(highshelf, "highshelf", treble_highshelf_options);
+AVFILTER_DEFINE_CLASS_EXT(tiltshelf, "tiltshelf", treble_highshelf_options);
 
 #if CONFIG_TREBLE_FILTER
-DEFINE_BIQUAD_FILTER_2(treble, "Boost or cut upper frequencies.", treble_highshelf);
+DEFINE_BIQUAD_FILTER_2(treble, "Boost or cut upper frequencies.", treble);
 #endif  /* CONFIG_TREBLE_FILTER */
 
 #if CONFIG_HIGHSHELF_FILTER
-DEFINE_BIQUAD_FILTER_2(highshelf, "Apply a high shelf filter.", treble_highshelf);
+DEFINE_BIQUAD_FILTER_2(highshelf, "Apply a high shelf filter.", highshelf);
 #endif  /* CONFIG_HIGHSHELF_FILTER */
 
 #if CONFIG_TILTSHELF_FILTER
-DEFINE_BIQUAD_FILTER_2(tiltshelf, "Apply a tilt shelf filter.", treble_highshelf);
+DEFINE_BIQUAD_FILTER_2(tiltshelf, "Apply a tilt shelf filter.", tiltshelf);
 #endif
 #endif  /* CONFIG_TREBLE_FILTER || CONFIG_HIGHSHELF_FILTER || CONFIG_TILTSHELF_FILTER */
 

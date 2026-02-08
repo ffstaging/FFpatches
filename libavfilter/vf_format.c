@@ -189,7 +189,8 @@ static const AVOption options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(format, "(no)format", options);
+AVFILTER_DEFINE_CLASS_EXT(format, "format", options);
+AVFILTER_DEFINE_CLASS_EXT(noformat, "noformat", options);
 
 static const AVFilterPad inputs[] = {
     {
@@ -223,7 +224,7 @@ const FFFilter ff_vf_format = {
 const FFFilter ff_vf_noformat = {
     .p.name        = "noformat",
     .p.description = NULL_IF_CONFIG_SMALL("Force libavfilter not to use any of the specified pixel formats for the input to the next filter."),
-    .p.priv_class  = &format_class,
+    .p.priv_class  = &noformat_class,
 
     .p.flags       = AVFILTER_FLAG_METADATA_ONLY,
 

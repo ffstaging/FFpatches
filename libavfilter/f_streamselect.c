@@ -48,7 +48,8 @@ static const AVOption streamselect_options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(streamselect, "(a)streamselect", streamselect_options);
+AVFILTER_DEFINE_CLASS_EXT(streamselect, "streamselect", streamselect_options);
+AVFILTER_DEFINE_CLASS_EXT(astreamselect, "astreamselect", streamselect_options);
 
 static int process_frame(FFFrameSync *fs)
 {
@@ -311,7 +312,7 @@ const FFFilter ff_vf_streamselect = {
 const FFFilter ff_af_astreamselect = {
     .p.name          = "astreamselect",
     .p.description   = NULL_IF_CONFIG_SMALL("Select audio streams"),
-    .p.priv_class    = &streamselect_class,
+    .p.priv_class    = &astreamselect_class,
     .p.flags         = AVFILTER_FLAG_DYNAMIC_INPUTS | AVFILTER_FLAG_DYNAMIC_OUTPUTS,
     .init            = init,
     .process_command = process_command,

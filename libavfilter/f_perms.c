@@ -113,7 +113,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
     return ret;
 }
 
-AVFILTER_DEFINE_CLASS_EXT(perms, "(a)perms", options);
+AVFILTER_DEFINE_CLASS_EXT(perms, "perms", options);
+AVFILTER_DEFINE_CLASS_EXT(aperms, "aperms", options);
 
 #if CONFIG_APERMS_FILTER
 
@@ -128,7 +129,7 @@ static const AVFilterPad aperms_inputs[] = {
 const FFFilter ff_af_aperms = {
     .p.name      = "aperms",
     .p.description= NULL_IF_CONFIG_SMALL("Set permissions for the output audio frame."),
-    .p.priv_class= &perms_class,
+    .p.priv_class= &aperms_class,
     .p.flags     = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC |
                    AVFILTER_FLAG_METADATA_ONLY,
     .init        = init,

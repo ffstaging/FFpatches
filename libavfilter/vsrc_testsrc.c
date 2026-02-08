@@ -454,7 +454,8 @@ const FFFilter ff_vsrc_haldclutsrc = {
 };
 #endif /* CONFIG_HALDCLUTSRC_FILTER */
 
-AVFILTER_DEFINE_CLASS_EXT(nullsrc_yuvtestsrc, "nullsrc/yuvtestsrc", options);
+AVFILTER_DEFINE_CLASS_EXT(nullsrc, "nullsrc", options);
+AVFILTER_DEFINE_CLASS_EXT(yuvtestsrc, "yuvtestsrc", options);
 
 #if CONFIG_NULLSRC_FILTER
 
@@ -471,7 +472,7 @@ static av_cold int nullsrc_init(AVFilterContext *ctx)
 const FFFilter ff_vsrc_nullsrc = {
     .p.name      = "nullsrc",
     .p.description= NULL_IF_CONFIG_SMALL("Null video source, return unprocessed video frames."),
-    .p.priv_class= &nullsrc_yuvtestsrc_class,
+    .p.priv_class= &nullsrc_class,
     .init        = nullsrc_init,
     .uninit      = uninit,
     .activate    = activate,
@@ -1347,7 +1348,7 @@ static const AVFilterPad avfilter_vsrc_yuvtestsrc_outputs[] = {
 const FFFilter ff_vsrc_yuvtestsrc = {
     .p.name        = "yuvtestsrc",
     .p.description = NULL_IF_CONFIG_SMALL("Generate YUV test pattern."),
-    .p.priv_class  = &nullsrc_yuvtestsrc_class,
+    .p.priv_class  = &yuvtestsrc_class,
     .priv_size     = sizeof(TestSourceContext),
     .init          = yuvtest_init,
     .uninit        = uninit,
@@ -1496,7 +1497,8 @@ static int smptebars_query_formats(const AVFilterContext *ctx,
     return ff_set_pixel_formats_from_list2(ctx, cfg_in, cfg_out, smptebars_pix_fmts);
 }
 
-AVFILTER_DEFINE_CLASS_EXT(palbars, "pal(75|100)bars", options);
+AVFILTER_DEFINE_CLASS_EXT(pal75bars, "pal75bars", options);
+AVFILTER_DEFINE_CLASS_EXT(pal100bars, "pal100bars", options);
 
 #if CONFIG_PAL75BARS_FILTER
 
@@ -1529,7 +1531,7 @@ static av_cold int pal75bars_init(AVFilterContext *ctx)
 const FFFilter ff_vsrc_pal75bars = {
     .p.name        = "pal75bars",
     .p.description = NULL_IF_CONFIG_SMALL("Generate PAL 75% color bars."),
-    .p.priv_class  = &palbars_class,
+    .p.priv_class  = &pal75bars_class,
     .priv_size     = sizeof(TestSourceContext),
     .init          = pal75bars_init,
     .uninit        = uninit,
@@ -1569,7 +1571,7 @@ static av_cold int pal100bars_init(AVFilterContext *ctx)
 const FFFilter ff_vsrc_pal100bars = {
     .p.name        = "pal100bars",
     .p.description = NULL_IF_CONFIG_SMALL("Generate PAL 100% color bars."),
-    .p.priv_class  = &palbars_class,
+    .p.priv_class  = &pal100bars_class,
     .priv_size     = sizeof(TestSourceContext),
     .init          = pal100bars_init,
     .uninit        = uninit,
@@ -1580,7 +1582,8 @@ const FFFilter ff_vsrc_pal100bars = {
 
 #endif  /* CONFIG_PAL100BARS_FILTER */
 
-AVFILTER_DEFINE_CLASS_EXT(smptebars, "smpte(hd)bars", options);
+AVFILTER_DEFINE_CLASS_EXT(smptebars, "smptebars", options);
+AVFILTER_DEFINE_CLASS_EXT(smptehdbars, "smptehdbars", options);
 
 #if CONFIG_SMPTEBARS_FILTER
 
@@ -1733,7 +1736,7 @@ static av_cold int smptehdbars_init(AVFilterContext *ctx)
 const FFFilter ff_vsrc_smptehdbars = {
     .p.name        = "smptehdbars",
     .p.description = NULL_IF_CONFIG_SMALL("Generate SMPTE HD color bars."),
-    .p.priv_class  = &smptebars_class,
+    .p.priv_class  = &smptehdbars_class,
     .priv_size     = sizeof(TestSourceContext),
     .init          = smptehdbars_init,
     .uninit        = uninit,
@@ -1745,7 +1748,9 @@ const FFFilter ff_vsrc_smptehdbars = {
 #endif  /* CONFIG_SMPTEHDBARS_FILTER */
 #endif  /* CONFIG_SMPTEBARS_FILTER || CONFIG_SMPTEHDBARS_FILTER */
 
-AVFILTER_DEFINE_CLASS_EXT(allyuv_allrgb, "allyuv/allrgb",
+AVFILTER_DEFINE_CLASS_EXT(allyuv, "allyuv",
+                          &options[NOSIZE_OPTIONS_OFFSET]);
+AVFILTER_DEFINE_CLASS_EXT(allrgb, "allrgb",
                           &options[NOSIZE_OPTIONS_OFFSET]);
 
 #if CONFIG_ALLYUV_FILTER
@@ -1788,7 +1793,7 @@ static av_cold int allyuv_init(AVFilterContext *ctx)
 const FFFilter ff_vsrc_allyuv = {
     .p.name        = "allyuv",
     .p.description = NULL_IF_CONFIG_SMALL("Generate all yuv colors."),
-    .p.priv_class  = &allyuv_allrgb_class,
+    .p.priv_class  = &allyuv_class,
     .priv_size     = sizeof(TestSourceContext),
     .init          = allyuv_init,
     .uninit        = uninit,
@@ -1848,7 +1853,7 @@ static const AVFilterPad avfilter_vsrc_allrgb_outputs[] = {
 const FFFilter ff_vsrc_allrgb = {
     .p.name        = "allrgb",
     .p.description = NULL_IF_CONFIG_SMALL("Generate all RGB colors."),
-    .p.priv_class  = &allyuv_allrgb_class,
+    .p.priv_class  = &allrgb_class,
     .priv_size     = sizeof(TestSourceContext),
     .init          = allrgb_init,
     .uninit        = uninit,

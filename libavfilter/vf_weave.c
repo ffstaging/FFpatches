@@ -50,7 +50,8 @@ static const AVOption weave_options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(weave, "(double)weave", weave_options);
+AVFILTER_DEFINE_CLASS_EXT(weave, "weave", weave_options);
+AVFILTER_DEFINE_CLASS_EXT(doubleweave, "doubleweave", weave_options);
 
 static int query_formats(const AVFilterContext *ctx,
                          AVFilterFormatsConfig **cfg_in,
@@ -223,7 +224,7 @@ static av_cold int init(AVFilterContext *ctx)
 const FFFilter ff_vf_doubleweave = {
     .p.name        = "doubleweave",
     .p.description = NULL_IF_CONFIG_SMALL("Weave input video fields into double number of frames."),
-    .p.priv_class  = &weave_class,
+    .p.priv_class  = &doubleweave_class,
     .p.flags       = AVFILTER_FLAG_SLICE_THREADS,
     .priv_size     = sizeof(WeaveContext),
     .init          = init,

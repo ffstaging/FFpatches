@@ -304,12 +304,13 @@ static const AVFilterPad maskedminmax_outputs[] = {
     },
 };
 
-AVFILTER_DEFINE_CLASS_EXT(maskedminmax, "masked(min|max)", maskedminmax_options);
+AVFILTER_DEFINE_CLASS_EXT(maskedmin, "maskedmin", maskedminmax_options);
+AVFILTER_DEFINE_CLASS_EXT(maskedmax, "maskedmax", maskedminmax_options);
 
 const FFFilter ff_vf_maskedmin = {
     .p.name        = "maskedmin",
     .p.description = NULL_IF_CONFIG_SMALL("Apply filtering with minimum difference of two streams."),
-    .p.priv_class  = &maskedminmax_class,
+    .p.priv_class  = &maskedmin_class,
     .p.flags       = AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL |
                      AVFILTER_FLAG_SLICE_THREADS,
     .priv_size     = sizeof(MaskedMinMaxContext),
@@ -325,7 +326,7 @@ const FFFilter ff_vf_maskedmin = {
 const FFFilter ff_vf_maskedmax = {
     .p.name        = "maskedmax",
     .p.description = NULL_IF_CONFIG_SMALL("Apply filtering with maximum difference of two streams."),
-    .p.priv_class  = &maskedminmax_class,
+    .p.priv_class  = &maskedmax_class,
     .p.flags       = AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL |
                      AVFILTER_FLAG_SLICE_THREADS,
     .priv_size     = sizeof(MaskedMinMaxContext),

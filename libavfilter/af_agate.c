@@ -88,7 +88,8 @@ static const AVOption options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(agate_sidechaingate, "agate/sidechaingate", options);
+AVFILTER_DEFINE_CLASS_EXT(agate, "agate", options);
+AVFILTER_DEFINE_CLASS_EXT(sidechaingate, "sidechaingate", options);
 
 static int agate_config_input(AVFilterLink *inlink)
 {
@@ -231,7 +232,7 @@ static const AVFilterPad inputs[] = {
 const FFFilter ff_af_agate = {
     .p.name         = "agate",
     .p.description  = NULL_IF_CONFIG_SMALL("Audio gate."),
-    .p.priv_class   = &agate_sidechaingate_class,
+    .p.priv_class   = &agate_class,
     .p.flags        = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC,
     .priv_size      = sizeof(AudioGateContext),
     FILTER_INPUTS(inputs),
@@ -381,7 +382,7 @@ static const AVFilterPad sidechaingate_outputs[] = {
 const FFFilter ff_af_sidechaingate = {
     .p.name         = "sidechaingate",
     .p.description  = NULL_IF_CONFIG_SMALL("Audio sidechain gate."),
-    .p.priv_class   = &agate_sidechaingate_class,
+    .p.priv_class   = &sidechaingate_class,
     .p.flags        = AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL,
     .priv_size      = sizeof(AudioGateContext),
     .activate       = activate,

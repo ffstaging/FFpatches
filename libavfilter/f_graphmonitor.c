@@ -566,7 +566,8 @@ static av_cold void uninit(AVFilterContext *ctx)
     s->cache_size = s->cache_index = 0;
 }
 
-AVFILTER_DEFINE_CLASS_EXT(graphmonitor, "(a)graphmonitor", graphmonitor_options);
+AVFILTER_DEFINE_CLASS_EXT(graphmonitor, "graphmonitor", graphmonitor_options);
+AVFILTER_DEFINE_CLASS_EXT(agraphmonitor, "agraphmonitor", graphmonitor_options);
 
 static const AVFilterPad graphmonitor_outputs[] = {
     {
@@ -599,7 +600,7 @@ const FFFilter ff_vf_graphmonitor = {
 const FFFilter ff_avf_agraphmonitor = {
     .p.name        = "agraphmonitor",
     .p.description = NULL_IF_CONFIG_SMALL("Show various filtergraph stats."),
-    .p.priv_class  = &graphmonitor_class,
+    .p.priv_class  = &agraphmonitor_class,
     .priv_size     = sizeof(GraphMonitorContext),
     .init          = init,
     .uninit        = uninit,

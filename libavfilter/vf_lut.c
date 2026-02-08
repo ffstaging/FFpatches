@@ -605,7 +605,9 @@ static const AVFilterPad inputs[] = {
         .process_command = process_command,                             \
     }
 
-AVFILTER_DEFINE_CLASS_EXT(lut, "lut/lutyuv/lutrgb", options);
+AVFILTER_DEFINE_CLASS_EXT(lut, "lut", options);
+AVFILTER_DEFINE_CLASS_EXT(lutyuv, "lutyuv", options);
+AVFILTER_DEFINE_CLASS_EXT(lutrgb, "lutrgb", options);
 
 #if CONFIG_LUT_FILTER
 
@@ -627,7 +629,7 @@ static av_cold int lutyuv_init(AVFilterContext *ctx)
 }
 
 DEFINE_LUT_FILTER(lutyuv, "Compute and apply a lookup table to the YUV input video.",
-                  lut);
+                  lutyuv);
 #endif
 
 #if CONFIG_LUTRGB_FILTER
@@ -642,5 +644,5 @@ static av_cold int lutrgb_init(AVFilterContext *ctx)
 }
 
 DEFINE_LUT_FILTER(lutrgb, "Compute and apply a lookup table to the RGB input video.",
-                  lut);
+                  lutrgb);
 #endif

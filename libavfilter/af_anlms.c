@@ -85,7 +85,8 @@ static const AVOption anlms_options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(anlms, "anlm(f|s)", anlms_options);
+AVFILTER_DEFINE_CLASS_EXT(anlms, "anlms", anlms_options);
+AVFILTER_DEFINE_CLASS_EXT(anlmf, "anlmf", anlms_options);
 
 static int query_formats(const AVFilterContext *ctx,
                          AVFilterFormatsConfig **cfg_in,
@@ -270,7 +271,7 @@ const FFFilter ff_af_anlms = {
 const FFFilter ff_af_anlmf = {
     .p.name         = "anlmf",
     .p.description  = NULL_IF_CONFIG_SMALL("Apply Normalized Least-Mean-Fourth algorithm to first audio stream."),
-    .p.priv_class   = &anlms_class,
+    .p.priv_class   = &anlmf_class,
     .p.flags        = AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL |
                       AVFILTER_FLAG_SLICE_THREADS,
     .priv_size      = sizeof(AudioNLMSContext),

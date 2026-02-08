@@ -158,7 +158,8 @@ static const AVOption aderivative_options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(aderivative, "aderivative/aintegral", aderivative_options);
+AVFILTER_DEFINE_CLASS_EXT(aderivative, "aderivative", aderivative_options);
+AVFILTER_DEFINE_CLASS_EXT(aintegral, "aintegral", aderivative_options);
 
 const FFFilter ff_af_aderivative = {
     .p.name        = "aderivative",
@@ -176,7 +177,7 @@ const FFFilter ff_af_aderivative = {
 const FFFilter ff_af_aintegral = {
     .p.name        = "aintegral",
     .p.description = NULL_IF_CONFIG_SMALL("Compute integral of input audio."),
-    .p.priv_class  = &aderivative_class,
+    .p.priv_class  = &aintegral_class,
     .p.flags       = AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL,
     .priv_size     = sizeof(ADerivativeContext),
     .uninit        = uninit,

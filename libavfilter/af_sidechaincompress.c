@@ -94,9 +94,8 @@ static const AVOption options[] = {
     { NULL }
 };
 
-AVFILTER_DEFINE_CLASS_EXT(sidechaincompress_acompressor,
-                          "acompressor/sidechaincompress",
-                          options);
+AVFILTER_DEFINE_CLASS_EXT(sidechaincompress, "sidechaincompress", options);
+AVFILTER_DEFINE_CLASS_EXT(acompressor, "acompressor", options);
 
 // A fake infinity value (because real infinity may break some hosts)
 #define FAKE_INFINITY (65536.0 * 65536.0)
@@ -366,7 +365,7 @@ static const AVFilterPad sidechaincompress_outputs[] = {
 const FFFilter ff_af_sidechaincompress = {
     .p.name         = "sidechaincompress",
     .p.description  = NULL_IF_CONFIG_SMALL("Sidechain compressor."),
-    .p.priv_class   = &sidechaincompress_acompressor_class,
+    .p.priv_class   = &sidechaincompress_class,
     .priv_size      = sizeof(SidechainCompressContext),
     .activate       = activate,
     .uninit         = uninit,
@@ -427,7 +426,7 @@ static const AVFilterPad acompressor_outputs[] = {
 const FFFilter ff_af_acompressor = {
     .p.name         = "acompressor",
     .p.description  = NULL_IF_CONFIG_SMALL("Audio compressor."),
-    .p.priv_class   = &sidechaincompress_acompressor_class,
+    .p.priv_class   = &acompressor_class,
     .priv_size      = sizeof(SidechainCompressContext),
     FILTER_INPUTS(acompressor_inputs),
     FILTER_OUTPUTS(acompressor_outputs),
