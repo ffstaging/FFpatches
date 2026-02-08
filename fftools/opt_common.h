@@ -227,6 +227,7 @@ int opt_cpucount(void *optctx, const char *opt, const char *arg);
     { "cpuflags",     OPT_TYPE_FUNC, OPT_FUNC_ARG | OPT_EXPERT, { .func_arg = opt_cpuflags },     "force specific cpu flags", "flags" },     \
     { "cpucount",     OPT_TYPE_FUNC, OPT_FUNC_ARG | OPT_EXPERT, { .func_arg = opt_cpucount },     "force specific cpu count", "count" },     \
     { "hide_banner",  OPT_TYPE_BOOL, OPT_EXPERT,            {&hide_banner},                   "do not show program banner", "hide_banner" }, \
+    { "ignore_unknown_options", OPT_TYPE_BOOL, OPT_EXPERT, {&ignore_unknown_options},        "ignore unrecognized options instead of failing" }, \
     CMDUTILS_COMMON_OPTIONS_AVDEVICE                                                                                    \
 
 #endif /* FFTOOLS_OPT_COMMON_H */

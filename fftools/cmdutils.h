@@ -48,6 +48,7 @@ extern AVDictionary *sws_dict;
 extern AVDictionary *swr_opts;
 extern AVDictionary *format_opts, *codec_opts;
 extern int hide_banner;
+extern int ignore_unknown_options;
 
 /**
  * Initialize dynamic library loading

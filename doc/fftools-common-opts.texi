@@ -318,6 +318,20 @@ All FFmpeg tools will normally show a copyright notice, build options
 and library versions. This option can be used to suppress printing
 this information.
 
+@item -ignore_unknown_options
+Ignore unrecognized options instead of exiting with an error.
+
+When this option is set, any unrecognized command-line option will produce
+a warning message instead of a fatal error, and processing will continue.
+This is useful for scripts and programs that invoke FFmpeg with options
+that may not be available in all versions, allowing forward-compatible
+command lines.
+
+Note that this option must appear before any unrecognized options on the
+command line. Also note that if an unrecognized option would normally
+expect an argument, the argument will not be consumed and may be
+misinterpreted as a subsequent option or filename.
+
 @item -cpuflags flags (@emph{global})
 Allows setting and clearing cpu flags. This option is intended
 for testing. Do not use it unless you know what you're doing.

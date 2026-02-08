@@ -58,6 +58,7 @@ AVDictionary *swr_opts;
 AVDictionary *format_opts, *codec_opts;
 
 int hide_banner = 0;
+int ignore_unknown_options = 0;
 
 void uninit_opts(void)
 {
@@ -438,8 +439,13 @@ int parse_options(void *optctx, int argc, char **argv, const OptionDef *options,
             }
             opt++;
 
-            if ((ret = parse_option(optctx, opt, argv[optindex], options)) < 0)
+            if ((ret = parse_option(optctx, opt, argv[optindex], options)) < 0) {
+                if (ignore_unknown_options && ret == AVERROR_OPTION_NOT_FOUND) {
+                    av_log(NULL, AV_LOG_WARNING, "Ignoring unrecognized option '%s'.\n", opt);
+                    continue;
+                }
                 return ret;
+            }
             optindex += ret;
         } else {
             if (parse_arg_function) {
@@ -584,6 +590,9 @@ void parse_loglevel(int argc, char **argv, const OptionDef *options)
     idx = locate_option(argc, argv, options, "hide_banner");
     if (idx)
         hide_banner = 1;
+    idx = locate_option(argc, argv, options, "ignore_unknown_options");
+    if (idx)
+        ignore_unknown_options = 1;
 }
 
 static const AVOption *opt_find(void *obj, const char *name, const char *unit,
@@ -897,6 +906,10 @@ do {                                                                           \
             continue;
         }
 
+        if (ignore_unknown_options) {
+            av_log(NULL, AV_LOG_WARNING, "Ignoring unrecognized option '%s'.\n", opt);
+            continue;
+        }
         av_log(NULL, AV_LOG_ERROR, "Unrecognized option '%s'.\n", opt);
         return AVERROR_OPTION_NOT_FOUND;
     }
