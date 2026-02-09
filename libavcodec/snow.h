@@ -92,7 +92,7 @@ typedef struct SubBand{
     int stride_line; ///< Stride measured in lines, not pixels.
     x_and_coeff * x_coeff;
     struct SubBand *parent;
-    uint8_t state[/*7*2*/ 7 + 512][32];
+    uint8_t state[34][32];
 }SubBand;
 
 typedef struct Plane{
@@ -136,7 +136,6 @@ typedef struct SnowContext{
     int last_spatial_decomposition_type;
     int temporal_decomposition_type;
     int spatial_decomposition_count;
-    int last_spatial_decomposition_count;
     int temporal_decomposition_count;
     int max_ref_frames;
     int ref_frames;
@@ -168,7 +167,6 @@ typedef struct SnowContext{
     slice_buffer sb;
 
     uint8_t *scratchbuf;
-    uint8_t *emu_edge_buffer;
 
     AVMotionVector *avmv;
     unsigned avmv_size;
@@ -183,7 +181,12 @@ extern int ff_scale_mv_ref[MAX_REF_FRAMES][MAX_REF_FRAMES];
 /* common code */
 
 int ff_snow_common_init(AVCodecContext *avctx);
-int ff_snow_common_init_after_header(AVCodecContext *avctx);
+/**
+ * Needs the dimensions, pixel format related properties
+ * and spatial_decomposition_count to be set; i.e. for a decoder,
+ * it can be called after parsing the header.
+ */
+int ff_snow_secondary_init(AVCodecContext *avctx);
 void ff_snow_common_end(SnowContext *s);
 void ff_snow_reset_contexts(SnowContext *s);
 int ff_snow_alloc_blocks(SnowContext *s);
@@ -360,7 +363,7 @@ static av_always_inline void predict_slice(SnowContext *s, IDWTELEM *buf, int pl
     int w= p->width;
     int h= p->height;
     av_assert2(s->chroma_h_shift == s->chroma_v_shift); // obmc params assume squares
-    if(s->keyframe || (s->avctx->debug&512)){
+    if (s->keyframe) {
         if(mb_y==mb_h)
             return;
 

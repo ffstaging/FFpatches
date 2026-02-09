@@ -68,8 +68,40 @@ typedef struct SnowEncContext {
 
     uint64_t encoding_error[SNOW_MAX_PLANES];
 
+    uint8_t *emu_edge_buffer;
+
     IDWTELEM obmc_scratchpad[MB_SIZE * MB_SIZE * 12 * 2];
 } SnowEncContext;
+
+static void calculate_visual_weight(SnowContext *s, Plane *p)
+{
+    int width  = p->width;
+    int height = p->height;
+
+    for (int level = 0; level < s->spatial_decomposition_count; ++level) {
+        int64_t error = 0;
+        for (int orientation = level ? 1 : 0; orientation < 4; ++orientation) {
+            SubBand *b = &p->band[level][orientation];
+            IDWTELEM *ibuf = b->ibuf;
+
+            memset(s->spatial_idwt_buffer, 0, sizeof(*s->spatial_idwt_buffer)*width*height);
+            ibuf[b->width/2 + b->height/2*b->stride]= 256*16;
+            ff_spatial_idwt(s->spatial_idwt_buffer, s->temp_idwt_buffer, width, height, width, s->spatial_decomposition_type, s->spatial_decomposition_count);
+            for (int y = 0; y < height; ++y) {
+                for (int x = 0; x < width; ++x) {
+                    int64_t d = s->spatial_idwt_buffer[x + y*width]*16;
+                    error += d*d;
+                }
+            }
+            if (orientation == 2)
+                error /= 2;
+            b->qlog = (int)(QROOT * log2(352256.0/sqrt(error)) + 0.5);
+            if (orientation != 1)
+                error = 0;
+        }
+        p->band[level][1].qlog = p->band[level][2].qlog;
+    }
+}
 
 static void init_ref(MotionEstContext *c, const uint8_t *const src[3],
                      uint8_t *const ref[3], uint8_t *const ref2[3],
@@ -279,12 +311,34 @@ static av_cold int encode_init(AVCodecContext *avctx)
     if (ret)
         return ret;
 
+    s->spatial_decomposition_count = 5;
+
+    while(   !(avctx->width >>(s->chroma_h_shift + s->spatial_decomposition_count))
+          || !(avctx->height>>(s->chroma_v_shift + s->spatial_decomposition_count)))
+        s->spatial_decomposition_count--;
+
+    if (s->spatial_decomposition_count <= 0) {
+        av_log(avctx, AV_LOG_ERROR, "Resolution too low\n");
+        return AVERROR(EINVAL);
+    }
+
+    ret = ff_snow_secondary_init(avctx);
+    if (ret < 0)
+        return ret;
+
+    for (int plane_index = 0; plane_index < s->nb_planes; ++plane_index)
+        calculate_visual_weight(s, &s->plane[plane_index]);
+
     s->input_picture = av_frame_alloc();
     if (!s->input_picture)
         return AVERROR(ENOMEM);
 
     if ((ret = get_encode_buffer(s, s->input_picture)) < 0)
         return ret;
+
+    enc->emu_edge_buffer = av_calloc(avctx->width + 128, 2 * (2 * MB_SIZE + HTAPS_MAX - 1));
+    if (!enc->emu_edge_buffer)
+        return AVERROR(ENOMEM);
 
     if (enc->motion_est == FF_ME_ITER) {
         int size= s->b_width * s->b_height << 2*s->block_max_depth;
@@ -770,7 +824,7 @@ static int get_block_rd(SnowEncContext *enc, int mb_x, int mb_y,
     const uint8_t *src = s->input_picture->data[plane_index];
     IDWTELEM *pred = enc->obmc_scratchpad + plane_index * block_size * block_size * 4;
     uint8_t *cur = s->scratchbuf;
-    uint8_t *tmp = s->emu_edge_buffer;
+    uint8_t *tmp = enc->emu_edge_buffer;
     const int b_stride = s->b_width << s->block_max_depth;
     const int b_height = s->b_height<< s->block_max_depth;
     const int w= p->width;
@@ -1628,12 +1682,7 @@ static void encode_header(SnowContext *s){
                     put_symbol(&s->c, s->header_state, FFABS(p->hcoeff[i]), 0);
             }
         }
-        if(s->last_spatial_decomposition_count != s->spatial_decomposition_count){
-            put_rac(&s->c, s->header_state, 1);
-            put_symbol(&s->c, s->header_state, s->spatial_decomposition_count, 0);
-            encode_qlogs(s);
-        }else
-            put_rac(&s->c, s->header_state, 0);
+        put_rac(&s->c, s->header_state, 0);
     }
 
     put_symbol(&s->c, s->header_state, s->spatial_decomposition_type - s->last_spatial_decomposition_type, 1);
@@ -1661,7 +1710,6 @@ static void update_last_header_values(SnowContext *s){
     s->last_qbias                       = s->qbias;
     s->last_mv_scale                    = s->mv_scale;
     s->last_block_max_depth             = s->block_max_depth;
-    s->last_spatial_decomposition_count = s->spatial_decomposition_count;
 }
 
 static int qscale2qlog(int qscale){
@@ -1720,36 +1768,6 @@ static int ratecontrol_1pass(SnowEncContext *enc, AVFrame *pict)
     delta_qlog= qscale2qlog(pict->quality) - s->qlog;
     s->qlog+= delta_qlog;
     return delta_qlog;
-}
-
-static void calculate_visual_weight(SnowContext *s, Plane *p){
-    int width = p->width;
-    int height= p->height;
-    int level, orientation, x, y;
-
-    for(level=0; level<s->spatial_decomposition_count; level++){
-        int64_t error=0;
-        for(orientation=level ? 1 : 0; orientation<4; orientation++){
-            SubBand *b= &p->band[level][orientation];
-            IDWTELEM *ibuf= b->ibuf;
-
-            memset(s->spatial_idwt_buffer, 0, sizeof(*s->spatial_idwt_buffer)*width*height);
-            ibuf[b->width/2 + b->height/2*b->stride]= 256*16;
-            ff_spatial_idwt(s->spatial_idwt_buffer, s->temp_idwt_buffer, width, height, width, s->spatial_decomposition_type, s->spatial_decomposition_count);
-            for(y=0; y<height; y++){
-                for(x=0; x<width; x++){
-                    int64_t d= s->spatial_idwt_buffer[x + y*width]*16;
-                    error += d*d;
-                }
-            }
-            if (orientation == 2)
-                error /= 2;
-            b->qlog= (int)(QROOT * log2(352256.0/sqrt(error)) + 0.5);
-            if (orientation != 1)
-                error = 0;
-        }
-        p->band[level][1].qlog = p->band[level][2].qlog;
-    }
 }
 
 static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
@@ -1886,28 +1904,8 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     }
 
 redo_frame:
-
-    s->spatial_decomposition_count= 5;
-
-    while(   !(width >>(s->chroma_h_shift + s->spatial_decomposition_count))
-          || !(height>>(s->chroma_v_shift + s->spatial_decomposition_count)))
-        s->spatial_decomposition_count--;
-
-    if (s->spatial_decomposition_count <= 0) {
-        av_log(avctx, AV_LOG_ERROR, "Resolution too low\n");
-        return AVERROR(EINVAL);
-    }
-
     mpv->c.pict_type = pic->pict_type;
     s->qbias = pic->pict_type == AV_PICTURE_TYPE_P ? 2 : 0;
-
-    ff_snow_common_init_after_header(avctx);
-
-    if(s->last_spatial_decomposition_count != s->spatial_decomposition_count){
-        for(plane_index=0; plane_index < s->nb_planes; plane_index++){
-            calculate_visual_weight(s, &s->plane[plane_index]);
-        }
-    }
 
     encode_header(s);
     mpv->misc_bits = 8 * (s->c.bytestream - s->c.bytestream_start);
@@ -2091,6 +2089,7 @@ static av_cold int encode_end(AVCodecContext *avctx)
 
     enc->m.s.me.temp = NULL;
     av_freep(&enc->m.s.me.scratchpad);
+    av_freep(&enc->emu_edge_buffer);
 
     av_freep(&avctx->stats_out);
 

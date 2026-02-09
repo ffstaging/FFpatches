@@ -193,7 +193,7 @@ static av_always_inline void predict_slice_buffered(SnowContext *s, slice_buffer
     int w= p->width;
     int h= p->height;
 
-    if(s->keyframe || (s->avctx->debug&512)){
+    if (s->keyframe) {
         if(mb_y==mb_h)
             return;
 
@@ -615,7 +615,8 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *picture,
         return AVERROR_INVALIDDATA;
     }
 
-    if ((res=ff_snow_common_init_after_header(avctx)) < 0)
+    res = ff_snow_secondary_init(avctx);
+    if (res < 0)
         return res;
 
     // realloc slice buffer for the case that spatial_decomposition_count changed
@@ -716,7 +717,7 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *picture,
             int slice_starty = block_h*mb_y;
             int slice_h = block_h*(mb_y+1);
 
-            if (!(s->keyframe || s->avctx->debug&512)){
+            if (!s->keyframe) {
                 slice_starty = FFMAX(0, slice_starty - (block_h >> 1));
                 slice_h -= (block_h >> 1);
             }
@@ -731,7 +732,7 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *picture,
                     const int extra= 3;
                     start_y = (mb_y ? ((block_h * our_mb_start) >> (s->spatial_decomposition_count - level)) + s->spatial_decomposition_count - level + extra: 0);
                     end_y = (((block_h * our_mb_end) >> (s->spatial_decomposition_count - level)) + s->spatial_decomposition_count - level + extra);
-                    if (!(s->keyframe || s->avctx->debug&512)){
+                    if (!s->keyframe) {
                         start_y = FFMAX(0, start_y - (block_h >> (1+s->spatial_decomposition_count - level)));
                         end_y = FFMAX(0, end_y - (block_h >> (1+s->spatial_decomposition_count - level)));
                     }

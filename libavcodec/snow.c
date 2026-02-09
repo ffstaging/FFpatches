@@ -535,15 +535,13 @@ av_cold int ff_snow_common_init(AVCodecContext *avctx){
     return 0;
 }
 
-int ff_snow_common_init_after_header(AVCodecContext *avctx) {
+int ff_snow_secondary_init(AVCodecContext *avctx)
+{
     SnowContext *s = avctx->priv_data;
     int plane_index, level, orientation;
 
     if(!s->scratchbuf) {
-        int emu_buf_size;
-        emu_buf_size = FFMAX(s->mconly_picture->linesize[0], 2*avctx->width+256) * (2 * MB_SIZE + HTAPS_MAX - 1);
-        if (!FF_ALLOCZ_TYPED_ARRAY(s->scratchbuf,      FFMAX(s->mconly_picture->linesize[0], 2*avctx->width+256) * 7 * MB_SIZE) ||
-            !FF_ALLOCZ_TYPED_ARRAY(s->emu_edge_buffer, emu_buf_size))
+        if (!FF_ALLOCZ_TYPED_ARRAY(s->scratchbuf, FFMAX(s->mconly_picture->linesize[0], 2*avctx->width+256) * 7 * MB_SIZE))
             return AVERROR(ENOMEM);
     }
 
@@ -642,7 +640,6 @@ av_cold void ff_snow_common_end(SnowContext *s)
 
     av_freep(&s->block);
     av_freep(&s->scratchbuf);
-    av_freep(&s->emu_edge_buffer);
 
     for(i=0; i<MAX_REF_FRAMES; i++){
         av_frame_free(&s->last_picture[i]);
