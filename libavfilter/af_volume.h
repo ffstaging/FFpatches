@@ -84,7 +84,16 @@ typedef struct VolumeContext {
 
     void (*scale_samples)(uint8_t *dst, const uint8_t *src, int nb_samples,
                           int volume);
+
+    void (*fade_samples)(uint8_t *dst, const uint8_t *src, int nb_samples, int chs,
+                         int dst_volume, int src_volume);
     int samples_align;
+
+    double transition;       ///< transition time in seconds when volume changes (0 = instant)
+    int    fade_total;       ///< total number of samples for the fade transition
+    int    fade_remaining;   ///< remaining samples to fade
+    int    volume_isrc;      ///< source volume level at the start of fade
+    double volume_src;       ///< source volume (float/double) at the start of fade
 } VolumeContext;
 
 void ff_volume_init_x86(VolumeContext *vol);

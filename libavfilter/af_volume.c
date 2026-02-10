@@ -84,6 +84,8 @@ static const AVOption volume_options[] = {
             OFFSET(replaygain_preamp), AV_OPT_TYPE_DOUBLE, { .dbl = 0.0 }, -15.0, 15.0, A|F },
     { "replaygain_noclip", "Apply replaygain clipping prevention",
             OFFSET(replaygain_noclip), AV_OPT_TYPE_BOOL, { .i64 = 1 }, 0, 1, A|F },
+    { "transition", "transition time in seconds when volume changes via command",
+            OFFSET(transition), AV_OPT_TYPE_DOUBLE, { .dbl = 0.0 }, 0, 60.0, A|F|T },
     { NULL }
 };
 
@@ -170,12 +172,44 @@ static inline void scale_samples_u8(uint8_t *dst, const uint8_t *src,
         dst[i] = av_clip_uint8(((((int64_t)src[i] - 128) * volume + 128) >> 8) + 128);
 }
 
+static inline void fade_samples_u8(uint8_t *dst, const uint8_t *src,
+                                   int nb_samples, int chs, int dst_volume, int src_volume)
+{
+    int i, j, k = 0;
+    int64_t sample;
+    int64_t step;
+
+    step = (((int64_t)dst_volume - src_volume) * 256) / nb_samples;
+    for (i = 0; i < nb_samples; i++) {
+        for (j = 0; j < chs; j++, k++) {
+            sample = (int64_t)(src[k] - 128) * (src_volume + (step * i) >> 8) + 128;
+            dst[k] = av_clip_uint8((sample >> 8) + 128);
+        }
+    }
+}
+
 static inline void scale_samples_u8_small(uint8_t *dst, const uint8_t *src,
                                           int nb_samples, int volume)
 {
     int i;
     for (i = 0; i < nb_samples; i++)
         dst[i] = av_clip_uint8((((src[i] - 128) * volume + 128) >> 8) + 128);
+}
+
+static inline void fade_samples_u8_small(uint8_t *dst, const uint8_t *src,
+                                         int nb_samples, int chs, int dst_volume, int src_volume)
+{
+    int i, j, k = 0;
+    int sample;
+    int step;
+
+    step = ((dst_volume - src_volume) * 256) / nb_samples;
+    for (i = 0; i < nb_samples; i++) {
+        for (j = 0; j < chs; j++, k++) {
+            sample = (src[k] - 128) * (src_volume + (step * i >> 8)) + 128;
+            dst[k] = av_clip_uint8((sample >> 8) + 128);
+        }
+    }
 }
 
 static inline void scale_samples_s16(uint8_t *dst, const uint8_t *src,
@@ -188,6 +222,22 @@ static inline void scale_samples_s16(uint8_t *dst, const uint8_t *src,
         smp_dst[i] = av_clip_int16(((int64_t)smp_src[i] * volume + 128) >> 8);
 }
 
+static inline void fade_samples_s16(uint8_t *dst, const uint8_t *src,
+                                    int nb_samples, int chs, int dst_volume, int src_volume)
+{
+    const int16_t *smp_src = (const int16_t *)src;
+    int16_t *smp_dst = (int16_t *)dst;
+    int i, j, k = 0;
+    int64_t step;
+
+    step = (((int64_t)dst_volume - src_volume) * 256) / nb_samples;
+    for (i = 0; i < nb_samples; i++) {
+        for (j = 0; j < chs; j++, k++) {
+            smp_dst[k] = av_clip_int16((int64_t)(smp_src[k] * (src_volume + (step * i >> 8)) + 128) >> 8);
+        }
+    }
+}
+
 static inline void scale_samples_s16_small(uint8_t *dst, const uint8_t *src,
                                            int nb_samples, int volume)
 {
@@ -196,6 +246,22 @@ static inline void scale_samples_s16_small(uint8_t *dst, const uint8_t *src,
     const int16_t *smp_src = (const int16_t *)src;
     for (i = 0; i < nb_samples; i++)
         smp_dst[i] = av_clip_int16((smp_src[i] * volume + 128) >> 8);
+}
+
+static inline void fade_samples_s16_small(uint8_t *dst, const uint8_t *src,
+                                          int nb_samples, int chs, int dst_volume, int src_volume)
+{
+    const int16_t *smp_src = (const int16_t *)src;
+    int16_t *smp_dst = (int16_t *)dst;
+    int i, j, k = 0;
+    int step;
+
+    step = (((int64_t)dst_volume - src_volume) * 256) / nb_samples;
+    for (i = 0; i < nb_samples; i++) {
+        for (j = 0; j < chs; j++, k++) {
+            smp_dst[k] = av_clip_int16((int64_t)(smp_src[k] * (src_volume + (step * i >> 8)) + 128) >> 8);
+        }
+    }
 }
 
 static inline void scale_samples_s32(uint8_t *dst, const uint8_t *src,
@@ -208,25 +274,48 @@ static inline void scale_samples_s32(uint8_t *dst, const uint8_t *src,
         smp_dst[i] = av_clipl_int32((((int64_t)smp_src[i] * volume + 128) >> 8));
 }
 
+static inline void fade_samples_s32(uint8_t *dst, const uint8_t *src,
+                                    int nb_samples, int chs, int dst_volume, int src_volume)
+{
+    const int32_t *smp_src = (const int32_t *)src;
+    int32_t *smp_dst = (int32_t *)dst;
+    int i, j, k = 0;
+    int64_t step;
+
+    step = (((int64_t)dst_volume - src_volume)  * 256) / nb_samples;
+    for (i = 0; i < nb_samples; i++) {
+        for (j = 0; j < chs; j++, k++) {
+            smp_dst[k] = av_clipl_int32((int64_t)(smp_src[k] * (src_volume + (step * i >> 8)) + 128) >> 8);
+        }
+    }
+}
+
 static av_cold void volume_init(VolumeContext *vol)
 {
     vol->samples_align = 1;
 
     switch (av_get_packed_sample_fmt(vol->sample_fmt)) {
     case AV_SAMPLE_FMT_U8:
-        if (vol->volume_i < 0x1000000)
+        if (vol->volume_i < 0x1000000) {
             vol->scale_samples = scale_samples_u8_small;
-        else
+            vol->fade_samples  = fade_samples_u8_small;
+        } else {
             vol->scale_samples = scale_samples_u8;
+            vol->fade_samples  = fade_samples_u8;
+        }
         break;
     case AV_SAMPLE_FMT_S16:
-        if (vol->volume_i < 0x10000)
+        if (vol->volume_i < 0x10000) {
             vol->scale_samples = scale_samples_s16_small;
-        else
+            vol->fade_samples  = fade_samples_s16_small;
+        } else {
             vol->scale_samples = scale_samples_s16;
+            vol->fade_samples  = fade_samples_s16;
+        }
         break;
     case AV_SAMPLE_FMT_S32:
         vol->scale_samples = scale_samples_s32;
+        vol->fade_samples  = fade_samples_s32;
         break;
     case AV_SAMPLE_FMT_FLT:
         vol->samples_align = 4;
@@ -313,8 +402,18 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
     if (!strcmp(cmd, "volume")) {
         if ((ret = set_expr(&vol->volume_pexpr, args, ctx)) < 0)
             return ret;
-        if (vol->eval_mode == EVAL_MODE_ONCE)
+        if (vol->eval_mode == EVAL_MODE_ONCE) {
+            vol->volume_isrc = vol->volume_i;
+            vol->volume_src  = vol->volume;
             set_volume(ctx);
+            if (vol->transition > 0 && vol->var_values[VAR_SAMPLE_RATE] > 0) {
+                vol->fade_total     = (int)(vol->transition * vol->var_values[VAR_SAMPLE_RATE] + 0.5);
+                vol->fade_remaining = vol->fade_total;
+            } else {
+                vol->fade_total     = 0;
+                vol->fade_remaining = 0;
+            }
+        }
     }
 
     return ret;
@@ -380,7 +479,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *buf)
     if (vol->eval_mode == EVAL_MODE_FRAME)
         set_volume(ctx);
 
-    if (vol->volume == 1.0 || vol->volume_i == 256) {
+    if ((vol->volume == 1.0 || vol->volume_i == 256) && vol->fade_remaining <= 0) {
         out_buf = buf;
         goto end;
     }
@@ -405,29 +504,103 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *buf)
 
     if (vol->precision != PRECISION_FIXED || vol->volume_i > 0) {
         int p, plane_samples;
+        int planar = av_sample_fmt_is_planar(buf->format);
 
-        if (av_sample_fmt_is_planar(buf->format))
+        if (planar)
             plane_samples = FFALIGN(nb_samples, vol->samples_align);
         else
             plane_samples = FFALIGN(nb_samples * vol->channels, vol->samples_align);
 
         if (vol->precision == PRECISION_FIXED) {
-            for (p = 0; p < vol->planes; p++) {
-                vol->scale_samples(out_buf->extended_data[p],
-                                   buf->extended_data[p], plane_samples,
-                                   vol->volume_i);
+            if (vol->fade_remaining > 0 && vol->fade_samples && vol->fade_total > 0) {
+                int fade_done  = vol->fade_total - vol->fade_remaining;
+                int fade_count = FFMIN(nb_samples, vol->fade_remaining);
+                int chs = planar ? 1 : vol->channels;
+                int vol_start  = vol->volume_isrc +
+                    (int64_t)(vol->volume_i - vol->volume_isrc) * fade_done / vol->fade_total;
+                int vol_end;
+
+                if (fade_count >= nb_samples) {
+                    /* Entire frame is within the fade region */
+                    vol_end = vol->volume_isrc +
+                        (int64_t)(vol->volume_i - vol->volume_isrc) * (fade_done + fade_count) / vol->fade_total;
+                    for (p = 0; p < vol->planes; p++) {
+                        vol->fade_samples(out_buf->extended_data[p], buf->extended_data[p],
+                                          plane_samples, chs, vol_end, vol_start);
+                    }
+                } else {
+                    /* Fade ends mid-frame: fade the whole frame from vol_start to target volume.
+                     * This slightly extends the fade to cover the full frame, which is acceptable
+                     * since the difference is at most one frame duration. */
+                    vol_end = vol->volume_i;
+                    for (p = 0; p < vol->planes; p++) {
+                        vol->fade_samples(out_buf->extended_data[p], buf->extended_data[p],
+                                          plane_samples, chs, vol_end, vol_start);
+                    }
+                }
+                vol->fade_remaining -= fade_count;
+            } else {
+                for (p = 0; p < vol->planes; p++) {
+                    vol->scale_samples(out_buf->extended_data[p],
+                                       buf->extended_data[p], plane_samples,
+                                       vol->volume_i);
+                }
             }
         } else if (av_get_packed_sample_fmt(vol->sample_fmt) == AV_SAMPLE_FMT_FLT) {
-            for (p = 0; p < vol->planes; p++) {
-                vol->fdsp->vector_fmul_scalar((float *)out_buf->extended_data[p],
-                                             (const float *)buf->extended_data[p],
-                                             vol->volume, plane_samples);
+            if (vol->fade_remaining > 0 && vol->fade_total > 0) {
+                int fade_done  = vol->fade_total - vol->fade_remaining;
+                int fade_count = FFMIN(nb_samples, vol->fade_remaining);
+                int chs = planar ? 1 : vol->channels;
+                for (p = 0; p < vol->planes; p++) {
+                    float *dst = (float *)out_buf->extended_data[p];
+                    const float *src = (const float *)buf->extended_data[p];
+                    int i, j, k = 0;
+                    for (i = 0; i < nb_samples; i++) {
+                        float t;
+                        if (i < fade_count)
+                            t = (float)(fade_done + i) / vol->fade_total;
+                        else
+                            t = 1.0f;
+                        float v = vol->volume_src + (vol->volume - vol->volume_src) * t;
+                        for (j = 0; j < chs; j++, k++)
+                            dst[k] = src[k] * v;
+                    }
+                }
+                vol->fade_remaining -= fade_count;
+            } else {
+                for (p = 0; p < vol->planes; p++) {
+                    vol->fdsp->vector_fmul_scalar((float *)out_buf->extended_data[p],
+                                                 (const float *)buf->extended_data[p],
+                                                 vol->volume, plane_samples);
+                }
             }
         } else {
-            for (p = 0; p < vol->planes; p++) {
-                vol->fdsp->vector_dmul_scalar((double *)out_buf->extended_data[p],
-                                             (const double *)buf->extended_data[p],
-                                             vol->volume, plane_samples);
+            if (vol->fade_remaining > 0 && vol->fade_total > 0) {
+                int fade_done  = vol->fade_total - vol->fade_remaining;
+                int fade_count = FFMIN(nb_samples, vol->fade_remaining);
+                int chs = planar ? 1 : vol->channels;
+                for (p = 0; p < vol->planes; p++) {
+                    double *dst = (double *)out_buf->extended_data[p];
+                    const double *src = (const double *)buf->extended_data[p];
+                    int i, j, k = 0;
+                    for (i = 0; i < nb_samples; i++) {
+                        double t;
+                        if (i < fade_count)
+                            t = (double)(fade_done + i) / vol->fade_total;
+                        else
+                            t = 1.0;
+                        double v = vol->volume_src + (vol->volume - vol->volume_src) * t;
+                        for (j = 0; j < chs; j++, k++)
+                            dst[k] = src[k] * v;
+                    }
+                }
+                vol->fade_remaining -= fade_count;
+            } else {
+                for (p = 0; p < vol->planes; p++) {
+                    vol->fdsp->vector_dmul_scalar((double *)out_buf->extended_data[p],
+                                                 (const double *)buf->extended_data[p],
+                                                 vol->volume, plane_samples);
+                }
             }
         }
     }
