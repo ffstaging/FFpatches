@@ -184,6 +184,9 @@ static int lead_decode_frame(AVCodecContext *avctx, AVFrame * frame,
     calc_dequant(dequant[0], ff_mjpeg_std_luminance_quant_tbl, q);
     calc_dequant(dequant[1], ff_mjpeg_std_chrominance_quant_tbl, q);
 
+    if (avpkt->size < ((avctx->width + 15) / 16) * ((avctx->height + 15) / 16) * 6 / 2)
+        return AVERROR_INVALIDDATA;
+
     if ((ret = ff_get_buffer(avctx, frame, 0)) < 0)
         return ret;
 
