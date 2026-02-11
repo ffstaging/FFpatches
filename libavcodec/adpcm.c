@@ -1799,7 +1799,7 @@ static int adpcm_decode_frame(AVCodecContext *avctx, AVFrame *frame,
             }
         }
 
-        for (int m = 0; m < avctx->block_align-8; m += 8) {
+        for (int m = 0; m < avctx->block_align-8 && bytestream2_get_bytes_left(&gb) >= 8; m += 8) {
             uint32_t v0 = bytestream2_get_le32u(&gb);
             uint32_t v1 = bytestream2_get_le32u(&gb);
 
