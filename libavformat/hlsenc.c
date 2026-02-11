@@ -2977,7 +2977,7 @@ static int hls_init(AVFormatContext *s)
             vs->oformat = av_guess_format("mpegts", NULL, NULL);
         }
         if (!vs->oformat)
-            return AVERROR_MUXER_NOT_FOUND;
+            av_unreachable("mp4 and mpegts muxer should be enabled");
 
         if (hls->segment_filename) {
             ret = format_name(hls->segment_filename, &vs->basename, i, vs->varname);
@@ -3056,7 +3056,7 @@ static int hls_init(AVFormatContext *s)
         if (vs->has_subtitle) {
             vs->vtt_oformat = av_guess_format("webvtt", NULL, NULL);
             if (!vs->vtt_oformat)
-                return AVERROR_MUXER_NOT_FOUND;
+                av_unreachable("webvtt muxer should be enabled");
 
             p = strrchr(vs->m3u8_name, '.');
             if (p)

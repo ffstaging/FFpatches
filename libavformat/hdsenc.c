@@ -321,7 +321,7 @@ static int hds_write_header(AVFormatContext *s)
 
     oformat = av_guess_format("flv", NULL, NULL);
     if (!oformat) {
-        return AVERROR_MUXER_NOT_FOUND;
+        av_unreachable("flv muxer should be enabled");
     }
 
     c->streams = av_calloc(s->nb_streams, sizeof(*c->streams));

@@ -66,7 +66,7 @@ static int rtp_mpegts_write_header(AVFormatContext *s)
     AVDictionary *rtp_muxer_options = NULL;
 
     if (!mpegts_format || !rtp_format)
-        return AVERROR(ENOSYS);
+        av_unreachable("mpegts and rtp muxers should be enabled");
     mpegts_ctx = avformat_alloc_context();
     if (!mpegts_ctx)
         return AVERROR(ENOMEM);

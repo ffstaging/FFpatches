@@ -70,7 +70,7 @@ static int webm_chunk_init(AVFormatContext *s)
 
     oformat = av_guess_format("webm", s->url, "video/webm");
     if (!oformat)
-        return AVERROR_MUXER_NOT_FOUND;
+        av_unreachable("webm muxer should be enabled");
 
     ret = avformat_alloc_output_context2(&wc->avf, oformat, NULL, NULL);
     if (ret < 0)

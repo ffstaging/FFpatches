@@ -1542,11 +1542,8 @@ static int create_rtp_muxer(AVFormatContext *s)
     whip->udp->flags |= AVIO_FLAG_NONBLOCK;
 
     const AVOutputFormat *rtp_format = av_guess_format("rtp", NULL, NULL);
-    if (!rtp_format) {
-        av_log(whip, AV_LOG_ERROR, "Failed to guess rtp muxer\n");
-        ret = AVERROR(ENOSYS);
-        goto end;
-    }
+    if (!rtp_format)
+        av_unreachable("rtp muxer should be enabled");
 
     /* The UDP buffer size, may greater than MTU. */
     buffer_size = MAX_UDP_BUFFER_SIZE;
