@@ -1288,8 +1288,8 @@ yuv2rgba64_1_c_template(SwsInternal *c, const int32_t *buf0,
             Y2 += (1 << 13) - (1 << 29);
 
             if (hasAlpha) {
-                A1 = abuf0[i * 2    ] * (1 << 11);
-                A2 = abuf0[i * 2 + 1] * (1 << 11);
+                A1 = av_clip_uintp2(abuf0[i * 2    ], 19) * (1 << 11);
+                A2 = av_clip_uintp2(abuf0[i * 2 + 1], 19) * (1 << 11);
 
                 A1 += 1 << 13;
                 A2 += 1 << 13;
@@ -1337,8 +1337,8 @@ yuv2rgba64_1_c_template(SwsInternal *c, const int32_t *buf0,
             Y2 += (1 << 13) - (1 << 29);
 
             if (hasAlpha) {
-                A1 = abuf0[i * 2    ] * (1 << 11);
-                A2 = abuf0[i * 2 + 1] * (1 << 11);
+                A1 = av_clip_uintp2(abuf0[i * 2    ], 19) * (1 << 11);
+                A2 = av_clip_uintp2(abuf0[i * 2 + 1], 19) * (1 << 11);
 
                 A1 += 1 << 13;
                 A2 += 1 << 13;
