@@ -955,8 +955,8 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
 %assign cpuflags_sse42     (1<<11) | cpuflags_sse4
 %assign cpuflags_aesni     (1<<12) | cpuflags_sse42
 %assign cpuflags_clmul     (1<<13) | cpuflags_sse42
-%assign cpuflags_gfni      (1<<14) | cpuflags_aesni|cpuflags_clmul
-%assign cpuflags_avx       (1<<15) | cpuflags_sse42
+%assign cpuflags_gfni      (1<<14) | cpuflags_aesni
+%assign cpuflags_avx       (1<<15) | cpuflags_clmul
 %assign cpuflags_xop       (1<<16) | cpuflags_avx
 %assign cpuflags_fma4      (1<<17) | cpuflags_avx
 %assign cpuflags_fma3      (1<<18) | cpuflags_avx
