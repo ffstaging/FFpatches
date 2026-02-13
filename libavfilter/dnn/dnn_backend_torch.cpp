@@ -56,6 +56,8 @@ typedef struct THModel {
 typedef struct THInferRequest {
     torch::Tensor *output;
     torch::Tensor *input_tensor;
+    uint8_t *input_data;     // New: Persistent buffer for input pixels
+    size_t input_data_size;  // New: Current size of the buffer
 } THInferRequest;
 
 typedef struct THRequestItem {
@@ -96,15 +98,22 @@ static void th_free_request(THInferRequest *request)
 {
     if (!request)
         return;
-    if (request->output) {
-        delete(request->output);
-        request->output = NULL;
-    }
+
     if (request->input_tensor) {
-        delete(request->input_tensor);
+        delete request->input_tensor;
         request->input_tensor = NULL;
     }
-    return;
+
+    if (request->output) {
+        delete request->output;
+        request->output = NULL;
+    }
+
+    /* Free the persistent buffer */
+    if (request->input_data) {
+        av_freep(&request->input_data);
+    }
+    request->input_data_size = 0;
 }
 
 static inline void destroy_request_item(THRequestItem **arg)
@@ -129,7 +138,7 @@ static void dnn_free_model_th(DNNModel **model)
 
     th_model = (THModel *)(*model);
 
-    /* 1. Stop and join the worker thread if it exists */
+    /* 1. Stop and join the worker thread */
     if (th_model->worker_thread) {
         {
             std::lock_guard<std::mutex> lock(*th_model->mutex);
@@ -151,7 +160,7 @@ static void dnn_free_model_th(DNNModel **model)
         th_model->cond = NULL;
     }
 
-    /* 3. Clean up the pending queue */
+    /* 3. Clean up the pending queue (Async tasks) */
     if (th_model->pending_queue) {
         while (ff_safe_queue_size(th_model->pending_queue) > 0) {
             THRequestItem *item = (THRequestItem *)ff_safe_queue_pop_front(th_model->pending_queue);
@@ -160,7 +169,7 @@ static void dnn_free_model_th(DNNModel **model)
         ff_safe_queue_destroy(th_model->pending_queue);
     }
 
-    /* 4. Clean up standard backend queues */
+    /* 4. Clean up standard backend queues and persistent request buffers */
     if (th_model->request_queue) {
         while (ff_safe_queue_size(th_model->request_queue) != 0) {
             THRequestItem *item = (THRequestItem *)ff_safe_queue_pop_front(th_model->request_queue);
@@ -169,6 +178,7 @@ static void dnn_free_model_th(DNNModel **model)
         ff_safe_queue_destroy(th_model->request_queue);
     }
 
+    /* 5. Clean up task and lltask queues */
     if (th_model->lltask_queue) {
         while (ff_queue_size(th_model->lltask_queue) != 0) {
             LastLevelTaskItem *item = (LastLevelTaskItem *)ff_queue_pop_front(th_model->lltask_queue);
@@ -180,31 +190,21 @@ static void dnn_free_model_th(DNNModel **model)
     if (th_model->task_queue) {
         while (ff_queue_size(th_model->task_queue) != 0) {
             TaskItem *item = (TaskItem *)ff_queue_pop_front(th_model->task_queue);
-            av_frame_free(&item->in_frame);
-            av_frame_free(&item->out_frame);
-            av_freep(&item);
+            if (item) {
+                av_frame_free(&item->in_frame);
+                av_frame_free(&item->out_frame);
+                av_freep(&item);
+            }
         }
         ff_queue_destroy(th_model->task_queue);
     }
 
-    /* 5. Final model cleanup */
+    /* 6. Final model cleanup */
     if (th_model->jit_model)
         delete th_model->jit_model;
 
     av_freep(&th_model);
     *model = NULL;
-}
-
-static int get_input_th(DNNModel *model, DNNData *input, const char *input_name)
-{
-    input->dt = DNN_FLOAT;
-    input->order = DCO_RGB;
-    input->layout = DL_NCHW;
-    input->dims[0] = 1;
-    input->dims[1] = 3;
-    input->dims[2] = -1;
-    input->dims[3] = -1;
-    return 0;
 }
 
 static void deleter(void *arg)
@@ -214,61 +214,68 @@ static void deleter(void *arg)
 
 static int fill_model_input_th(THModel *th_model, THRequestItem *request)
 {
-    LastLevelTaskItem *lltask = NULL;
-    TaskItem *task = NULL;
-    THInferRequest *infer_request = NULL;
+    LastLevelTaskItem *lltask;
+    TaskItem *task;
+    THInferRequest *infer_request;
     DNNData input = { 0 };
-    DnnContext *ctx = th_model->ctx;
     int ret, width_idx, height_idx, channel_idx;
+    size_t cur_size;
 
     lltask = (LastLevelTaskItem *)ff_queue_pop_front(th_model->lltask_queue);
-    if (!lltask) {
-        ret = AVERROR(EINVAL);
-        goto err;
-    }
+    if (!lltask)
+        return AVERROR(EINVAL);
+
     request->lltask = lltask;
     task = lltask->task;
     infer_request = request->infer_request;
 
     ret = get_input_th(&th_model->model, &input, NULL);
-    if ( ret != 0) {
-        goto err;
-    }
+    if (ret != 0)
+        return ret;
+
     width_idx = dnn_get_width_idx_by_layout(input.layout);
     height_idx = dnn_get_height_idx_by_layout(input.layout);
     channel_idx = dnn_get_channel_idx_by_layout(input.layout);
+
     input.dims[height_idx] = task->in_frame->height;
     input.dims[width_idx] = task->in_frame->width;
-    input.data = av_malloc(input.dims[height_idx] * input.dims[width_idx] *
-                           input.dims[channel_idx] * sizeof(float));
-    if (!input.data)
-        return AVERROR(ENOMEM);
-    infer_request->input_tensor = new torch::Tensor();
-    infer_request->output = new torch::Tensor();
 
-    switch (th_model->model.func_type) {
-    case DFT_PROCESS_FRAME:
-        input.scale = 255;
-        if (task->do_ioproc) {
-            if (th_model->model.frame_pre_proc != NULL) {
-                th_model->model.frame_pre_proc(task->in_frame, &input, th_model->model.filter_ctx);
-            } else {
-                ff_proc_from_frame_to_dnn(task->in_frame, &input, ctx);
-            }
-        }
-        break;
-    default:
-        avpriv_report_missing_feature(NULL, "model function type %d", th_model->model.func_type);
-        break;
+    /* Calculate required size for current frame */
+    cur_size = (size_t)input.dims[height_idx] * input.dims[width_idx] *
+               input.dims[channel_idx] * sizeof(float);
+
+    /**
+     * Persistent Buffer Logic:
+     * Only reallocate if existing buffer is too small or doesn't exist.
+     */
+    if (!infer_request->input_data || infer_request->input_data_size < cur_size) {
+        av_freep(&infer_request->input_data);
+        infer_request->input_data = (uint8_t *)av_malloc(cur_size);
+        if (!infer_request->input_data)
+            return AVERROR(ENOMEM);
+        infer_request->input_data_size = cur_size;
     }
+
+    /* Initialize tensors if they don't exist */
+    if (!infer_request->input_tensor)
+        infer_request->input_tensor = new torch::Tensor();
+    if (!infer_request->output)
+        infer_request->output = new torch::Tensor();
+
+    input.data = infer_request->input_data;
+
+    if (task->do_ioproc) {
+        if (th_model->model.frame_pre_proc)
+            th_model->model.frame_pre_proc(task->in_frame, &input, th_model->model.filter_ctx);
+        else
+            ff_proc_from_frame_to_dnn(task->in_frame, &input, th_model->ctx);
+    }
+
     *infer_request->input_tensor = torch::from_blob(input.data,
         {1, input.dims[channel_idx], input.dims[height_idx], input.dims[width_idx]},
-        deleter, torch::kFloat32);
-    return 0;
+        torch::kFloat32);
 
-err:
-    th_free_request(infer_request);
-    return ret;
+    return 0;
 }
 
 static int th_start_inference(void *args)
@@ -487,13 +494,26 @@ err:
 
 static THInferRequest *th_create_inference_request(void)
 {
-    THInferRequest *request = (THInferRequest *)av_malloc(sizeof(THInferRequest));
-    if (!request) {
+    // Use av_mallocz to zero-initialize everything (including input_data and input_data_size)
+    THInferRequest *request = (THInferRequest *)av_mallocz(sizeof(THInferRequest));
+    if (!request)
         return NULL;
-    }
-    request->input_tensor = NULL;
-    request->output = NULL;
+
     return request;
+}
+
+static int get_input_th(DNNModel *model, DNNData *input, const char *input_name)
+{
+    input->dt     = DNN_FLOAT;
+    input->order  = DCO_RGB;
+    input->layout = DL_NCHW;
+
+    input->dims[0] = 1;
+    input->dims[1] = 3;
+    input->dims[2] = -1;
+    input->dims[3] = -1;
+
+    return 0;
 }
 
 static DNNModel *dnn_load_model_th(DnnContext *ctx, DNNFunctionType func_type, AVFilterContext *filter_ctx)
