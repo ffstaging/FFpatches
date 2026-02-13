@@ -156,5 +156,6 @@ DNNAsyncStatusType ff_dnn_get_result_common(Queue *task_queue, AVFrame **in, AVF
  * @returns 0 if successful or error code otherwise.
  */
 int ff_dnn_fill_gettingoutput_task(TaskItem *task, DNNExecBaseParams *exec_params, void *backend_model, int input_height, int input_width, void *ctx);
+int ff_dnn_async_module_submit(DNNAsyncExecModule *async_module);
 
 #endif
