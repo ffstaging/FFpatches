@@ -251,6 +251,8 @@ static int decode_tile(AVCodecContext *avctx, TileContext *tile,
 
     if (tile->x >= avctx->width)
         return 0;
+    if (avctx->width - tile->x < 16)
+        return AVERROR_PATCHWELCOME;
 
     /* Tile header */
     int header_len = bytestream2_get_byteu(gb) >> 3;
