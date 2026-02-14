@@ -650,7 +650,9 @@ static int h264_parse(AVCodecParserContext *s,
             }
 
             if (p->reference_dts != AV_NOPTS_VALUE && s->pts == AV_NOPTS_VALUE)
-                s->pts = s->dts + av_rescale(s->pts_dts_delta, num, den);
+                if (av_sat_add64(s->dts,  av_rescale(s->pts_dts_delta, num, den)) ==
+                    (uint64_t)s->dts + av_rescale(s->pts_dts_delta, num, den))
+                    s->pts = s->dts + av_rescale(s->pts_dts_delta, num, den);
 
             if (s->dts_sync_point > 0)
                 p->reference_dts = s->dts; // new reference
