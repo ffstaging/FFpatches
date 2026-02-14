@@ -397,9 +397,10 @@ static int encode_q_branch(SnowEncContext *enc, int level, int x, int y)
     int l,cr,cb;
     const int stride= s->current_picture->linesize[0];
     const int uvstride= s->current_picture->linesize[1];
+#define PTR_ADD(ptr, off) ((ptr) ? (ptr) + (off) : NULL)
     const uint8_t *const current_data[3] = { s->input_picture->data[0] + (x + y*  stride)*block_w,
-                                s->input_picture->data[1] + ((x*block_w)>>s->chroma_h_shift) + ((y*uvstride*block_w)>>s->chroma_v_shift),
-                                s->input_picture->data[2] + ((x*block_w)>>s->chroma_h_shift) + ((y*uvstride*block_w)>>s->chroma_v_shift)};
+                                PTR_ADD(s->input_picture->data[1], ((x*block_w)>>s->chroma_h_shift) + ((y*uvstride*block_w)>>s->chroma_v_shift)),
+                                PTR_ADD(s->input_picture->data[2], ((x*block_w)>>s->chroma_h_shift) + ((y*uvstride*block_w)>>s->chroma_v_shift))};
     int P[10][2];
     int16_t last_mv[3][2];
     int qpel= !!(s->avctx->flags & AV_CODEC_FLAG_QPEL); //unused
