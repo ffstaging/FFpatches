@@ -5914,6 +5914,12 @@ Options are true or false. Default is false.
 @item print_format
 Set print format for stats. Options are summary, json, or none.
 Default value is none.
+
+@item stats_file
+If specified, the filter will use the named file to save the stats. The
+format of the file is controlled by @option{print_format}, defaulting to
+json. When @code{-} is given as the filename, stats are written to standard
+output.
 @end table
 
 @section lowpass
