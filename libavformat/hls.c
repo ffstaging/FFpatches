@@ -660,9 +660,10 @@ static int open_url(AVFormatContext *s, AVIOContext **pb, const char *url,
     if (av_strstart(url, "crypto", NULL)) {
         if (url[6] == '+' || url[6] == ':')
             proto_name = avio_find_protocol_name(url + 7);
-    } else if (av_strstart(url, "data", NULL)) {
-        if (url[4] == '+' || url[4] == ':')
-            proto_name = avio_find_protocol_name(url + 5);
+    } else if (av_strstart(url, "data+", NULL)) {
+        proto_name = avio_find_protocol_name(url + 5);
+    } else if (av_strstart(url, "data:", NULL)) {
+        proto_name = "data";
     }
 
     if (!proto_name)
