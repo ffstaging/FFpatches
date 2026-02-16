@@ -149,6 +149,47 @@ nsc:
     return si;
 }
 
+static const char *const lcevc_nal_type_name[32] = {
+    "UNSPEC0 ", // UNSPEC0
+    "UNSPEC1 ", // UNSPEC1
+    "UNSPEC2 ", // UNSPEC2
+    "UNSPEC3 ", // UNSPEC3
+    "UNSPEC4 ", // UNSPEC4
+    "UNSPEC5 ", // UNSPEC5
+    "UNSPEC6 ", // UNSPEC6
+    "UNSPEC7 ", // UNSPEC7
+    "UNSPEC8 ", // UNSPEC8
+    "UNSPEC9 ", // UNSPEC9
+    "UNSPEC10", // UNSPEC10
+    "UNSPEC11", // UNSPEC11
+    "UNSPEC12", // UNSPEC12
+    "UNSPEC13", // UNSPEC13
+    "UNSPEC14", // UNSPEC14
+    "UNSPEC15", // UNSPEC15
+    "UNSPEC16", // UNSPEC16
+    "UNSPEC17", // UNSPEC17
+    "UNSPEC18", // UNSPEC18
+    "UNSPEC19", // UNSPEC19
+    "UNSPEC20", // UNSPEC20
+    "UNSPEC21", // UNSPEC21
+    "UNSPEC22", // UNSPEC22
+    "UNSPEC23", // UNSPEC23
+    "UNSPEC24", // UNSPEC24
+    "UNSPEC25", // UNSPEC25
+    "UNSPEC26", // UNSPEC26
+    "UNSPEC27", // UNSPEC27
+    "LCEVC_NON_IDR", //LCEVC_NON_IDR
+    "LCEVC_IDR", // LCEVC_IDR
+    "LCEVC_RSV", // LCEVC_RSV
+    "UNSPEC31", // UNSPEC31
+};
+
+static const char *lcevc_nal_unit_name(int nal_type)
+{
+    av_assert0(nal_type >= 0 && nal_type < 32);
+    return lcevc_nal_type_name[nal_type];
+}
+
 static const char *const vvc_nal_type_name[32] = {
     "TRAIL_NUT", // VVC_TRAIL_NUT
     "STSA_NUT", // VVC_STSA_NUT
@@ -338,6 +379,26 @@ static int get_bit_length(H2645NAL *nal, int min_size, int skip_trailing_zeros)
  * @return AVERROR_INVALIDDATA if the packet is not a valid NAL unit,
  * 0 otherwise
  */
+
+static int lcevc_parse_nal_header(H2645NAL *nal, void *logctx)
+{
+    GetBitContext *gb = &nal->gb;
+
+    if (get_bits1(gb) != 0)     //forbidden_zero_bit
+        return AVERROR_INVALIDDATA;
+
+    if (get_bits1(gb) != 1)     //forbidden_one_bit
+        return AVERROR_INVALIDDATA;
+
+    nal->type = get_bits(gb, 5);
+
+    av_log(logctx, AV_LOG_DEBUG,
+           "nal_unit_type: %d(%s)\n",
+           nal->type, lcevc_nal_unit_name(nal->type));
+
+    return 0;
+}
+
 static int vvc_parse_nal_header(H2645NAL *nal, void *logctx)
 {
     GetBitContext *gb = &nal->gb;
@@ -582,6 +643,8 @@ int ff_h2645_packet_split(H2645Packet *pkt, const uint8_t *buf, int length,
 
         if (codec_id == AV_CODEC_ID_VVC)
             ret = vvc_parse_nal_header(nal, logctx);
+        else if (codec_id == AV_CODEC_ID_LCEVC)
+            ret = lcevc_parse_nal_header(nal, logctx);
         else if (codec_id == AV_CODEC_ID_HEVC) {
             ret = hevc_parse_nal_header(nal, logctx);
             if (nal->nuh_layer_id == 63)
