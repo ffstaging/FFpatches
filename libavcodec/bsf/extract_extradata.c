@@ -29,6 +29,7 @@
 #include "bytestream.h"
 #include "h2645_parse.h"
 #include "h264.h"
+#include "lcevc.h"
 #include "startcode.h"
 #include "vc1_common.h"
 #include "vvc.h"
@@ -167,6 +168,9 @@ static int extract_extradata_h2645(AVBSFContext *ctx, AVPacket *pkt,
     static const int extradata_nal_types_vvc[] = {
         VVC_VPS_NUT, VVC_SPS_NUT, VVC_PPS_NUT,
     };
+    static const int extradata_nal_types_lcevc[] = {
+        LCEVC_IDR_NUT, LCEVC_NON_IDR_NUT,
+    };
     static const int extradata_nal_types_hevc[] = {
         HEVC_NAL_VPS, HEVC_NAL_SPS, HEVC_NAL_PPS,
     };
@@ -184,6 +188,9 @@ static int extract_extradata_h2645(AVBSFContext *ctx, AVPacket *pkt,
     if (ctx->par_in->codec_id == AV_CODEC_ID_VVC) {
         extradata_nal_types    = extradata_nal_types_vvc;
         nb_extradata_nal_types = FF_ARRAY_ELEMS(extradata_nal_types_vvc);
+    } else if (ctx->par_in->codec_id == AV_CODEC_ID_LCEVC) {
+        extradata_nal_types    = extradata_nal_types_lcevc;
+        nb_extradata_nal_types = FF_ARRAY_ELEMS(extradata_nal_types_lcevc);
     } else if (ctx->par_in->codec_id == AV_CODEC_ID_HEVC) {
         extradata_nal_types    = extradata_nal_types_hevc;
         nb_extradata_nal_types = FF_ARRAY_ELEMS(extradata_nal_types_hevc);
@@ -207,6 +214,8 @@ static int extract_extradata_h2645(AVBSFContext *ctx, AVPacket *pkt,
             } else if (ctx->par_in->codec_id == AV_CODEC_ID_HEVC) {
                 if (nal->type == HEVC_NAL_SPS) has_sps = 1;
                 if (nal->type == HEVC_NAL_VPS) has_vps = 1;
+            } else if (ctx->par_in->codec_id == AV_CODEC_ID_LCEVC) {
+                has_sps = 1;
             } else {
                 if (nal->type == H264_NAL_SPS) has_sps = 1;
             }
@@ -217,6 +226,7 @@ static int extract_extradata_h2645(AVBSFContext *ctx, AVPacket *pkt,
 
     if (extradata_size &&
         ((ctx->par_in->codec_id == AV_CODEC_ID_VVC  && has_sps) ||
+         (ctx->par_in->codec_id == AV_CODEC_ID_LCEVC && has_sps) ||
          (ctx->par_in->codec_id == AV_CODEC_ID_HEVC && has_sps && has_vps) ||
          (ctx->par_in->codec_id == AV_CODEC_ID_H264 && has_sps))) {
         AVBufferRef *filtered_buf = NULL;
@@ -371,6 +381,7 @@ static const struct {
     { AV_CODEC_ID_CAVS,       extract_extradata_mpeg4   },
     { AV_CODEC_ID_H264,       extract_extradata_h2645   },
     { AV_CODEC_ID_HEVC,       extract_extradata_h2645   },
+    { AV_CODEC_ID_LCEVC,      extract_extradata_h2645   },
     { AV_CODEC_ID_MPEG1VIDEO, extract_extradata_mpeg12  },
     { AV_CODEC_ID_MPEG2VIDEO, extract_extradata_mpeg12  },
     { AV_CODEC_ID_MPEG4,      extract_extradata_mpeg4   },
@@ -441,6 +452,7 @@ static const enum AVCodecID codec_ids[] = {
     AV_CODEC_ID_CAVS,
     AV_CODEC_ID_H264,
     AV_CODEC_ID_HEVC,
+    AV_CODEC_ID_LCEVC,
     AV_CODEC_ID_MPEG1VIDEO,
     AV_CODEC_ID_MPEG2VIDEO,
     AV_CODEC_ID_MPEG4,
