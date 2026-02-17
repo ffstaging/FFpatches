@@ -33,6 +33,13 @@
 #include <openssl/err.h>
 #include <openssl/x509v3.h>
 
+#include "libavformat/network.h"
+#include "libavformat/url.h"
+#include "libavutil/time.h"
+#include <sys/time.h>
+#if HAVE_POLL_H
+#include <poll.h>
+#endif
 /**
  * Convert an EVP_PKEY to a PEM string.
  */
@@ -624,31 +631,48 @@ static void openssl_info_callback(const SSL *ssl, int where, int ret) {
 
 static int dtls_handshake(URLContext *h)
 {
-    int ret = 1, r0, r1;
     TLSContext *c = h->priv_data;
+    int ret, err;
 
-    c->tls_shared.udp->flags &= ~AVIO_FLAG_NONBLOCK;
+    struct pollfd pfd;
+    pfd.fd = ffurl_get_file_handle(c->tls_shared.udp);
+    pfd.events = POLLIN;
+    pfd.revents = 0;
 
-    r0 = SSL_do_handshake(c->ssl);
-    if (r0 <= 0) {
-        r1 = SSL_get_error(c->ssl, r0);
+    /* use nonblocking mode for DTLS retransmission */
+    c->tls_shared.udp->flags |= AVIO_FLAG_NONBLOCK;
 
-        if (r1 != SSL_ERROR_WANT_READ && r1 != SSL_ERROR_WANT_WRITE && r1 != SSL_ERROR_ZERO_RETURN) {
-            av_log(c, AV_LOG_ERROR, "Handshake failed, r0=%d, r1=%d\n", r0, r1);
-            ret = print_ssl_error(h, r0);
-            goto end;
+    for (;;) {
+        ret = SSL_do_handshake(c->ssl);
+        if (ret == 1)
+            return 0;
+
+        err = SSL_get_error(c->ssl, ret);
+
+        if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+            struct timeval timeout;
+            int timeout_ms = 1000;
+
+            if (DTLSv1_get_timeout(c->ssl, &timeout))
+                timeout_ms = timeout.tv_sec * 1000 +
+                             timeout.tv_usec / 1000;
+
+            ret = poll(&pfd, 1, timeout_ms);
+            if (ret > 0) {
+                if (pfd.revents & (POLLERR | POLLHUP))
+                    return AVERROR(EIO);
+                continue;
+            } else if (ret == 0) {
+                if (DTLSv1_handle_timeout(c->ssl) < 0)
+                    return AVERROR(EIO);
+                continue;
+            } else {
+                return AVERROR(errno);
+            }
         }
-    } else {
-        av_log(c, AV_LOG_TRACE, "Handshake success, r0=%d\n", r0);
+
+        return AVERROR(EIO);
     }
-
-    /* Check whether the handshake is completed. */
-    if (SSL_is_init_finished(c->ssl) != TLS_ST_OK)
-        goto end;
-
-    ret = 0;
-end:
-    return ret;
 }
 
 static av_cold int openssl_init_ca_key_cert(URLContext *h)
