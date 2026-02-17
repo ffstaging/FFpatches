@@ -1458,7 +1458,7 @@ continue_on_failed2:
             TextLine *cur_line = &s->lines[line_count];
             HarfbuzzData *hb = &cur_line->hb_data;
             cur_line->cluster_offset = line_offset;
-            ret = shape_text_hb(s, hb, start, p - start);
+            ret = shape_text_hb(s, hb, start, p - start - (code?1:0));
             if (ret != 0) {
                 goto done;
             }
