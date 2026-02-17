@@ -1332,7 +1332,7 @@ static int av1_receive_frame_internal(AVCodecContext *avctx, AVFrame *frame)
         case AV1_OBU_REDUNDANT_FRAME_HEADER:
             if (s->raw_frame_header)
                 break;
-        // fall-through
+            av_fallthrough;
         case AV1_OBU_FRAME:
         case AV1_OBU_FRAME_HEADER:
             if (!s->raw_seq) {
@@ -1388,7 +1388,7 @@ static int av1_receive_frame_internal(AVCodecContext *avctx, AVFrame *frame)
             }
             if (unit->type != AV1_OBU_FRAME)
                 break;
-        // fall-through
+            av_fallthrough;
         case AV1_OBU_TILE_GROUP:
             if (!s->raw_frame_header) {
                 av_log(avctx, AV_LOG_ERROR, "Missing Frame Header.\n");

@@ -7837,6 +7837,7 @@ if enabled extra_warnings; then
     check_allcflags -Wcast-qual
     check_allcflags -Wextra
     check_allcflags -Wpedantic
+    check_allcflags -Wimplicit-fallthrough
 fi
 
 check_disable_warning(){

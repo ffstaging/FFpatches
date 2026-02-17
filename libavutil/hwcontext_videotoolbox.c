@@ -29,6 +29,7 @@
 #include "hwcontext.h"
 #include "hwcontext_internal.h"
 #include "hwcontext_videotoolbox.h"
+#include "attributes.h"
 #include "mem.h"
 #include "pixfmt.h"
 #include "pixdesc.h"
@@ -456,6 +457,7 @@ CFStringRef av_map_videotoolbox_color_matrix_from_av(enum AVColorSpace space)
 #if HAVE_KCVIMAGEBUFFERTRANSFERFUNCTION_ITU_R_2100_HLG
         if (__builtin_available(macOS 10.13, iOS 11, tvOS 11, watchOS 4, *))
             return CVYCbCrMatrixGetStringForIntegerCodePoint(space);
+        av_fallthrough;
 #endif
     case AVCOL_SPC_UNSPECIFIED:
         return NULL;
@@ -481,6 +483,7 @@ CFStringRef av_map_videotoolbox_color_primaries_from_av(enum AVColorPrimaries pr
 #if HAVE_KCVIMAGEBUFFERTRANSFERFUNCTION_ITU_R_2100_HLG
         if (__builtin_available(macOS 10.13, iOS 11, tvOS 11, watchOS 4, *))
             return CVColorPrimariesGetStringForIntegerCodePoint(pri);
+        av_fallthrough;
 #endif
     case AVCOL_PRI_UNSPECIFIED:
         return NULL;
@@ -528,6 +531,7 @@ CFStringRef av_map_videotoolbox_color_trc_from_av(enum AVColorTransferCharacteri
 #if HAVE_KCVIMAGEBUFFERTRANSFERFUNCTION_ITU_R_2100_HLG
         if (__builtin_available(macOS 10.13, iOS 11, tvOS 11, watchOS 4, *))
             return CVTransferFunctionGetStringForIntegerCodePoint(trc);
+        av_fallthrough;
 #endif
     case AVCOL_TRC_UNSPECIFIED:
         return NULL;
