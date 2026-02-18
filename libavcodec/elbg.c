@@ -302,6 +302,9 @@ static void try_shift_candidate(ELBGContext *elbg, int idx[3])
     for (j=0; j<3; j++)
         olderror += elbg->utility[idx[j]];
 
+    if (olderror >= INT_MAX)
+        return;
+
     memset(newcentroid[2], 0, elbg->dim*sizeof(int));
 
     for (k=0; k<2; k++)
