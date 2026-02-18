@@ -1317,24 +1317,34 @@ int sws_receive_slice(SwsContext *sws, unsigned int slice_start,
                           dst, c->frame_dst->linesize, slice_start, slice_height);
 }
 
-static void get_frame_pointers(const AVFrame *frame, uint8_t *data[4],
-                               int linesize[4], int field)
+static SwsImg get_frame_img(const AVFrame *frame)
 {
+    SwsImg img = {0};
+
+    img.fmt = frame->format;
     for (int i = 0; i < 4; i++) {
-        data[i]     = frame->data[i];
-        linesize[i] = frame->linesize[i];
+        img.data[i]     = frame->data[i];
+        img.linesize[i] = frame->linesize[i];
+        img.buf[i]      = frame->buf[i];
     }
+
+    return img;
+}
+
+static SwsImg get_field_img(const AVFrame *frame, int field)
+{
+    SwsImg img = get_frame_img(frame);
 
     if (!(frame->flags & AV_FRAME_FLAG_INTERLACED)) {
         av_assert1(!field);
-        return;
+        return img;
     }
 
     if (field == FIELD_BOTTOM) {
         /* Odd rows, offset by one line */
         const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(frame->format);
         for (int i = 0; i < 4; i++) {
-            data[i] += linesize[i];
+            img.data[i] += img.linesize[i];
             if (desc->flags & AV_PIX_FMT_FLAG_PAL)
                 break;
         }
@@ -1342,7 +1352,9 @@ static void get_frame_pointers(const AVFrame *frame, uint8_t *data[4],
 
     /* Take only every second line */
     for (int i = 0; i < 4; i++)
-        linesize[i] <<= 1;
+        img.linesize[i] <<= 1;
+
+    return img;
 }
 
 /* Subset of av_frame_ref() that only references (video) data buffers */
@@ -1359,6 +1371,24 @@ static int frame_ref(AVFrame *dst, const AVFrame *src)
 
     memcpy(dst->data,     src->data,     sizeof(src->data));
     memcpy(dst->linesize, src->linesize, sizeof(src->linesize));
+    return 0;
+}
+
+static int frame_alloc_partial(AVFrame *frame)
+{
+    /* Re-use SwsGraph helpers */
+    SwsImg img = get_frame_img(frame);
+    int ret = ff_sws_img_alloc(&img, frame->width, frame->height);
+    if (ret < 0)
+        return ret;
+
+    /* Reflect change back to AVFrame */
+    frame->extended_data = frame->data;
+    for (int i = 0; i < FF_ARRAY_ELEMS(img.data); i++) {
+        frame->data[i] = img.data[i];
+        frame->linesize[i] = img.linesize[i];
+        frame->buf[i] = img.buf[i];
+    }
     return 0;
 }
 
@@ -1402,19 +1432,16 @@ int sws_scale_frame(SwsContext *sws, AVFrame *dst, const AVFrame *src)
             return ret;
     } else {
         if (!dst->data[0]) {
-            ret = av_frame_get_buffer(dst, 0);
+            ret = frame_alloc_partial(dst);
             if (ret < 0)
                 return ret;
         }
 
         for (int field = 0; field < 2; field++) {
             SwsGraph *graph = c->graph[field];
-            uint8_t *dst_data[4], *src_data[4];
-            int dst_linesize[4], src_linesize[4];
-            get_frame_pointers(dst, dst_data, dst_linesize, field);
-            get_frame_pointers(src, src_data, src_linesize, field);
-            ff_sws_graph_run(graph, dst_data, dst_linesize,
-                          (const uint8_t **) src_data, src_linesize);
+            SwsImg input  = get_field_img(src, field);
+            SwsImg output = get_field_img(dst, field);
+            ff_sws_graph_run(graph, &output, &input);
             if (!graph->dst.interlaced)
                 break;
         }

@@ -34,6 +34,7 @@ typedef struct SwsImg {
     enum AVPixelFormat fmt;
     uint8_t *data[4]; /* points to y=0 */
     int linesize[4];
+    AVBufferRef *buf[4]; /* buffer references for `data` */
 } SwsImg;
 
 static av_always_inline av_const int ff_fmt_vshift(enum AVPixelFormat fmt, int plane)
@@ -49,6 +50,13 @@ static av_const inline SwsImg ff_sws_img_shift(const SwsImg *base, const int y)
         img.data[i] += (y >> ff_fmt_vshift(img.fmt, i)) * img.linesize[i];
     return img;
 }
+
+/**
+ * Allocate data pointers for an SwsImg.
+ *
+ * Returns 0 or a negative error code.
+ */
+int ff_sws_img_alloc(SwsImg *img, int width, int height);
 
 typedef struct SwsPass  SwsPass;
 typedef struct SwsGraph SwsGraph;
@@ -74,7 +82,6 @@ struct SwsPass {
      * are always equal to (or smaller than, for the last slice) `slice_h`.
      */
     sws_filter_run_t run;
-    enum AVPixelFormat format; /* new pixel format */
     int width, height; /* new output size */
     int slice_h;       /* filter granularity */
     int num_slices;
@@ -88,7 +95,7 @@ struct SwsPass {
     /**
      * Filter output buffer. Allocated on demand and freed automatically.
      */
-    SwsImg output;
+    SwsImg *output; /* refstruct */
 
     /**
      * Called once from the main thread before running the filter. Optional.
@@ -128,10 +135,13 @@ typedef struct SwsGraph {
     SwsFormat src, dst;
     int field;
 
-    /** Temporary execution state inside ff_sws_graph_run */
+    /**
+     * Temporary execution state inside ff_sws_graph_run(); used to pass
+     * data to worker threads.
+     */
     struct {
         const SwsPass *pass; /* current filter pass */
-        SwsImg input;
+        SwsImg input; /* current filter pass input/output */
         SwsImg output;
     } exec;
 } SwsGraph;
@@ -161,6 +171,14 @@ SwsPass *ff_sws_graph_add_pass(SwsGraph *graph, enum AVPixelFormat fmt,
                                int align, void *priv, sws_filter_run_t run);
 
 /**
+ * Link the output buffers to a different pass, rather than allocating
+ * new image buffers. This allows re-using the same buffer for multiple passes,
+ * e.g. in the case of in-place passes or partial passes that modify different
+ * planes.
+ **/
+void ff_sws_pass_link_output(SwsPass *pass, const SwsPass *other);
+
+/**
  * Uninitialize any state associate with this filter graph and free it.
  */
 void ff_sws_graph_free(SwsGraph **graph);
@@ -182,9 +200,6 @@ int ff_sws_graph_reinit(SwsContext *ctx, const SwsFormat *dst, const SwsFormat *
 /**
  * Dispatch the filter graph on a single field. Internally threaded.
  */
-void ff_sws_graph_run(SwsGraph *graph, uint8_t *const out_data[4],
-                      const int out_linesize[4],
-                      const uint8_t *const in_data[4],
-                      const int in_linesize[4]);
+void ff_sws_graph_run(SwsGraph *graph, const SwsImg *output, const SwsImg *input);
 
 #endif /* SWSCALE_GRAPH_H */
