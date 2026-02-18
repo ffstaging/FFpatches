@@ -3390,6 +3390,7 @@ static int matroska_read_header(AVFormatContext *s)
                                   1000 / AV_TIME_BASE;
     av_dict_set(&s->metadata, "title", matroska->title, 0);
     av_dict_set(&s->metadata, "encoder", matroska->muxingapp, 0);
+    av_dict_set(&s->metadata, "profile", matroska->is_webm ? "webm" : "matroska", 0);
 
     if (matroska->date_utc.size == 8)
         matroska_metadata_creation_time(&s->metadata, AV_RB64(matroska->date_utc.data));

@@ -281,6 +281,13 @@ fate-matroska-side-data-pref-packet: CMD = run ffprobe$(PROGSSUF)$(EXESUF) $(TAR
     -select_streams v:0 -show_streams -show_frames -show_entries stream=stream_side_data:frame=frame_side_data_list -side_data_prefer_packet mastering_display_metadata,content_light_level
 FATE_MATROSKA_FFPROBE-$(call ALLYES, MATROSKA_DEMUXER HEVC_DECODER) += fate-matroska-side-data-pref-codec fate-matroska-side-data-pref-packet
 
+# Test that the matroska demuxer correctly exports the EBML DocType as profile metadata
+FATE_MATROSKA_FFPROBE-$(call DEMDEC, MATROSKA, PRORES) += fate-matroska-profile-mkv
+fate-matroska-profile-mkv: CMD = run ffprobe$(PROGSSUF)$(EXESUF) -show_entries format_tags=profile -v 0 $(TARGET_SAMPLES)/mkv/prores_zlib.mkv
+
+FATE_MATROSKA_FFPROBE-$(call DEMDEC, MATROSKA, VP9) += fate-matroska-profile-webm
+fate-matroska-profile-webm: CMD = run ffprobe$(PROGSSUF)$(EXESUF) -show_entries format_tags=profile -v 0 $(TARGET_SAMPLES)/vp9-test-vectors/vp90-2-2pass-akiyo.webm
+
 FATE_SAMPLES_AVCONV += $(FATE_MATROSKA-yes)
 FATE_SAMPLES_FFPROBE += $(FATE_MATROSKA_FFPROBE-yes)
 FATE_SAMPLES_FFMPEG_FFPROBE += $(FATE_MATROSKA_FFMPEG_FFPROBE-yes)
