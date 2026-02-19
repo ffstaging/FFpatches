@@ -422,6 +422,13 @@ int av_match_list(const char *name, const char *list, char separator);
 int av_sscanf(const char *string, const char *format, ...) av_scanf_format(2, 3);
 
 /**
+ * Check if the given filename is safe.
+ * @param allow_subdir 1 means allowing subdirectories, 0 means allowing only files in the current directory
+ * @returns positive if safe, 0 if unsafe, negative on error (the current implementation does not return errors, future implementations might)
+ */
+int av_safe_filename(const char *f, int allow_subdir);
+
+/**
  * @}
  */
 

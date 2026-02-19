@@ -1759,8 +1759,13 @@ static int dump_attachment(InputStream *ist, const char *filename)
         av_log(ist, AV_LOG_WARNING, "No extradata to dump.\n");
         return 0;
     }
-    if (!*filename && (e = av_dict_get(st->metadata, "filename", NULL, 0)))
+    if (!*filename && (e = av_dict_get(st->metadata, "filename", NULL, 0))) {
         filename = e->value;
+        if (av_safe_filename(filename, 0) <= 0) {
+            av_log(ist, AV_LOG_ERROR, "Filemame %s is unsafe\n", filename);
+            return AVERROR(EINVAL);
+        }
+    }
     if (!*filename) {
         av_log(ist, AV_LOG_FATAL, "No filename specified and no 'filename' tag");
         return AVERROR(EINVAL);

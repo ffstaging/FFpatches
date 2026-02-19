@@ -91,25 +91,6 @@ static char *get_keyword(uint8_t **cursor)
     return ret;
 }
 
-static int safe_filename(const char *f)
-{
-    const char *start = f;
-
-    for (; *f; f++) {
-        /* A-Za-z0-9_- */
-        if (!((unsigned)((*f | 32) - 'a') < 26 ||
-              (unsigned)(*f - '0') < 10 || *f == '_' || *f == '-')) {
-            if (f == start)
-                return 0;
-            else if (*f == '/')
-                start = f + 1;
-            else if (*f != '.')
-                return 0;
-        }
-    }
-    return 1;
-}
-
 #define FAIL(retcode) do { ret = (retcode); goto fail; } while(0)
 
 static int add_file(AVFormatContext *avf, char *filename, ConcatFile **rfile,
@@ -123,7 +104,7 @@ static int add_file(AVFormatContext *avf, char *filename, ConcatFile **rfile,
     size_t url_len;
     int ret;
 
-    if (cat->safe && !safe_filename(filename)) {
+    if (cat->safe && av_safe_filename(filename, 1) <= 0) {
         av_log(avf, AV_LOG_ERROR, "Unsafe file name '%s'\n", filename);
         FAIL(AVERROR(EPERM));
     }
