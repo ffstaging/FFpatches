@@ -541,8 +541,8 @@ int ff_snow_common_init_after_header(AVCodecContext *avctx) {
 
     if(!s->scratchbuf) {
         int emu_buf_size;
-        emu_buf_size = FFMAX(s->mconly_picture->linesize[0], 2*avctx->width+256) * (2 * MB_SIZE + HTAPS_MAX - 1);
-        if (!FF_ALLOCZ_TYPED_ARRAY(s->scratchbuf,      FFMAX(s->mconly_picture->linesize[0], 2*avctx->width+256) * 7 * MB_SIZE) ||
+        emu_buf_size = FFMAX(s->current_picture->linesize[0], 2*avctx->width+256) * (2 * MB_SIZE + HTAPS_MAX - 1);
+        if (!FF_ALLOCZ_TYPED_ARRAY(s->scratchbuf,      FFMAX(s->current_picture->linesize[0], 2*avctx->width+256) * 7 * MB_SIZE) ||
             !FF_ALLOCZ_TYPED_ARRAY(s->emu_edge_buffer, emu_buf_size))
             return AVERROR(ENOMEM);
     }
