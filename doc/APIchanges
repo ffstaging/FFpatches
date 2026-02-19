@@ -2,6 +2,16 @@ The last version increases of all libraries were on 2025-03-28
 
 API changes, most recent first:
 
+2026-02-19 - xxxxxxxxxx - lavf 62.10.100 - avformat.h
+  Folded FFInputFormat's read_play/read_pause into a single read_set_state.
+  Add FFInputFormatStreamState, used with read_set_state.
+  Add demuxer command API consisting of:
+    - Add avformat_send_command().
+    - Add avformat_receive_command_reply().
+    - Add enum AVFormatCommandID.
+    - Add handle_command to FFInputFormat (reusing the now unused read_pause).
+    - Add enum FFInputFormatCommandOption, used for handle_command.
+
 2026-02-13 - xxxxxxxxxx - lavu 60.25.100 - avassert.h
   Deprecate av_assert0_fpu() and av_assert2_fpu() without replacement.
 
