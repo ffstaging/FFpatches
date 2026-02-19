@@ -345,7 +345,7 @@ static const char unit_hertz_str[]          = "Hz"   ;
 static const char unit_byte_str[]           = "byte" ;
 static const char unit_bit_per_second_str[] = "bit/s";
 
-static int nb_streams;
+static unsigned int nb_streams;
 static uint64_t *nb_streams_packets;
 static uint64_t *nb_streams_frames;
 static int *selected_streams;
@@ -432,8 +432,8 @@ static void log_callback(void *ptr, int level, const char *fmt, va_list vl)
 
 #define print_list_fmt(k, f, n, m, ...) do {    \
     av_bprint_clear(&pbuf);                     \
-    for (int idx = 0; idx < n; idx++) {         \
-        for (int idx2 = 0; idx2 < m; idx2++) {  \
+    for (unsigned int idx = 0; idx < n; idx++) {         \
+        for (unsigned int idx2 = 0; idx2 < m; idx2++) {  \
             if (idx > 0 || idx2 > 0)            \
                 av_bprint_chars(&pbuf, ' ', 1); \
             av_bprintf(&pbuf, f, __VA_ARGS__);  \
@@ -934,24 +934,24 @@ static void print_film_grain_params(AVTextFormatContext *tfc,
             avtext_print_section_header(tfc, NULL, SECTION_ID_FRAME_SIDE_DATA_COMPONENT);
 
             print_int("bit_depth_luma", fgp->bit_depth_luma);
-            print_list_fmt("y_points_value", "%"PRIu8, aom->num_y_points, 1, aom->y_points[idx][0]);
-            print_list_fmt("y_points_scaling", "%"PRIu8, aom->num_y_points, 1, aom->y_points[idx][1]);
-            print_list_fmt("ar_coeffs_y", "%"PRId8, num_ar_coeffs_y, 1, aom->ar_coeffs_y[idx]);
+            print_list_fmt("y_points_value", "%"PRIu8, (unsigned)aom->num_y_points, 1, aom->y_points[idx][0]);
+            print_list_fmt("y_points_scaling", "%"PRIu8, (unsigned)aom->num_y_points, 1, aom->y_points[idx][1]);
+            print_list_fmt("ar_coeffs_y", "%"PRId8, (unsigned)num_ar_coeffs_y, 1, aom->ar_coeffs_y[idx]);
 
             // SECTION_ID_FRAME_SIDE_DATA_COMPONENT
             avtext_print_section_footer(tfc);
         }
 
-        for (int uv = 0; uv < 2; uv++) {
+        for (unsigned uv = 0; uv < 2; uv++) {
             if (!aom->num_uv_points[uv] && !aom->chroma_scaling_from_luma)
                 continue;
 
             avtext_print_section_header(tfc, NULL, SECTION_ID_FRAME_SIDE_DATA_COMPONENT);
 
             print_int("bit_depth_chroma", fgp->bit_depth_chroma);
-            print_list_fmt("uv_points_value", "%"PRIu8, aom->num_uv_points[uv], 1, aom->uv_points[uv][idx][0]);
-            print_list_fmt("uv_points_scaling", "%"PRIu8, aom->num_uv_points[uv], 1, aom->uv_points[uv][idx][1]);
-            print_list_fmt("ar_coeffs_uv", "%"PRId8, num_ar_coeffs_uv, 1, aom->ar_coeffs_uv[uv][idx]);
+            print_list_fmt("uv_points_value", "%"PRIu8, (unsigned)aom->num_uv_points[uv], 1, aom->uv_points[uv][idx][0]);
+            print_list_fmt("uv_points_scaling", "%"PRIu8, (unsigned)aom->num_uv_points[uv], 1, aom->uv_points[uv][idx][1]);
+            print_list_fmt("ar_coeffs_uv", "%"PRId8, (unsigned)num_ar_coeffs_uv, 1, aom->ar_coeffs_uv[uv][idx]);
             print_int("uv_mult", aom->uv_mult[uv]);
             print_int("uv_mult_luma", aom->uv_mult_luma[uv]);
             print_int("uv_offset", aom->uv_offset[uv]);
@@ -1696,7 +1696,7 @@ static int read_interval_packets(AVTextFormatContext *tfc, InputFile *ifile,
     }
     av_packet_unref(pkt);
     //Flush remaining frames that are cached in the decoder
-    for (i = 0; i < ifile->nb_streams; i++) {
+    for (int i = 0; i < ifile->nb_streams; i++) {
         pkt->stream_index = i;
         if (do_read_frames) {
             while (process_frame(tfc, ifile, frame, pkt, &(int){1}) > 0);
@@ -1718,14 +1718,14 @@ end:
 static int read_packets(AVTextFormatContext *tfc, InputFile *ifile)
 {
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
-    int i, ret = 0;
+    int ret = 0;
     int64_t cur_ts = fmt_ctx->start_time;
 
     if (read_intervals_nb == 0) {
         ReadInterval interval = (ReadInterval) { .has_start = 0, .has_end = 0 };
         ret = read_interval_packets(tfc, ifile, &interval, &cur_ts);
     } else {
-        for (i = 0; i < read_intervals_nb; i++) {
+        for (int i = 0; i < read_intervals_nb; i++) {
             ret = read_interval_packets(tfc, ifile, &read_intervals[i], &cur_ts);
             if (ret < 0)
                 break;
@@ -1738,7 +1738,7 @@ static int read_packets(AVTextFormatContext *tfc, InputFile *ifile)
 static void print_dispositions(AVTextFormatContext *tfc, uint32_t disposition, SectionID section_id)
 {
     avtext_print_section_header(tfc, NULL, section_id);
-    for (int i = 0; i < sizeof(disposition) * CHAR_BIT; i++) {
+    for (unsigned i = 0; i < sizeof(disposition) * CHAR_BIT; i++) {
         const char *disposition_str = av_disposition_to_string(1U << i);
 
         if (disposition_str)
@@ -1978,10 +1978,10 @@ static int show_stream(AVTextFormatContext *tfc, AVFormatContext *fmt_ctx, int s
 static int show_streams(AVTextFormatContext *tfc, InputFile *ifile)
 {
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
-    int i, ret = 0;
+    int ret = 0;
 
     avtext_print_section_header(tfc, NULL, SECTION_ID_STREAMS);
-    for (i = 0; i < ifile->nb_streams; i++)
+    for (int i = 0; i < ifile->nb_streams; i++)
         if (selected_streams[i]) {
             ret = show_stream(tfc, fmt_ctx, i, &ifile->streams[i], 0);
             if (ret < 0)
@@ -1995,7 +1995,7 @@ static int show_streams(AVTextFormatContext *tfc, InputFile *ifile)
 static int show_program(AVTextFormatContext *tfc, InputFile *ifile, AVProgram *program)
 {
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
-    int i, ret = 0;
+    int ret = 0;
 
     avtext_print_section_header(tfc, NULL, SECTION_ID_PROGRAM);
     print_int("program_id", program->id);
@@ -2009,7 +2009,7 @@ static int show_program(AVTextFormatContext *tfc, InputFile *ifile, AVProgram *p
         goto end;
 
     avtext_print_section_header(tfc, NULL, SECTION_ID_PROGRAM_STREAMS);
-    for (i = 0; i < program->nb_stream_indexes; i++) {
+    for (unsigned i = 0; i < program->nb_stream_indexes; i++) {
         if (selected_streams[program->stream_index[i]]) {
             ret = show_stream(tfc, fmt_ctx, program->stream_index[i], &ifile->streams[program->stream_index[i]], IN_PROGRAM);
             if (ret < 0)
@@ -2026,10 +2026,10 @@ end:
 static int show_programs(AVTextFormatContext *tfc, InputFile *ifile)
 {
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
-    int i, ret = 0;
+    int ret = 0;
 
     avtext_print_section_header(tfc, NULL, SECTION_ID_PROGRAMS);
-    for (i = 0; i < fmt_ctx->nb_programs; i++) {
+    for (unsigned i = 0; i < fmt_ctx->nb_programs; i++) {
         AVProgram *program = fmt_ctx->programs[i];
         if (!program)
             continue;
@@ -2053,7 +2053,7 @@ static void print_tile_grid_params(AVTextFormatContext *tfc, const AVStreamGroup
     print_int("width",             tile_grid->width);
     print_int("height",            tile_grid->height);
     avtext_print_section_header(tfc, NULL, SECTION_ID_STREAM_GROUP_SUBCOMPONENTS);
-    for (int i = 0; i < tile_grid->nb_tiles; i++) {
+    for (unsigned i = 0; i < tile_grid->nb_tiles; i++) {
         avtext_print_section_header(tfc, "tile_offset", SECTION_ID_STREAM_GROUP_SUBCOMPONENT);
         print_int("stream_index",           tile_grid->offsets[i].idx);
         print_int("tile_horizontal_offset", tile_grid->offsets[i].horizontal);
@@ -2068,10 +2068,10 @@ static void print_iamf_param_definition(AVTextFormatContext *tfc, const char *na
                                         const AVIAMFParamDefinition *param, SectionID section_id)
 {
     SectionID subsection_id, parameter_section_id;
+    av_assert0(sections[section_id].children_ids[0] != -1);
     subsection_id = sections[section_id].children_ids[0];
-    av_assert0(subsection_id != -1);
+    av_assert0(sections[subsection_id].children_ids[0] != -1);
     parameter_section_id = sections[subsection_id].children_ids[0];
-    av_assert0(parameter_section_id != -1);
     avtext_print_section_header(tfc, "IAMF Param Definition", section_id);
     print_str("name",           name);
     print_int("nb_subblocks",   param->nb_subblocks);
@@ -2082,7 +2082,7 @@ static void print_iamf_param_definition(AVTextFormatContext *tfc, const char *na
     print_int("constant_subblock_duration",          param->constant_subblock_duration);
     if (param->nb_subblocks > 0)
         avtext_print_section_header(tfc, NULL, subsection_id);
-    for (int i = 0; i < param->nb_subblocks; i++) {
+    for (unsigned i = 0; i < param->nb_subblocks; i++) {
         const void *subblock = av_iamf_param_definition_get_subblock(param, i);
         switch(param->type) {
         case AV_IAMF_PARAMETER_DEFINITION_MIX_GAIN: {
@@ -2131,7 +2131,7 @@ static void print_iamf_audio_element_params(AVTextFormatContext *tfc, const AVSt
     print_int("audio_element_type", audio_element->audio_element_type);
     print_int("default_w",          audio_element->default_w);
     avtext_print_section_header(tfc, NULL, SECTION_ID_STREAM_GROUP_SUBCOMPONENTS);
-    for (int i = 0; i < audio_element->nb_layers; i++) {
+    for (unsigned i = 0; i < audio_element->nb_layers; i++) {
         const AVIAMFLayer *layer = audio_element->layers[i];
         char val_str[128];
         avtext_print_section_header(tfc, "IAMF Audio Layer", SECTION_ID_STREAM_GROUP_SUBCOMPONENT);
@@ -2167,7 +2167,7 @@ static void print_iamf_submix_params(AVTextFormatContext *tfc, const AVIAMFSubmi
     print_int("nb_layouts",     submix->nb_layouts);
     print_q("default_mix_gain", submix->default_mix_gain, '/');
     avtext_print_section_header(tfc, NULL, SECTION_ID_STREAM_GROUP_PIECES);
-    for (int i = 0; i < submix->nb_elements; i++) {
+    for (unsigned i = 0; i < submix->nb_elements; i++) {
         const AVIAMFSubmixElement *element = submix->elements[i];
         avtext_print_section_header(tfc, "IAMF Submix Element", SECTION_ID_STREAM_GROUP_PIECE);
         print_int("stream_id",                 element->audio_element_id);
@@ -2190,7 +2190,7 @@ static void print_iamf_submix_params(AVTextFormatContext *tfc, const AVIAMFSubmi
     if (submix->output_mix_config)
         print_iamf_param_definition(tfc, "output_mix_config", submix->output_mix_config,
                                     SECTION_ID_STREAM_GROUP_PIECE);
-    for (int i = 0; i < submix->nb_layouts; i++) {
+    for (unsigned i = 0; i < submix->nb_layouts; i++) {
         const AVIAMFSubmixLayout *layout = submix->layouts[i];
         char val_str[128];
         avtext_print_section_header(tfc, "IAMF Submix Layout", SECTION_ID_STREAM_GROUP_PIECE);
@@ -2220,7 +2220,7 @@ static void print_iamf_mix_presentation_params(AVTextFormatContext *tfc, const A
             print_str(annotation->key, annotation->value);
         avtext_print_section_footer(tfc); // SECTION_ID_STREAM_GROUP_SUBCOMPONENT
     }
-    for (int i = 0; i < mix_presentation->nb_submixes; i++)
+    for (unsigned i = 0; i < mix_presentation->nb_submixes; i++)
         print_iamf_submix_params(tfc, mix_presentation->submixes[i]);
     avtext_print_section_footer(tfc); // SECTION_ID_STREAM_GROUP_SUBCOMPONENTS
     avtext_print_section_footer(tfc); // SECTION_ID_STREAM_GROUP_COMPONENT
@@ -2242,7 +2242,7 @@ static int show_stream_group(AVTextFormatContext *tfc, InputFile *ifile, AVStrea
 {
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
     AVBPrint pbuf;
-    int i, ret = 0;
+    int ret = 0;
 
     av_bprint_init(&pbuf, 1, AV_BPRINT_SIZE_UNLIMITED);
     avtext_print_section_header(tfc, NULL, SECTION_ID_STREAM_GROUP);
@@ -2267,7 +2267,7 @@ static int show_stream_group(AVTextFormatContext *tfc, InputFile *ifile, AVStrea
         goto end;
 
     avtext_print_section_header(tfc, NULL, SECTION_ID_STREAM_GROUP_STREAMS);
-    for (i = 0; i < stg->nb_streams; i++) {
+    for (unsigned i = 0; i < stg->nb_streams; i++) {
         if (selected_streams[stg->streams[i]->index]) {
             ret = show_stream(tfc, fmt_ctx, stg->streams[i]->index, &ifile->streams[stg->streams[i]->index], IN_STREAM_GROUP);
             if (ret < 0)
@@ -2285,10 +2285,10 @@ end:
 static int show_stream_groups(AVTextFormatContext *tfc, InputFile *ifile)
 {
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
-    int i, ret = 0;
+    int ret = 0;
 
     avtext_print_section_header(tfc, NULL, SECTION_ID_STREAM_GROUPS);
-    for (i = 0; i < fmt_ctx->nb_stream_groups; i++) {
+    for (unsigned i = 0; i < fmt_ctx->nb_stream_groups; i++) {
         AVStreamGroup *stg = fmt_ctx->stream_groups[i];
 
         ret = show_stream_group(tfc, ifile, stg);
@@ -2302,10 +2302,10 @@ static int show_stream_groups(AVTextFormatContext *tfc, InputFile *ifile)
 static int show_chapters(AVTextFormatContext *tfc, InputFile *ifile)
 {
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
-    int i, ret = 0;
+    int ret = 0;
 
     avtext_print_section_header(tfc, NULL, SECTION_ID_CHAPTERS);
-    for (i = 0; i < fmt_ctx->nb_chapters; i++) {
+    for (unsigned i = 0; i < fmt_ctx->nb_chapters; i++) {
         AVChapter *chapter = fmt_ctx->chapters[i];
 
         avtext_print_section_header(tfc, NULL, SECTION_ID_CHAPTER);
@@ -2425,7 +2425,7 @@ static const AVCodec *get_decoder_for_stream(AVFormatContext *fmt_ctx, AVStream 
 static int open_input_file(InputFile *ifile, const char *filename,
                            const char *print_filename)
 {
-    int err, i;
+    int err;
     AVFormatContext *fmt_ctx = NULL;
     const AVDictionaryEntry *t = NULL;
     int scan_all_pmts_set = 0;
@@ -2466,7 +2466,7 @@ static int open_input_file(InputFile *ifile, const char *filename,
 
         err = avformat_find_stream_info(fmt_ctx, opts);
 
-        for (i = 0; i < orig_nb_streams; i++)
+        for (int i = 0; i < orig_nb_streams; i++)
             av_dict_free(&opts[i]);
         av_freep(&opts);
 
@@ -2484,7 +2484,7 @@ static int open_input_file(InputFile *ifile, const char *filename,
     ifile->nb_streams = fmt_ctx->nb_streams;
 
     /* bind a decoder to each input stream */
-    for (i = 0; i < fmt_ctx->nb_streams; i++) {
+    for (unsigned i = 0; i < fmt_ctx->nb_streams; i++) {
         InputStream *ist = &ifile->streams[i];
         AVStream *stream = fmt_ctx->streams[i];
         const AVCodec *codec;
@@ -2542,10 +2542,9 @@ static int open_input_file(InputFile *ifile, const char *filename,
 
 static void close_input_file(InputFile *ifile)
 {
-    int i;
 
     /* close decoder for each stream */
-    for (i = 0; i < ifile->nb_streams; i++)
+    for (int i = 0; i < ifile->nb_streams; i++)
         avcodec_free_context(&ifile->streams[i].dec_ctx);
 
     av_freep(&ifile->streams);
@@ -2558,7 +2557,7 @@ static int probe_file(AVTextFormatContext *tfc, const char *filename,
                       const char *print_filename)
 {
     InputFile ifile = { 0 };
-    int ret, i;
+    int ret;
     int section_id;
 
     do_analyze_frames = do_analyze_frames && do_show_streams;
@@ -2578,7 +2577,7 @@ static int probe_file(AVTextFormatContext *tfc, const char *filename,
     REALLOCZ_ARRAY_STREAM(streams_with_closed_captions,0,ifile.fmt_ctx->nb_streams);
     REALLOCZ_ARRAY_STREAM(streams_with_film_grain,0,ifile.fmt_ctx->nb_streams);
 
-    for (i = 0; i < ifile.fmt_ctx->nb_streams; i++) {
+    for (unsigned i = 0; i < ifile.fmt_ctx->nb_streams; i++) {
         if (stream_specifier) {
             ret = avformat_match_stream_specifier(ifile.fmt_ctx,
                                                   ifile.fmt_ctx->streams[i],
@@ -2796,9 +2795,9 @@ static inline void mark_section_show_entries(SectionID section_id,
 static int match_section(const char *section_name,
                          int show_all_entries, AVDictionary *entries)
 {
-    int i, ret = 0;
+    int ret = 0;
 
-    for (i = 0; i < FF_ARRAY_ELEMS(sections); i++) {
+    for (unsigned i = 0; i < FF_ARRAY_ELEMS(sections); i++) {
         const struct AVTextFormatSection *section = &sections[i];
         if (!strcmp(section_name, section->name) ||
             (section->unique_name && !strcmp(section_name, section->unique_name))) {
