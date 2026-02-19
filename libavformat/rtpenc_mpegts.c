@@ -85,6 +85,29 @@ static int rtp_mpegts_write_header(AVFormatContext *s)
         st->id                  = s->streams[i]->id;
         avcodec_parameters_copy(st->codecpar, s->streams[i]->codecpar);
     }
+    for (i = 0; i < s->nb_programs; i++) {
+        AVProgram* program = av_new_program(mpegts_ctx, s->programs[i]->id);
+        if (!program)
+            goto fail;
+        program->id = s->programs[i]->id;
+        program->flags = s->programs[i]->flags;
+        program->discard = s->programs[i]->discard;
+        program->nb_stream_indexes = s->programs[i]->nb_stream_indexes;
+        program->stream_index = av_realloc_array(program->stream_index, program->nb_stream_indexes, sizeof(unsigned int));
+        if (!program->stream_index)
+            goto fail;
+        memcpy(program->stream_index, s->programs[i]->stream_index, program->nb_stream_indexes * sizeof(unsigned int));
+        av_dict_copy(&program->metadata, s->programs[i]->metadata, 0);
+
+        program->program_num = s->programs[i]->program_num;
+        program->pmt_pid = s->programs[i]->pmt_pid;
+        program->pcr_pid = s->programs[i]->pcr_pid;
+        program->pmt_version = s->programs[i]->pmt_version;
+        program->start_time = s->programs[i]->start_time;
+        program->end_time   = s->programs[i]->end_time;
+        program->pts_wrap_reference = s->programs[i]->pts_wrap_reference;
+        program->pts_wrap_behavior = s->programs[i]->pts_wrap_behavior;
+    }
     if ((ret = avio_open_dyn_buf(&mpegts_ctx->pb)) < 0)
         goto fail;
 
