@@ -46,9 +46,9 @@
 #    define AV_HAS_ATTRIBUTE(x) 0
 #endif
 
-#if defined(__cplusplus) && defined(__has_cpp_attribute)
+#if defined(__cplusplus) && defined(__has_cpp_attribute) && __cplusplus >= 201103L
 #    define AV_HAS_STD_ATTRIBUTE(x) __has_cpp_attribute(x)
-#elif !defined(__cplusplus) && defined(__has_c_attribute)
+#elif !defined(__cplusplus) && defined(__has_c_attribute) && __STDC_VERSION__ >= 202311L
 #    define AV_HAS_STD_ATTRIBUTE(x) __has_c_attribute(x)
 #else
 #    define AV_HAS_STD_ATTRIBUTE(x) 0
