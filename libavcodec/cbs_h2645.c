@@ -26,6 +26,7 @@
 #include "cbs_h264.h"
 #include "cbs_h265.h"
 #include "cbs_h266.h"
+#include "cbs_lcevc.h"
 #include "h264.h"
 #include "h2645_parse.h"
 #include "libavutil/refstruct.h"
@@ -137,6 +138,37 @@ static int cbs_read_se_golomb(CodedBitstreamContext *ctx, GetBitContext *gbc,
     return 0;
 }
 
+static int cbs_read_multi_byte(CodedBitstreamContext *ctx, GetBitContext *gbc,
+                               const char *name, uint32_t *write_to)
+{
+    uint64_t value;
+    uint32_t byte;
+    int i;
+
+    CBS_TRACE_READ_START();
+
+    value = 0;
+    for (i = 0; i < 10; i++) {
+        if (get_bits_left(gbc) < 8) {
+            av_log(ctx->log_ctx, AV_LOG_ERROR, "Invalid multi byte at "
+                   "%s: bitstream ended.\n", name);
+            return AVERROR_INVALIDDATA;
+        }
+        byte = get_bits(gbc, 8);
+        value = (value << 7) | (byte & 0x7f);
+        if (!(byte & 0x80))
+            break;
+    }
+
+    if (value > UINT32_MAX)
+        return AVERROR_INVALIDDATA;
+
+    CBS_TRACE_READ_END_NO_SUBSCRIPTS();
+
+    *write_to = value;
+    return 0;
+}
+
 static int cbs_write_ue_golomb(CodedBitstreamContext *ctx, PutBitContext *pbc,
                                const char *name, const int *subscripts,
                                uint32_t value,
@@ -209,6 +241,32 @@ static int cbs_write_se_golomb(CodedBitstreamContext *ctx, PutBitContext *pbc,
     return 0;
 }
 
+static int cbs_write_multi_byte(CodedBitstreamContext *ctx, PutBitContext *pbc,
+                               const char *name, uint32_t value)
+{
+    int len, i;
+    uint8_t byte;
+
+    CBS_TRACE_WRITE_START();
+
+    len = (av_log2(value) + 7) / 7;
+
+    for (i = len - 1; i >= 0; i--) {
+        if (put_bits_left(pbc) < 8)
+            return AVERROR(ENOSPC);
+
+        byte = value >> (7 * i) & 0x7f;
+        if (i > 0)
+            byte |= 0x80;
+
+        put_bits(pbc, 8, byte);
+    }
+
+    CBS_TRACE_WRITE_END_NO_SUBSCRIPTS();
+
+    return 0;
+}
+
 // payload_extension_present() - true if we are before the last 1-bit
 // in the payload structure, which must be in the last byte.
 static int cbs_h265_payload_extension_present(GetBitContext *gbc, uint32_t payload_size,
@@ -234,6 +292,7 @@ static int cbs_h265_payload_extension_present(GetBitContext *gbc, uint32_t paylo
 #define FUNC_H264(name) FUNC_NAME1(READWRITE, h264, name)
 #define FUNC_H265(name) FUNC_NAME1(READWRITE, h265, name)
 #define FUNC_H266(name) FUNC_NAME1(READWRITE, h266, name)
+#define FUNC_LCEVC(name) FUNC_NAME1(READWRITE, lcevc, name)
 #define FUNC_SEI(name)  FUNC_NAME1(READWRITE, sei,  name)
 
 #define SEI_FUNC(name, args) \
@@ -241,6 +300,16 @@ static int FUNC(name) args;  \
 static int FUNC(name ## _internal)(CodedBitstreamContext *ctx, \
                                    RWContext *rw, void *cur,   \
                                    SEIMessageState *state)     \
+{ \
+    return FUNC(name)(ctx, rw, cur, state); \
+} \
+static int FUNC(name) args
+
+#define LCEVC_BLOCK_FUNC(name, args) \
+static int FUNC(name) args;  \
+static int FUNC(name ## _internal)(CodedBitstreamContext *ctx,       \
+                                   RWContext *rw, void *cur,         \
+                                   LCEVCProcessBlockState *state) \
 { \
     return FUNC(name)(ctx, rw, cur, state); \
 } \
@@ -274,6 +343,8 @@ static int FUNC(name) args
         xi(width, name, current->name, MIN_INT_BITS(width), MAX_INT_BITS(width), subs, __VA_ARGS__)
 #define ses(name, range_min, range_max, subs, ...) \
         xse(name, current->name, range_min, range_max, subs, __VA_ARGS__)
+#define mb(name) \
+        xmb(name, current->name)
 
 #define fixed(width, name, value) do { \
         av_unused uint32_t fixed_value = value; \
@@ -319,6 +390,11 @@ static int FUNC(name) args
                                  &value, range_min, range_max)); \
         var = value; \
     } while (0)
+#define xmb(name, var) do { \
+        uint32_t value; \
+        CHECK(cbs_read_multi_byte(ctx, rw, #name, &value)); \
+        var = value; \
+    } while (0)
 
 
 #define infer(name, value) do { \
@@ -337,6 +413,10 @@ static int cbs_h2645_read_more_rbsp_data(GetBitContext *gbc)
     return 0;
 }
 
+static int cbs_h2645_write_slice_data(CodedBitstreamContext *ctx,
+                                      PutBitContext *pbc, const uint8_t *data,
+                                      size_t data_size, int data_bit_start);
+
 #define more_rbsp_data(var) ((var) = cbs_h2645_read_more_rbsp_data(rw))
 
 #define bit_position(rw)   (get_bits_count(rw))
@@ -353,6 +433,10 @@ static int cbs_h2645_read_more_rbsp_data(GetBitContext *gbc)
 
 #define FUNC(name) FUNC_SEI(name)
 #include "cbs_sei_syntax_template.c"
+#undef FUNC
+
+#define FUNC(name) FUNC_LCEVC(name)
+#include "cbs_lcevc_syntax_template.c"
 #undef FUNC
 
 #undef allocate
@@ -387,11 +471,13 @@ static int cbs_h2645_read_more_rbsp_data(GetBitContext *gbc)
 #undef xi
 #undef xue
 #undef xse
+#undef xmb
 #undef infer
 #undef more_rbsp_data
 #undef bit_position
 #undef byte_alignment
 #undef allocate
+#undef allocate_struct
 
 
 #define WRITE
@@ -426,6 +512,10 @@ static int cbs_h2645_read_more_rbsp_data(GetBitContext *gbc)
         CHECK(cbs_write_se_golomb(ctx, rw, #name, \
                                   SUBSCRIPTS(subs, __VA_ARGS__), \
                                   value, range_min, range_max)); \
+    } while (0)
+#define xmb(name, var) do { \
+        uint32_t value = var; \
+        CHECK(cbs_write_multi_byte(ctx, rw, #name, value)); \
     } while (0)
 
 #define infer(name, value) do { \
@@ -467,6 +557,10 @@ static int cbs_h2645_read_more_rbsp_data(GetBitContext *gbc)
 #include "cbs_h266_syntax_template.c"
 #undef FUNC
 
+#define FUNC(name) FUNC_LCEVC(name)
+#include "cbs_lcevc_syntax_template.c"
+#undef FUNC
+
 #undef WRITE
 #undef READWRITE
 #undef RWContext
@@ -475,6 +569,7 @@ static int cbs_h2645_read_more_rbsp_data(GetBitContext *gbc)
 #undef xi
 #undef xue
 #undef xse
+#undef xmb
 #undef u
 #undef i
 #undef flag
@@ -730,6 +825,60 @@ static int cbs_h2645_split_fragment(CodedBitstreamContext *ctx,
                 av_log(ctx->log_ctx, AV_LOG_ERROR, "Failed to split "
                        "VVCC array %d (%d NAL units of type %d).\n",
                        i, num_nalus, nal_unit_type);
+                return err;
+            }
+            err = cbs_h2645_fragment_add_nals(ctx, frag, &priv->read_packet);
+            if (err < 0)
+                return err;
+        }
+    } else if (header && frag->data[0] && codec_id == AV_CODEC_ID_LCEVC) {
+        // LVCC header.
+        size_t size, start, end;
+        int i, j, nb_arrays, nal_unit_type, nb_nals, version;
+
+        priv->mp4 = 1;
+
+        bytestream2_init(&gbc, frag->data, frag->data_size);
+
+        if (bytestream2_get_bytes_left(&gbc) < 14)
+            return AVERROR_INVALIDDATA;
+
+        version = bytestream2_get_byte(&gbc);
+        if (version != 1) {
+            av_log(ctx->log_ctx, AV_LOG_ERROR, "Invalid LVCC header: "
+                   "first byte %u.\n", version);
+            return AVERROR_INVALIDDATA;
+        }
+
+        bytestream2_skip(&gbc, 3);
+        priv->nal_length_size = (bytestream2_get_byte(&gbc) >> 6) + 1;
+
+        bytestream2_skip(&gbc, 9);
+        nb_arrays = bytestream2_get_byte(&gbc);
+
+        for (i = 0; i < nb_arrays; i++) {
+            nal_unit_type = bytestream2_get_byte(&gbc) & 0x3f;
+            nb_nals = bytestream2_get_be16(&gbc);
+
+            start = bytestream2_tell(&gbc);
+            for (j = 0; j < nb_nals; j++) {
+                if (bytestream2_get_bytes_left(&gbc) < 2)
+                    return AVERROR_INVALIDDATA;
+                size = bytestream2_get_be16(&gbc);
+                if (bytestream2_get_bytes_left(&gbc) < size)
+                    return AVERROR_INVALIDDATA;
+                bytestream2_skip(&gbc, size);
+            }
+            end = bytestream2_tell(&gbc);
+
+            err = ff_h2645_packet_split(&priv->read_packet,
+                                        frag->data + start, end - start,
+                                        ctx->log_ctx, 2, AV_CODEC_ID_LCEVC,
+                                        H2645_FLAG_IS_NALFF | H2645_FLAG_SMALL_PADDING | H2645_FLAG_USE_REF);
+            if (err < 0) {
+                av_log(ctx->log_ctx, AV_LOG_ERROR, "Failed to split "
+                       "LVCC array %d (%d NAL units of type %d).\n",
+                       i, nb_nals, nal_unit_type);
                 return err;
             }
             err = cbs_h2645_fragment_add_nals(ctx, frag, &priv->read_packet);
@@ -1242,6 +1391,59 @@ static int cbs_h266_read_nal_unit(CodedBitstreamContext *ctx,
     default:
         return AVERROR(ENOSYS);
     }
+    return 0;
+}
+
+
+static int cbs_lcevc_read_nal_unit(CodedBitstreamContext *ctx,
+                                   CodedBitstreamUnit *unit)
+{
+    GetBitContext gbc;
+    int err;
+
+    err = init_get_bits8(&gbc, unit->data, unit->data_size);
+    if (err < 0)
+        return err;
+
+    err = ff_cbs_alloc_unit_content(ctx, unit);
+    if (err < 0)
+        return err;
+
+    switch (unit->type) {
+    case LCEVC_NON_IDR_NUT:
+    case LCEVC_IDR_NUT:
+        {
+            LCEVCRawNAL *nal = unit->content;
+            LCEVCRawProcessBlockList *block_list;
+
+            err = cbs_lcevc_read_nal(ctx, &gbc, unit->content, unit->type);
+
+            if (err < 0)
+                return err;
+
+            block_list = &nal->process_block_list;
+            for (int i = 0; i < block_list->nb_blocks; i++) {
+                LCEVCRawProcessBlock *block = &block_list->blocks[i];
+                LCEVCRawEncodedData *slice;
+
+                if (block->payload_type != LCEVC_PAYLOAD_TYPE_ENCODED_DATA)
+                    continue;
+
+                slice = block->payload;
+                slice->data_ref = av_buffer_ref(unit->data_ref);
+                if (!slice->data_ref)
+                     return AVERROR(ENOMEM);
+                slice->data = unit->data + slice->header_size;
+            }
+
+            if (err < 0)
+                return err;
+        }
+        break;
+    default:
+        return AVERROR(ENOSYS);
+    }
+
     return 0;
 }
 
@@ -1814,6 +2016,31 @@ static int cbs_h266_write_nal_unit(CodedBitstreamContext *ctx,
     return 0;
 }
 
+static int cbs_lcevc_write_nal_unit(CodedBitstreamContext *ctx,
+                                    CodedBitstreamUnit *unit,
+                                    PutBitContext *pbc)
+{
+    int err;
+
+    switch (unit->type) {
+    case LCEVC_NON_IDR_NUT:
+    case LCEVC_IDR_NUT:
+        {
+            err = cbs_lcevc_write_nal(ctx, pbc, unit->content, unit->type);
+
+            if (err < 0)
+                return err;
+        }
+        break;
+    default:
+        av_log(ctx->log_ctx, AV_LOG_ERROR, "Write unimplemented for "
+               "NAL unit type %"PRIu32".\n", unit->type);
+        return AVERROR_PATCHWELCOME;
+    }
+
+    return 0;
+}
+
 static int cbs_h2645_unit_requires_zero_byte(enum AVCodecID codec_id,
                                              CodedBitstreamUnitType type,
                                              int nal_unit_index)
@@ -1991,6 +2218,23 @@ static av_cold void cbs_h266_close(CodedBitstreamContext *ctx)
     ff_h2645_packet_uninit(&h266->common.read_packet);
  }
 
+static av_cold void cbs_lcevc_flush(CodedBitstreamContext *ctx)
+{
+    CodedBitstreamLCEVCContext *lcevc = ctx->priv_data;
+
+    av_refstruct_unref(&lcevc->sc);
+    av_refstruct_unref(&lcevc->gc);
+    av_refstruct_unref(&lcevc->pc);
+}
+
+static av_cold void cbs_lcevc_close(CodedBitstreamContext *ctx)
+{
+    CodedBitstreamLCEVCContext *lcevc = ctx->priv_data;
+
+    cbs_lcevc_flush(ctx);
+    ff_h2645_packet_uninit(&lcevc->common.read_packet);
+}
+
 static void cbs_h264_free_sei(AVRefStructOpaque unused, void *content)
 {
     H264RawSEI *sei = content;
@@ -2095,6 +2339,19 @@ static CodedBitstreamUnitTypeDescriptor cbs_h266_unit_types[] = {
     CBS_UNIT_TYPE_END_OF_LIST
 };
 
+static void cbs_lcevc_free_nal(AVRefStructOpaque unused, void *content)
+{
+    LCEVCRawNAL *nal = content;
+    ff_cbs_lcevc_free_process_block_list(&nal->process_block_list);
+}
+
+static CodedBitstreamUnitTypeDescriptor cbs_lcevc_unit_types[] = {
+    CBS_UNIT_TYPES_COMPLEX((LCEVC_NON_IDR_NUT, LCEVC_IDR_NUT),
+                           LCEVCRawNAL, cbs_lcevc_free_nal),
+
+    CBS_UNIT_TYPE_END_OF_LIST
+};
+
 const CodedBitstreamType ff_cbs_type_h264 = {
     .codec_id          = AV_CODEC_ID_H264,
 
@@ -2144,6 +2401,75 @@ const CodedBitstreamType ff_cbs_type_h266 = {
     .flush             = &cbs_h266_flush,
     .close             = &cbs_h266_close,
 };
+
+const CodedBitstreamType ff_cbs_type_lcevc = {
+    .codec_id          = AV_CODEC_ID_LCEVC,
+
+    .priv_data_size    = sizeof(CodedBitstreamLCEVCContext),
+
+    .unit_types        = cbs_lcevc_unit_types,
+
+    .split_fragment    = &cbs_h2645_split_fragment,
+    .read_unit         = &cbs_lcevc_read_nal_unit,
+    .write_unit        = &cbs_lcevc_write_nal_unit,
+    .assemble_fragment = &cbs_h2645_assemble_fragment,
+
+    .flush             = &cbs_lcevc_flush,
+    .close             = &cbs_lcevc_close,
+};
+
+// Macro for the read/write pair.
+#define LCEVC_PROCESS_BLOCK_RW(codec, name) \
+    .read  = cbs_ ## codec ## _read_  ## name ## _internal, \
+    .write = cbs_ ## codec ## _write_ ## name ## _internal
+
+static const LCEVCProcessBlockTypeDescriptor cbs_lcevc_process_block_types[] = {
+    {
+        LCEVC_PAYLOAD_TYPE_SEQUENCE_CONFIG,
+        sizeof(LCEVCRawSequenceConfig),
+        LCEVC_PROCESS_BLOCK_RW(lcevc, sequence_config),
+    },
+    {
+        LCEVC_PAYLOAD_TYPE_GLOBAL_CONFIG,
+        sizeof(LCEVCRawGlobalConfig),
+        LCEVC_PROCESS_BLOCK_RW(lcevc, global_config),
+    },
+    {
+        LCEVC_PAYLOAD_TYPE_PICTURE_CONFIG,
+        sizeof(LCEVCRawPictureConfig),
+        LCEVC_PROCESS_BLOCK_RW(lcevc, picture_config),
+    },
+    {
+        LCEVC_PAYLOAD_TYPE_ENCODED_DATA,
+        sizeof(LCEVCRawEncodedData),
+        LCEVC_PROCESS_BLOCK_RW(lcevc, encoded_data),
+    },
+    {
+        LCEVC_PAYLOAD_TYPE_ADDITIONAL_INFO,
+        sizeof(LCEVCRawAdditionalInfo),
+        LCEVC_PROCESS_BLOCK_RW(lcevc, additional_info),
+    },
+    {
+        LCEVC_PAYLOAD_TYPE_FILLER,
+        sizeof(LCEVCRawFiller),
+        LCEVC_PROCESS_BLOCK_RW(lcevc, filler),
+    },
+    LCEVC_PROCESS_BLOCK_TYPE_END,
+};
+
+const LCEVCProcessBlockTypeDescriptor
+    *ff_cbs_lcevc_process_block_find_type(CodedBitstreamContext *ctx,
+                                          int payload_type)
+{
+    int i;
+
+    for (i = 0; cbs_lcevc_process_block_types[i].payload_type >= 0; i++) {
+        if (cbs_lcevc_process_block_types[i].payload_type == payload_type)
+            return &cbs_lcevc_process_block_types[i];
+    }
+
+    return NULL;
+}
 
 // Macro for the read/write pair.
 #define SEI_MESSAGE_RW(codec, name) \
@@ -2328,6 +2654,10 @@ static const SEIMessageTypeDescriptor cbs_sei_h266_types[] = {
     SEI_MESSAGE_TYPE_END
 };
 
+static const SEIMessageTypeDescriptor cbs_sei_lcevc_types[] = {
+    SEI_MESSAGE_TYPE_END
+};
+
 static const SEIMessageTypeDescriptor cbs_sei_h274_types[] = {
     {
         SEI_TYPE_FILM_GRAIN_CHARACTERISTICS,
@@ -2365,6 +2695,9 @@ const SEIMessageTypeDescriptor *ff_cbs_sei_find_type(CodedBitstreamContext *ctx,
         break;
     case AV_CODEC_ID_H266:
         codec_list = cbs_sei_h266_types;
+        break;
+    case AV_CODEC_ID_LCEVC:
+        codec_list = cbs_sei_lcevc_types;
         break;
     default:
         return NULL;

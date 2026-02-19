@@ -2693,6 +2693,7 @@ CONFIG_EXTRA="
     cbs_h265
     cbs_h266
     cbs_jpeg
+    cbs_lcevc
     cbs_mpeg2
     cbs_vp8
     cbs_vp9
@@ -3005,6 +3006,7 @@ cbs_h264_select="cbs"
 cbs_h265_select="cbs"
 cbs_h266_select="cbs"
 cbs_jpeg_select="cbs"
+cbs_lcevc_select="cbs"
 cbs_mpeg2_select="cbs"
 cbs_vp8_select="cbs"
 cbs_vp9_select="cbs"
