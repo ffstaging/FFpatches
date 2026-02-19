@@ -62,21 +62,62 @@ static int ocio_filter_slice(AVFilterContext *ctx, void *arg, int jobnr, int nb_
     return ocio_apply(ctx, s->ocio, in, out, slice_start, slice_h);
 }
 
-static int query_formats(AVFilterContext *ctx) {
-    static const enum AVPixelFormat pix_fmts[] = {
-      // 8-bit
-      AV_PIX_FMT_RGBA, AV_PIX_FMT_RGB24,
-      // 16-bit
-      AV_PIX_FMT_RGBA64, AV_PIX_FMT_RGB48,
-      // 10-bit
-      AV_PIX_FMT_GBRP10, AV_PIX_FMT_GBRAP10,
-      // 12-bit
-      AV_PIX_FMT_GBRP12, AV_PIX_FMT_GBRAP12,
-      // Half-float and float
-      AV_PIX_FMT_GBRPF16, AV_PIX_FMT_GBRAPF16,
-      // Float
-      AV_PIX_FMT_GBRPF32, AV_PIX_FMT_GBRAPF32, AV_PIX_FMT_NONE};
-    return ff_set_common_formats(ctx, ff_make_format_list(pix_fmts));
+// All pixel formats supported by this filter for inputs.
+static const enum AVPixelFormat supported_pix_fmts[] = {
+    // 8-bit
+    AV_PIX_FMT_RGBA, AV_PIX_FMT_RGB24,
+    // 16-bit
+    AV_PIX_FMT_RGBA64, AV_PIX_FMT_RGB48,
+    // 10-bit
+    AV_PIX_FMT_GBRP10, AV_PIX_FMT_GBRAP10,
+    // 12-bit
+    AV_PIX_FMT_GBRP12, AV_PIX_FMT_GBRAP12,
+    // Half-float (input only by default; swscale clips negatives on output)
+    AV_PIX_FMT_GBRPF16, AV_PIX_FMT_GBRAPF16,
+    // Float
+    AV_PIX_FMT_GBRPF32, AV_PIX_FMT_GBRAPF32,
+    AV_PIX_FMT_NONE
+};
+
+// Default output formats (excludes half-float to avoid swscale negative clipping)
+static const enum AVPixelFormat output_pix_fmts[] = {
+    // 8-bit
+    AV_PIX_FMT_RGBA, AV_PIX_FMT_RGB24,
+    // 16-bit
+    AV_PIX_FMT_RGBA64, AV_PIX_FMT_RGB48,
+    // 10-bit
+    AV_PIX_FMT_GBRP10, AV_PIX_FMT_GBRAP10,
+    // 12-bit
+    AV_PIX_FMT_GBRP12, AV_PIX_FMT_GBRAP12,
+    // Float
+    AV_PIX_FMT_GBRPF32, AV_PIX_FMT_GBRAPF32,
+    AV_PIX_FMT_NONE
+};
+
+static int query_formats(const AVFilterContext *ctx,
+                         AVFilterFormatsConfig **cfg_in,
+                         AVFilterFormatsConfig **cfg_out)
+{
+    const OCIOContext *s = ctx->priv;
+    int ret;
+
+    // Input accepts all supported formats including half-float
+    ret = ff_formats_ref(ff_make_pixel_format_list(supported_pix_fmts),
+                         &cfg_in[0]->formats);
+    if (ret < 0)
+        return ret;
+
+    // Output: if user specified a format, constrain to just that format
+    if (s->output_format != AV_PIX_FMT_NONE) {
+        const enum AVPixelFormat user_fmts[] = { s->output_format, AV_PIX_FMT_NONE };
+        ret = ff_formats_ref(ff_make_pixel_format_list(user_fmts),
+                             &cfg_out[0]->formats);
+    } else {
+        // Default output excludes half-float formats
+        ret = ff_formats_ref(ff_make_pixel_format_list(output_pix_fmts),
+                             &cfg_out[0]->formats);
+    }
+    return ret;
 }
 
 static int config_props(AVFilterLink *inlink)
@@ -95,8 +136,8 @@ static int config_props(AVFilterLink *inlink)
     if (s->output_format == AV_PIX_FMT_NONE) {
         // Need to set the output format now, if not known.
         if (is_half) {
-            // If its half-float, we output float, due to a bug in ffmpeg with
-            // half-float frames
+            // If the user hasn't specified an output format, and the input is half-float, we output float to be safe.
+            // swscale clips negative values to 0, which can be problematic since it can occur with OCIO transforms.
             s->output_format = AV_PIX_FMT_GBRAPF32;
         } else {
             // If output format not set, use same as input
@@ -126,10 +167,29 @@ static int config_props(AVFilterLink *inlink)
 static av_cold int init(AVFilterContext *ctx)
 {
     OCIOContext *s = ctx->priv;
-    if (s->out_format_string != NULL)
+    if (s->out_format_string != NULL) {
         s->output_format = av_get_pix_fmt(s->out_format_string);
-    else
+        if (s->output_format == AV_PIX_FMT_NONE) {
+            av_log(ctx, AV_LOG_ERROR, "Unknown pixel format: '%s'\n",
+                   s->out_format_string);
+            return AVERROR(EINVAL);
+        }
+        // Verify the format is a supported output format
+        int valid = 0;
+        for (int i = 0; output_pix_fmts[i] != AV_PIX_FMT_NONE; i++) {
+            if (s->output_format == output_pix_fmts[i]) {
+                valid = 1;
+                break;
+            }
+        }
+        if (!valid) {
+            av_log(ctx, AV_LOG_ERROR,
+                   "Unsupported output format: '%s'\n", s->out_format_string);
+            return AVERROR(EINVAL);
+        }
+    } else {
         s->output_format = AV_PIX_FMT_NONE; // Default to same as input format (see later).
+    }
 
     if (s->filetransform && strlen(s->filetransform) > 0) {
         s->ocio = ocio_create_file_transform_processor(
@@ -286,4 +346,4 @@ const FFFilter ff_vf_ocio = {
     .uninit = uninit,
     FILTER_INPUTS(inputs),
     FILTER_OUTPUTS(outputs),
-    FILTER_QUERY_FUNC(query_formats)};
+    FILTER_QUERY_FUNC2(query_formats)};
