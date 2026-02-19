@@ -216,9 +216,23 @@ void ff_sws_apply_op_q(const SwsOp *op, AVRational x[4])
 static const unsigned flags_identity = SWS_COMP_ZERO | SWS_COMP_EXACT;
 static unsigned merge_comp_flags(unsigned a, unsigned b)
 {
-    const unsigned flags_or  = SWS_COMP_GARBAGE;
-    const unsigned flags_and = SWS_COMP_ZERO | SWS_COMP_EXACT;
-    return ((a & b) & flags_and) | ((a | b) & flags_or);
+    return ((a & b) & flags_identity);
+}
+
+/* Linearly propagate flags per component */
+static void propagate_flags(SwsOp *op, const SwsComps *prev)
+{
+    for (int i = 0; i < 4; i++)
+        op->comps.flags[i] = prev->flags[i];
+}
+
+/* Clear undefined values in dst with src */
+static void clear_undefined_values(AVRational dst[4], const AVRational src[4])
+{
+    for (int i = 0; i < 4; i++) {
+        if (dst[i].den == 0)
+            dst[i] = src[i];
+    }
 }
 
 /* Infer + propagate known information about components */
@@ -276,11 +290,15 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
             /* fall through */
         case SWS_OP_LSHIFT:
         case SWS_OP_RSHIFT:
+            propagate_flags(op, &prev);
+            break;
         case SWS_OP_MIN:
+            propagate_flags(op, &prev);
+            clear_undefined_values(op->comps.max, op->c.q4);
+            break;
         case SWS_OP_MAX:
-            /* Linearly propagate flags per component */
-            for (int i = 0; i < 4; i++)
-                op->comps.flags[i] = prev.flags[i];
+            propagate_flags(op, &prev);
+            clear_undefined_values(op->comps.min, op->c.q4);
             break;
         case SWS_OP_DITHER:
             /* Strip zero flag because of the nonzero dithering offset */
@@ -295,8 +313,7 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
                     op->comps.flags[i] = prev.flags[0];
                     op->comps.min[i]   = Q(0);
                     op->comps.max[i]   = Q((1ULL << pattern) - 1);
-                } else
-                    op->comps.flags[i] = SWS_COMP_GARBAGE;
+                }
             }
             break;
         case SWS_OP_PACK: {
@@ -304,8 +321,6 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
             for (int i = 0; i < 4; i++) {
                 if (op->pack.pattern[i])
                     flags = merge_comp_flags(flags, prev.flags[i]);
-                if (i > 0) /* clear remaining comps for sanity */
-                    op->comps.flags[i] = SWS_COMP_GARBAGE;
             }
             op->comps.flags[0] = flags;
             break;
@@ -449,6 +464,15 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
                 op->comps.unused[j] = unused;
             }
             break;
+        }
+
+        /* Clear unused components */
+        for (int i = (op->op == SWS_OP_WRITE) ? op->rw.elems : 0; i < 4; i++) {
+            if (next.unused[i]) {
+                op->comps.flags[i] = SWS_COMP_GARBAGE;
+                op->comps.min[i].den = 0;
+                op->comps.max[i].den = 0;
+            }
         }
 
         next = op->comps;
@@ -805,10 +829,14 @@ void ff_sws_op_list_print(void *log, int lev, const SwsOpList *ops)
             op->comps.max[2].den || op->comps.max[3].den)
         {
             av_log(log, AV_LOG_TRACE, "    min: {%s, %s, %s, %s}, max: {%s, %s, %s, %s}\n",
-                PRINTQ(op->comps.min[0]), PRINTQ(op->comps.min[1]),
-                PRINTQ(op->comps.min[2]), PRINTQ(op->comps.min[3]),
-                PRINTQ(op->comps.max[0]), PRINTQ(op->comps.max[1]),
-                PRINTQ(op->comps.max[2]), PRINTQ(op->comps.max[3]));
+                   op->comps.min[0].den ? PRINTQ(op->comps.min[0]) : "_",
+                   op->comps.min[1].den ? PRINTQ(op->comps.min[1]) : "_",
+                   op->comps.min[2].den ? PRINTQ(op->comps.min[2]) : "_",
+                   op->comps.min[3].den ? PRINTQ(op->comps.min[3]) : "_",
+                   op->comps.max[0].den ? PRINTQ(op->comps.max[0]) : "_",
+                   op->comps.max[1].den ? PRINTQ(op->comps.max[1]) : "_",
+                   op->comps.max[2].den ? PRINTQ(op->comps.max[2]) : "_",
+                   op->comps.max[3].den ? PRINTQ(op->comps.max[3]) : "_");
         }
 
     }
