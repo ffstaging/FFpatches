@@ -107,6 +107,7 @@ typedef struct MediaCodecEncContext {
 enum {
     COLOR_FormatYUV420Planar                              = 0x13,
     COLOR_FormatYUV420SemiPlanar                          = 0x15,
+    COLOR_FormatYUVP010                                   = 0x36,
     COLOR_FormatSurface                                   = 0x7F000789,
 };
 
@@ -116,6 +117,7 @@ static const struct {
 } color_formats[] = {
     { COLOR_FormatYUV420Planar,         AV_PIX_FMT_YUV420P },
     { COLOR_FormatYUV420SemiPlanar,     AV_PIX_FMT_NV12    },
+    { COLOR_FormatYUVP010,              AV_PIX_FMT_P010LE  },
     { COLOR_FormatSurface,              AV_PIX_FMT_MEDIACODEC },
 };
 
@@ -123,6 +125,7 @@ static const enum AVPixelFormat avc_pix_fmts[] = {
     AV_PIX_FMT_MEDIACODEC,
     AV_PIX_FMT_YUV420P,
     AV_PIX_FMT_NV12,
+    AV_PIX_FMT_P010LE,
     AV_PIX_FMT_NONE
 };
 
@@ -238,6 +241,12 @@ static void copy_frame_to_buffer(AVCodecContext *avctx, const AVFrame *frame,
 
         dst_linesize[0] = s->width;
         dst_linesize[1] = s->width;
+    } else if (avctx->pix_fmt == AV_PIX_FMT_P010LE) {
+        dst_data[0] = dst;
+        dst_data[1] = dst + s->width * s->height * 2;
+
+        dst_linesize[0] = s->width * 2;
+        dst_linesize[1] = s->width * 2;
     } else {
         av_assert0(0);
     }
