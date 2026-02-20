@@ -130,9 +130,12 @@ static void celt_frame_setup_input(OpusEncContext *s, CeltFrame *f)
 
     for (int ch = 0; ch < f->channels; ch++) {
         CeltBlock *b = &f->block[ch];
-        const void *input = cur->extended_data[ch];
+        const char *input = cur->extended_data[ch];
         size_t bps = av_get_bytes_per_sample(cur->format);
-        memcpy(b->overlap, input, bps*cur->nb_samples);
+        /* The MDCT overlap is always CELT_OVERLAP samples taken from the end of
+         * the previous frame, regardless of the encoder's frame_size. */
+        memcpy(b->overlap, input+(cur->nb_samples - CELT_OVERLAP)*bps,
+               CELT_OVERLAP*bps);
     }
 
     av_frame_free(&cur);

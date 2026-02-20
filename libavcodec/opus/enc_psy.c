@@ -258,7 +258,8 @@ int ff_opus_psy_process(OpusPsyContext *s, OpusPacketInfo *p)
 void ff_opus_psy_celt_frame_init(OpusPsyContext *s, CeltFrame *f, int index)
 {
     int i, neighbouring_points = 0, start_offset = 0;
-    int radius = (1 << s->p.framesize), step_offset = radius*index;
+    int steps_per_frame = OPUS_BLOCK_SIZE(s->p.framesize) / s->avctx->frame_size;
+    int step_offset = steps_per_frame*index;
     int silence = 1;
 
     f->start_band = (s->p.mode == OPUS_MODE_HYBRID) ? 17 : 0;
@@ -266,8 +267,8 @@ void ff_opus_psy_celt_frame_init(OpusPsyContext *s, CeltFrame *f, int index)
     f->channels   = s->avctx->ch_layout.nb_channels;
     f->size       = s->p.framesize;
 
-    for (i = 0; i < (1 << f->size); i++)
-        silence &= s->steps[index*(1 << f->size) + i]->silence;
+    for (i = 0; i < steps_per_frame; i++)
+        silence &= s->steps[index*steps_per_frame + i]->silence;
 
     f->silence = silence;
     if (f->silence) {
@@ -282,8 +283,8 @@ void ff_opus_psy_celt_frame_init(OpusPsyContext *s, CeltFrame *f, int index)
         }
     }
 
-    for (i = start_offset; i < FFMIN(radius, s->inflection_points_count - start_offset); i++) {
-        if (s->inflection_points[i] < (step_offset + radius)) {
+    for (i = start_offset; i < FFMIN(steps_per_frame, s->inflection_points_count - start_offset); i++) {
+        if (s->inflection_points[i] < (step_offset + steps_per_frame)) {
             neighbouring_points++;
         }
     }
@@ -316,6 +317,7 @@ static void celt_gauge_psy_weight(OpusPsyContext *s, OpusPsyStep **start,
 {
     int i, f, ch;
     int frame_size = OPUS_BLOCK_SIZE(s->p.framesize);
+    int steps_per_frame = frame_size / s->avctx->frame_size;
     float rate, frame_bits = 0;
 
     /* Used for the global ROTATE flag */
@@ -329,7 +331,7 @@ static void celt_gauge_psy_weight(OpusPsyContext *s, OpusPsyStep **start,
     for (i = 0; i < CELT_MAX_BANDS; i++) {
         float weight = 0.0f;
         float tonal_contrib = 0.0f;
-        for (f = 0; f < (1 << s->p.framesize); f++) {
+        for (f = 0; f < steps_per_frame; f++) {
             weight = start[f]->stereo[i];
             for (ch = 0; ch < s->avctx->ch_layout.nb_channels; ch++) {
                 weight += start[f]->change_amp[ch][i] + start[f]->tone[ch][i] + start[f]->energy[ch][i];
@@ -425,6 +427,7 @@ static void celt_search_for_intensity(OpusPsyContext *s, CeltFrame *f)
 static int celt_search_for_tf(OpusPsyContext *s, OpusPsyStep **start, CeltFrame *f)
 {
     int i, j, k, cway, config[2][CELT_MAX_BANDS] = { { 0 } };
+    int steps_per_frame = OPUS_BLOCK_SIZE(f->size) / s->avctx->frame_size;
     float score[2] = { 0 };
 
     for (cway = 0; cway < 2; cway++) {
@@ -439,7 +442,7 @@ static int celt_search_for_tf(OpusPsyContext *s, OpusPsyStep **start, CeltFrame 
         for (i = 0; i < CELT_MAX_BANDS; i++) {
             float iscore0 = 0.0f;
             float iscore1 = 0.0f;
-            for (j = 0; j < (1 << f->size); j++) {
+            for (j = 0; j < steps_per_frame; j++) {
                 for (k = 0; k < s->avctx->ch_layout.nb_channels; k++) {
                     iscore0 += start[j]->tone[k][i]*start[j]->change_amp[k][i]/mag[0];
                     iscore1 += start[j]->tone[k][i]*start[j]->change_amp[k][i]/mag[1];
@@ -480,7 +483,7 @@ int ff_opus_psy_celt_frame_process(OpusPsyContext *s, CeltFrame *f, int index)
 void ff_opus_psy_postencode_update(OpusPsyContext *s, CeltFrame *f)
 {
     int i, frame_size = OPUS_BLOCK_SIZE(s->p.framesize);
-    int steps_out = s->p.frames*(frame_size/120);
+    int steps_out = s->p.frames*(frame_size/s->avctx->frame_size);
     void *tmp[FF_BUFQUEUE_SIZE];
     float ideal_fbits;
 
@@ -522,7 +525,9 @@ av_cold int ff_opus_psy_init(OpusPsyContext *s, AVCodecContext *avctx,
     s->options = options;
     s->avctx = avctx;
     s->bufqueue = bufqueue;
-    s->max_steps = ceilf(s->options->max_delay_ms/2.5f);
+    s->max_steps = ceilf(s->options->max_delay_ms * avctx->sample_rate /
+        (1000.0f * avctx->frame_size));
+
     s->bsize_analysis = CELT_BLOCK_960;
     s->avg_is_band = CELT_MAX_BANDS - 1;
     s->inflection_points_count = 0;
