@@ -24,6 +24,7 @@
 
 #include "libavutil/dict.h"
 #include "libavutil/mem.h"
+#include "libavutil/avstring.h"
 #include "avformat.h"
 #include "avio_internal.h"
 #include "apetag.h"
@@ -169,12 +170,6 @@ int64_t ff_ape_parse_tag(AVFormatContext *s)
     return tag_start;
 }
 
-static int string_is_ascii(const uint8_t *str)
-{
-    while (*str && *str >= 0x20 && *str <= 0x7e ) str++;
-    return !*str;
-}
-
 int ff_ape_write_tag(AVFormatContext *s)
 {
     const AVDictionaryEntry *e = NULL;
@@ -189,7 +184,7 @@ int ff_ape_write_tag(AVFormatContext *s)
     while ((e = av_dict_iterate(s->metadata, e))) {
         int val_len;
 
-        if (!string_is_ascii(e->key)) {
+        if (!av_str_is_ascii(e->key)) {
             av_log(s, AV_LOG_WARNING, "Non ASCII keys are not allowed\n");
             continue;
         }

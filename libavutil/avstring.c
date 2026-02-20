@@ -227,6 +227,12 @@ int av_strncasecmp(const char *a, const char *b, size_t n)
     return c1 - c2;
 }
 
+int av_str_is_ascii(const uint8_t *str)
+{
+    while (*str && *str >= 0x20 && *str <= 0x7e ) str++;
+    return !*str;
+}
+
 char *av_strireplace(const char *str, const char *from, const char *to)
 {
     char *ret = NULL;

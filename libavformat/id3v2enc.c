@@ -38,12 +38,6 @@ static void id3v2_put_size(AVIOContext *pb, int size)
     avio_w8(pb, size       & 0x7f);
 }
 
-static int string_is_ascii(const uint8_t *str)
-{
-    while (*str && *str < 128) str++;
-    return !*str;
-}
-
 static void id3v2_encode_string(AVIOContext *pb, const uint8_t *str,
                                enum ID3v2Encoding enc)
 {
@@ -74,8 +68,8 @@ static int id3v2_put_ttag(ID3v2EncContext *id3, AVIOContext *avioc, const char *
 
     /* check if the strings are ASCII-only and use UTF16 only if
      * they're not */
-    if (enc == ID3v2_ENCODING_UTF16BOM && string_is_ascii(str1) &&
-        (!str2 || string_is_ascii(str2)))
+    if (enc == ID3v2_ENCODING_UTF16BOM && av_str_is_ascii(str1) &&
+        (!str2 || av_str_is_ascii(str2)))
         enc = ID3v2_ENCODING_ISO8859;
 
     avio_w8(dyn_buf, enc);
@@ -390,7 +384,7 @@ int ff_id3v2_write_apic(AVFormatContext *s, ID3v2EncContext *id3, AVPacket *pkt)
         desc = e->value;
 
     /* use UTF16 only for non-ASCII strings */
-    if (enc == ID3v2_ENCODING_UTF16BOM && string_is_ascii(desc))
+    if (enc == ID3v2_ENCODING_UTF16BOM && av_str_is_ascii(desc))
         enc = ID3v2_ENCODING_ISO8859;
 
     /* start writing */

@@ -268,6 +268,11 @@ int av_strncasecmp(const char *a, const char *b, size_t n);
  */
 char *av_strireplace(const char *str, const char *from, const char *to);
 
+/** Checks if a string is in ASCII format.
+ *  @returns 0 if string is not ASCII and 1 if it is.
+ */
+int av_str_is_ascii(const uint8_t *str);
+
 /**
  * Thread safe basename.
  * @param path the string to parse, on DOS both \ and / are considered separators.
