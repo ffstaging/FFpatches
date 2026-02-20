@@ -407,6 +407,7 @@ static X509 *cert_from_pem_string(const char *pem_str)
     X509 *cert = PEM_read_bio_X509(mem, NULL, NULL, NULL);
     if (!cert) {
         av_log(NULL, AV_LOG_ERROR, "Failed to parse certificate from string\n");
+        BIO_free(mem);
         return NULL;
     }
 
