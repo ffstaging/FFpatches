@@ -8183,6 +8183,12 @@ haiku)
     ;;
 esac
 
+if enabled_any asm inline_asm; then
+    if ! enabled_any memalign posix_memalign; then
+        die "ERROR: At least one of memalign or posix_memalign must be enabled when using assembly code."
+    fi
+fi
+
 flatten_extralibs(){
     nested_entries=
     list_name=$1
