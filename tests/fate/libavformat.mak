@@ -34,3 +34,8 @@ fate-seek_utils: CMP = null
 FATE_LIBAVFORMAT += $(FATE_LIBAVFORMAT-yes)
 FATE-$(CONFIG_AVFORMAT) += $(FATE_LIBAVFORMAT)
 fate-libavformat: $(FATE_LIBAVFORMAT)
+
+FATE_LIBAVFORMAT-$(CONFIG_YUV4MPEGPIPE_MUXER) += fate-yuv4mpegenc
+fate-yuv4mpegenc: libavformat/tests/yuv4mpegenc$(EXESUF)
+fate-yuv4mpegenc: CMD = run libavformat/tests/yuv4mpegenc$(EXESUF)
+fate-yuv4mpegenc: CMP = null

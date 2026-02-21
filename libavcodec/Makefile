@@ -1379,6 +1379,7 @@ TESTPROGS-$(CONFIG_MJPEG_ENCODER)         += mjpegenc_huffman
 TESTPROGS-$(HAVE_MMX)                     += motion
 TESTPROGS-$(CONFIG_MPEGVIDEO)             += mpeg12framerate
 TESTPROGS-$(CONFIG_H264_METADATA_BSF)     += h264_levels
+TESTPROGS-$(CONFIG_H261_DECODER)           += h261_parser
 TESTPROGS-$(CONFIG_HEVC_METADATA_BSF)     += h265_levels
 TESTPROGS-$(CONFIG_RANGECODER)            += rangecoder
 TESTPROGS-$(CONFIG_SNOW_ENCODER)          += snowenc

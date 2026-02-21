@@ -116,3 +116,8 @@ fate-libavcodec-htmlsubtitles: CMD = run libavcodec/tests/htmlsubtitles$(EXESUF)
 
 FATE-$(CONFIG_AVCODEC) += $(FATE_LIBAVCODEC-yes)
 fate-libavcodec: $(FATE_LIBAVCODEC-yes)
+
+FATE_LIBAVCODEC-$(CONFIG_H261_DECODER) += fate-h261-parser
+fate-h261-parser: libavcodec/tests/h261_parser$(EXESUF)
+fate-h261-parser: CMD = run libavcodec/tests/h261_parser$(EXESUF)
+fate-h261-parser: CMP = null
