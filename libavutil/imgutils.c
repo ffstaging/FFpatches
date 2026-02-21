@@ -227,6 +227,9 @@ int av_image_alloc(uint8_t *pointers[4], int linesizes[4],
     if (!desc)
         return AVERROR(EINVAL);
 
+    if (desc->flags & AV_PIX_FMT_FLAG_PAL)
+        align = FFMAX(align, sizeof(uint32_t));
+
     if ((ret = av_image_check_size(w, h, 0, NULL)) < 0)
         return ret;
     if ((ret = av_image_fill_linesizes(linesizes, pix_fmt, align>7 ? FFALIGN(w, 8) : w)) < 0)
@@ -252,21 +255,8 @@ int av_image_alloc(uint8_t *pointers[4], int linesizes[4],
         av_free(buf);
         return ret;
     }
-    if (desc->flags & AV_PIX_FMT_FLAG_PAL) {
+    if (desc->flags & AV_PIX_FMT_FLAG_PAL)
         avpriv_set_systematic_pal2((uint32_t*)pointers[1], pix_fmt);
-        if (align < 4) {
-            av_log(NULL, AV_LOG_ERROR, "Formats with a palette require a minimum alignment of 4\n");
-            av_free(buf);
-            return AVERROR(EINVAL);
-        }
-    }
-
-    if (desc->flags & AV_PIX_FMT_FLAG_PAL && pointers[1] &&
-        pointers[1] - pointers[0] > linesizes[0] * h) {
-        /* zero-initialize the padding before the palette */
-        memset(pointers[0] + linesizes[0] * h, 0,
-               pointers[1] - pointers[0] - linesizes[0] * h);
-    }
 
     return ret;
 }
