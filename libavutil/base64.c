@@ -22,16 +22,40 @@
  * @file
  * @brief Base64 encode/decode
  * @author Ryan Martell <rdm4@martellventures.com> (with lots of Michael)
+ *
+ * This is a drop-in compatible implementation of FFmpeg's base64 helpers.
+ * The decode routine preserves FFmpeg's historical semantics (strict input,
+ * stops at the first invalid character, supports unpadded input).
+ *
+ * Small performance-oriented changes were made to the encoder:
+ *   - The slow "shift loop" tail handling was replaced by a constant-time
+ *     switch on the remaining 1 or 2 bytes, reducing branches and shifts.
+ *   - The main loop now packs 3 bytes into a 24-bit value directly instead of
+ *     reading an overlapping 32-bit word (avoids endian conversions and makes
+ *     the loop easier for compilers to optimize).
+ *
+ * The API and output are fully compatible with the original code.
  */
 
 #include <limits.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "base64.h"
 #include "error.h"
 #include "intreadwrite.h"
 
-/* ---------------- private code */
+/* ---------------- private code
+ *
+ * map2[c] returns:
+ *   - 0..63  : decoded 6-bit value for valid Base64 symbols
+ *   - 0xFE   : "stop" symbol (NUL terminator and '=' padding)
+ *   - 0xFF   : invalid symbol (produces AVERROR_INVALIDDATA)
+ *
+ * The decoder uses:
+ *   - bits & 0x80 to detect "stop/invalid" quickly (both 0xFE and 0xFF have MSB set)
+ *   - bits & 1 to distinguish invalid (0xFF) from stop (0xFE)
+ */
 static const uint8_t map2[256] =
 {
     0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -72,58 +96,72 @@ static const uint8_t map2[256] =
 };
 
 #define BASE64_DEC_STEP(i) do { \
-    bits = map2[in[i]]; \
-    if (bits & 0x80) \
-        goto out ## i; \
-    v = i ? (v << 6) + bits : bits; \
-} while(0)
+    bits = map2[in[i]];         \
+    if (bits & 0x80)            \
+        goto out ## i;          \
+    v = (i) ? (v << 6) + bits : bits; \
+} while (0)
 
 int av_base64_decode(uint8_t *out, const char *in_str, int out_size)
 {
     uint8_t *dst = out;
     uint8_t *end;
-    // no sign extension
-    const uint8_t *in = in_str;
+    /* Cast to unsigned to avoid sign extension on platforms where char is signed. */
+    const uint8_t *in = (const uint8_t *)in_str;
     unsigned bits = 0xff;
     unsigned v;
 
+    /* Validation-only mode: keep FFmpeg's original behavior. */
     if (!out)
         goto validity_check;
 
     end = out + out_size;
+
+    /*
+     * Fast path: decode complete 4-char blocks while we can safely do a 32-bit store.
+     * We write 4 bytes and advance by 3 (the 4th written byte is overwritten on the next iteration).
+     */
     while (end - dst > 3) {
         BASE64_DEC_STEP(0);
         BASE64_DEC_STEP(1);
         BASE64_DEC_STEP(2);
         BASE64_DEC_STEP(3);
-        // Using AV_WB32 directly confuses compiler
+
+        /* Convert to native-endian so a native write yields correct byte order in memory. */
         v = av_be2ne32(v << 8);
         AV_WN32(dst, v);
+
         dst += 3;
-        in += 4;
+        in  += 4;
     }
+
+    /* Tail: decode at most one more block without overrunning the output buffer. */
     if (end - dst) {
         BASE64_DEC_STEP(0);
         BASE64_DEC_STEP(1);
         BASE64_DEC_STEP(2);
         BASE64_DEC_STEP(3);
+
         *dst++ = v >> 16;
         if (end - dst)
             *dst++ = v >> 8;
         if (end - dst)
             *dst++ = v;
+
         in += 4;
     }
+
 validity_check:
+    /*
+     * Strict validation: keep decoding groups of 4 until we hit the first stop/invalid.
+     * Using BASE64_DEC_STEP(0) ensures we always jump to out0 and never touch out1/out2/out3
+     * (important for the out == NULL validation-only mode).
+     */
     while (1) {
-        BASE64_DEC_STEP(0);
-        in++;
-        BASE64_DEC_STEP(0);
-        in++;
-        BASE64_DEC_STEP(0);
-        in++;
-        BASE64_DEC_STEP(0);
-        in++;
+        BASE64_DEC_STEP(0); in++;
+        BASE64_DEC_STEP(0); in++;
+        BASE64_DEC_STEP(0); in++;
+        BASE64_DEC_STEP(0); in++;
     }
 
 out3:
@@ -135,49 +173,64 @@ out2:
         *dst++ = v >> 4;
 out1:
 out0:
-    return bits & 1 ? AVERROR_INVALIDDATA : out ? dst - out : 0;
+    /* bits==0xFE => stop (NUL or '=') => success. bits==0xFF => invalid => error. */
+    return (bits & 1) ? AVERROR_INVALIDDATA : (out ? (int)(dst - out) : 0);
 }
 
 /*****************************************************************************
-* b64_encode: Stolen from VLC's http.c.
-* Simplified by Michael.
-* Fixed edge cases and made it work from data (vs. strings) by Ryan.
-*****************************************************************************/
+ * b64_encode: Stolen from VLC's http.c.
+ * Simplified by Michael.
+ * Fixed edge cases and made it work from data (vs. strings) by Ryan.
+ *
+ * Encoder micro-optimizations:
+ *   - Direct 24-bit packing (3 bytes -> 4 symbols) in the main loop.
+ *   - Branchless tail handling via a small switch for 1 or 2 remaining bytes.
+ *****************************************************************************/
 
 char *av_base64_encode(char *out, int out_size, const uint8_t *in, int in_size)
 {
     static const char b64[] =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     char *ret, *dst;
-    unsigned i_bits = 0;
-    int i_shift = 0;
-    int bytes_remaining = in_size;
 
-    if (in_size >= UINT_MAX / 4 ||
-        out_size < AV_BASE64_SIZE(in_size))
+    if (in_size >= (int)(UINT_MAX / 4) || out_size < AV_BASE64_SIZE(in_size))
         return NULL;
-    ret = dst = out;
-    while (bytes_remaining > 3) {
-        i_bits = AV_RB32(in);
-        in += 3; bytes_remaining -= 3;
-        *dst++ = b64[ i_bits>>26        ];
-        *dst++ = b64[(i_bits>>20) & 0x3F];
-        *dst++ = b64[(i_bits>>14) & 0x3F];
-        *dst++ = b64[(i_bits>>8 ) & 0x3F];
-    }
-    i_bits = 0;
-    while (bytes_remaining) {
-        i_bits = (i_bits << 8) + *in++;
-        bytes_remaining--;
-        i_shift += 8;
-    }
-    while (i_shift > 0) {
-        *dst++ = b64[(i_bits << 6 >> i_shift) & 0x3f];
-        i_shift -= 6;
-    }
-    while ((dst - ret) & 3)
-        *dst++ = '=';
-    *dst = '\0';
 
+    ret = dst = out;
+
+    /* Encode full 3-byte blocks. */
+    while (in_size >= 3) {
+        uint32_t v = ((uint32_t)in[0] << 16) |
+                     ((uint32_t)in[1] <<  8) |
+                     ((uint32_t)in[2]      );
+        in += 3;
+        in_size -= 3;
+
+        dst[0] = b64[ (v >> 18)        ];
+        dst[1] = b64[ (v >> 12) & 0x3F ];
+        dst[2] = b64[ (v >>  6) & 0x3F ];
+        dst[3] = b64[ (v      ) & 0x3F ];
+        dst += 4;
+    }
+
+    /* Encode the remaining 1 or 2 bytes (if any) and add '=' padding. */
+    if (in_size == 1) {
+        uint32_t v = (uint32_t)in[0];
+        dst[0] = b64[(v >> 2) & 0x3F];
+        dst[1] = b64[(v & 0x03) << 4];
+        dst[2] = '=';
+        dst[3] = '=';
+        dst += 4;
+    } else if (in_size == 2) {
+        uint32_t v = ((uint32_t)in[0] << 8) | (uint32_t)in[1];
+        dst[0] = b64[(v >> 10) & 0x3F];
+        dst[1] = b64[(v >>  4) & 0x3F];
+        dst[2] = b64[(v & 0x0F) << 2];
+        dst[3] = '=';
+        dst += 4;
+    }
+
+    /* NUL-terminate. The caller guaranteed enough space via AV_BASE64_SIZE(). */
+    *dst = '\0';
     return ret;
 }
