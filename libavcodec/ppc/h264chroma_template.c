@@ -113,19 +113,17 @@ static void PREFIX_h264_chroma_mc8_altivec(uint8_t * dst, const uint8_t * src,
                                            ptrdiff_t stride, int h,
                                            int x, int y)
 {
-    DECLARE_ALIGNED(16, signed int, ABCD)[4] =
-                        {((8 - x) * (8 - y)),
-                         ((    x) * (8 - y)),
-                         ((8 - x) * (    y)),
-                         ((    x) * (    y))};
+    const int a = (8 - x) * (8 - y);
+    const int b = x * (8 - y);
+    const int c = (8 - x) * y;
+    const int d = x * y;
     register int i;
     vec_u8 fperm;
     LOAD_ZERO;
-    const vec_s32 vABCD = vec_ld(0, ABCD);
-    const vec_s16 vA = VEC_SPLAT16(vABCD, 1);
-    const vec_s16 vB = VEC_SPLAT16(vABCD, 3);
-    const vec_s16 vC = VEC_SPLAT16(vABCD, 5);
-    const vec_s16 vD = VEC_SPLAT16(vABCD, 7);
+    const vec_s16 vA = vec_splats((signed short)a);
+    const vec_s16 vB = vec_splats((signed short)b);
+    const vec_s16 vC = vec_splats((signed short)c);
+    const vec_s16 vD = vec_splats((signed short)d);
     const vec_s16 v32ss = vec_sl(vec_splat_s16(1),vec_splat_u16(5));
     const vec_u16 v6us = vec_splat_u16(6);
 
@@ -159,14 +157,14 @@ static void PREFIX_h264_chroma_mc8_altivec(uint8_t * dst, const uint8_t * src,
     vsrc0ssH = (vec_s16)VEC_MERGEH(zero_u8v,(vec_u8)vsrc0uc);
     vsrc1ssH = (vec_s16)VEC_MERGEH(zero_u8v,(vec_u8)vsrc1uc);
 
-    if (ABCD[3]) {
+    if (d) {
         for (i = 0 ; i < h ; i++) {
             GET_VSRC(vsrc2uc, vsrc3uc, stride, 16, vsrcperm0, vsrcperm1, src);
             CHROMA_MC8_ALTIVEC_CORE(v32ss, noop);
         }
     } else {
         const vec_s16 vE = vec_add(vB, vC);
-        if (ABCD[2]) { // x == 0 B == 0
+        if (c) { // x == 0 B == 0
             for (i = 0 ; i < h ; i++) {
                 GET_VSRC1(vsrc1uc, stride, 15, vsrcperm0, src);
                 CHROMA_MC8_ALTIVEC_CORE_SIMPLE;
@@ -188,19 +186,17 @@ static void PREFIX_no_rnd_vc1_chroma_mc8_altivec(uint8_t *dst, const uint8_t *sr
                                                  ptrdiff_t stride, int h,
                                                  int x, int y)
 {
-   DECLARE_ALIGNED(16, signed int, ABCD)[4] =
-                        {((8 - x) * (8 - y)),
-                         ((    x) * (8 - y)),
-                         ((8 - x) * (    y)),
-                         ((    x) * (    y))};
+    const int a = (8 - x) * (8 - y);
+    const int b = x * (8 - y);
+    const int c = (8 - x) * y;
+    const int d = x * y;
     register int i;
     vec_u8 fperm;
     LOAD_ZERO;
-    const vec_s32 vABCD = vec_ld(0, ABCD);
-    const vec_s16 vA = VEC_SPLAT16(vABCD, 1);
-    const vec_s16 vB = VEC_SPLAT16(vABCD, 3);
-    const vec_s16 vC = VEC_SPLAT16(vABCD, 5);
-    const vec_s16 vD = VEC_SPLAT16(vABCD, 7);
+    const vec_s16 vA = vec_splats((signed short)a);
+    const vec_s16 vB = vec_splats((signed short)b);
+    const vec_s16 vC = vec_splats((signed short)c);
+    const vec_s16 vD = vec_splats((signed short)d);
     const vec_s16 v28ss = vec_sub(vec_sl(vec_splat_s16(1),vec_splat_u16(5)),vec_splat_s16(4));
     const vec_u16 v6us  = vec_splat_u16(6);
 
