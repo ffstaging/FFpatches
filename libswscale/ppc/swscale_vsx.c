@@ -212,7 +212,7 @@ static void yuv2planeX_nbps_vsx(const int16_t *filter, int filterSize,
     const int add = (1 << (shift - 1));
     const int clip = (1 << output_bits) - 1;
     const uint16_t swap = big_endian ? 8 : 0;
-    const vec_u32 vadd = (vec_u32) {add, add, add, add};
+    const vec_s32 vadd = (vec_s32) {add, add, add, add};
     const vec_u32 vshift = (vec_u32) {shift, shift, shift, shift};
     const vec_u16 vswap = (vec_u16) {swap, swap, swap, swap, swap, swap, swap, swap};
     const vec_u16 vlargest = (vec_u16) {clip, clip, clip, clip, clip, clip, clip, clip};
@@ -220,7 +220,7 @@ static void yuv2planeX_nbps_vsx(const int16_t *filter, int filterSize,
     const vec_u8 vperm = (vec_u8) {0, 1, 8, 9, 2, 3, 10, 11, 4, 5, 12, 13, 6, 7, 14, 15};
     vec_s16 vfilter[MAX_FILTER_SIZE], vin;
     vec_u16 v;
-    vec_u32 vleft, vright, vtmp;
+    vec_s32 vleft, vright, vtmp;
     int i, j;
 
     for (i = 0; i < filterSize; i++) {
@@ -235,15 +235,15 @@ static void yuv2planeX_nbps_vsx(const int16_t *filter, int filterSize,
 
         for (j = 0; j < filterSize; j++) {
             vin = vec_vsx_ld(0, &src[j][i]);
-            vtmp = (vec_u32) vec_mule(vin, vfilter[j]);
+            vtmp = vec_mule(vin, vfilter[j]);
             vleft = vec_add(vleft, vtmp);
-            vtmp = (vec_u32) vec_mulo(vin, vfilter[j]);
+            vtmp = vec_mulo(vin, vfilter[j]);
             vright = vec_add(vright, vtmp);
         }
 
         vleft = vec_sra(vleft, vshift);
         vright = vec_sra(vright, vshift);
-        v = vec_packsu(vleft, vright);
+        v = (vec_u16) vec_packs(vleft, vright);
         v = (vec_u16) vec_max((vec_s16) v, vzero);
         v = vec_min(v, vlargest);
         v = vec_rl(v, vswap);
