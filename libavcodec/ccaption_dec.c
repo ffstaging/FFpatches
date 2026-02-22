@@ -703,6 +703,7 @@ static int handle_eoc(CCaptionSubContext *ctx)
         ret = handle_edm(ctx);
 
     ctx->cursor_column = 0;
+    ctx->mode = CCMODE_POPON;
 
     // In realtime mode, we display the buffered contents (after
     // flipping the buffer to active above) as soon as EOC arrives.
