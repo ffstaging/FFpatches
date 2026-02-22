@@ -765,5 +765,4 @@ typedef struct CodedBitstreamH265Context {
     const H265RawPPS *active_pps;
 } CodedBitstreamH265Context;
 
-
 #endif /* AVCODEC_CBS_H265_H */

@@ -202,6 +202,10 @@ typedef struct SEIMessageTypeDescriptor {
 #define SEI_MESSAGE_TYPE_END { .type = -1 }
 
 
+extern const SEIMessageTypeDescriptor ff_cbs_sei_h264_types[];
+extern const SEIMessageTypeDescriptor ff_cbs_sei_h265_types[];
+extern const SEIMessageTypeDescriptor ff_cbs_sei_h266_types[];
+
 /**
  * Find the type descriptor for the given payload type.
  *
@@ -262,5 +266,14 @@ int ff_cbs_sei_find_message(CodedBitstreamContext *ctx,
 void ff_cbs_sei_delete_message_type(CodedBitstreamContext *ctx,
                                     CodedBitstreamFragment *au,
                                     uint32_t payload_type);
+
+int ff_cbs_sei_read_message_list(CodedBitstreamContext *ctx, GetBitContext *rw,
+                                 SEIRawMessageList *current, int prefix);
+int ff_cbs_sei_write_message_list(CodedBitstreamContext *ctx, PutBitContext *rw,
+                                  SEIRawMessageList *current, int prefix);
+int ff_cbs_sei_read_message(CodedBitstreamContext *ctx, GetBitContext *rw,
+                            SEIRawMessage *current);
+int ff_cbs_sei_write_message(CodedBitstreamContext *ctx, PutBitContext *rw,
+                             SEIRawMessage *current);
 
 #endif /* AVCODEC_CBS_SEI_H */
