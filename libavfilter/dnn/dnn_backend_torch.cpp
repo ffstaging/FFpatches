@@ -65,9 +65,9 @@ typedef struct THRequestItem {
 } THRequestItem;
 
 
-#define OFFSET(x) offsetof(THOptions, x)
+#define OFFSET(x) offsetof(DnnContext, torch_option.x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM
-static const AVOption dnn_th_options[] = {
+static const AVOption dnn_torch_options[] = {
     { "optimize", "turn on graph executor optimization", OFFSET(optimize), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 1, FLAGS},
     { NULL }
 };
@@ -667,7 +667,7 @@ static int dnn_flush_th(const DNNModel *model)
 }
 
 extern const DNNModule ff_dnn_backend_torch = {
-    .clazz          = DNN_DEFINE_CLASS(dnn_th),
+    .clazz          = DNN_DEFINE_CLASS(dnn_torch),
     .type           = DNN_TH,
     .load_model     = dnn_load_model_th,
     .execute_model  = dnn_execute_model_th,
