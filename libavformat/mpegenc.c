@@ -1011,8 +1011,6 @@ static int remove_decoded_packets(AVFormatContext *ctx, int64_t scr)
 static int output_packet(AVFormatContext *ctx, int flush)
 {
     MpegMuxContext *s = ctx->priv_data;
-    AVStream *st;
-    StreamInfo *stream;
     int i, avail_space = 0, es_size, trailer_size;
     int best_i = -1;
     int best_score = INT_MIN;
@@ -1093,8 +1091,7 @@ retry:
 
     av_assert0(best_i >= 0);
 
-    st     = ctx->streams[best_i];
-    stream = st->priv_data;
+    StreamInfo *stream = ctx->streams[best_i]->priv_data;
 
     av_assert0(av_fifo_can_read(stream->fifo) > 0);
 
@@ -1243,7 +1240,7 @@ static int mpeg_mux_write_packet(AVFormatContext *ctx, AVPacket *pkt)
     av_fifo_write(stream->fifo, buf, size);
 
     for (;;) {
-        int ret = output_packet(ctx, 0);
+        ret = output_packet(ctx, 0);
         if (ret <= 0)
             return ret;
     }

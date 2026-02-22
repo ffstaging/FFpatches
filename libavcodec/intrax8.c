@@ -61,7 +61,6 @@ static av_cold void x8_vlc_init(void)
 {
     static VLCElem vlc_buf[VLC_BUFFER_SIZE];
     VLCInitState state = VLC_INIT_STATE(vlc_buf);
-    int i;
 
 // set ac tables
     for (int i = 0; i < 2; i++)
@@ -77,10 +76,10 @@ static av_cold void x8_vlc_init(void)
                                          x8_dc_quant_table[i][j]);
 
 // set orient tables
-    for (i = 0; i < 2; i++)
+    for (int i = 0; i < 2; ++i)
         j_orient_vlc[0][i] = x8_init_vlc(&state, OR_VLC_BITS, 12,
                                          x8_orient_highquant_table[i]);
-    for (i = 0; i < 4; i++)
+    for (int i = 0; i < 4; ++i)
         j_orient_vlc[1][i] = x8_init_vlc(&state, OR_VLC_BITS, 12,
                                          x8_orient_lowquant_table[i]);
 }

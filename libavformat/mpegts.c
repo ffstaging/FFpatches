@@ -1148,6 +1148,67 @@ static int read_sl_header(PESContext *pes, SLConfigDescr *sl,
     return (get_bits_count(&gb) + 7) >> 3;
 }
 
+static void mpegts_handle_dvb_teletext_subtitles(PESContext *const pes)
+{
+    AVProgram *p = NULL;
+    int pcr_found = 0;
+
+    while ((p = av_find_program_from_stream(pes->stream, p, pes->st->index))) {
+        if (p->pcr_pid == 1 || p->discard == AVDISCARD_ALL)
+            continue;
+        MpegTSFilter *f = pes->ts->pids[p->pcr_pid];
+        if (!f)
+            continue;
+
+        AVStream *st = NULL;
+        if (f->type == MPEGTS_PES) {
+            PESContext *pcrpes = f->u.pes_filter.opaque;
+            if (pcrpes)
+                st = pcrpes->st;
+        } else if (f->type == MPEGTS_PCR) {
+            for (unsigned i = 0; i < p->nb_stream_indexes; ++i) {
+                AVStream *pst = pes->stream->streams[p->stream_index[i]];
+                if (pst->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
+                    st = pst;
+            }
+        }
+        if (f->last_pcr != -1 && !f->discard) {
+            // teletext packets do not always have correct timestamps,
+            // the standard says they should be handled after 40.6 ms at most,
+            // and the pcr error to this packet should be no more than 100 ms.
+            // TODO: we should interpolate the PCR, not just use the last one
+            int64_t pcr = f->last_pcr / SYSTEM_CLOCK_FREQUENCY_DIVISOR;
+            pcr_found = 1;
+            if (st) {
+                const FFStream *const sti = ffstream(st);
+                FFStream *const pes_sti   = ffstream(pes->st);
+
+                pes_sti->pts_wrap_reference = sti->pts_wrap_reference;
+                pes_sti->pts_wrap_behavior  = sti->pts_wrap_behavior;
+            }
+            if (pes->dts == AV_NOPTS_VALUE || pes->dts < pcr) {
+                pes->pts = pes->dts = pcr;
+            } else if (pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_TELETEXT &&
+                       pes->dts > pcr + 3654 + 9000) {
+                pes->pts = pes->dts = pcr + 3654 + 9000;
+            } else if (pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_SUBTITLE &&
+                       pes->dts > pcr + 10*90000) { //10sec
+                pes->pts = pes->dts = pcr + 3654 + 9000;
+            }
+            break;
+        }
+    }
+
+    if (pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_TELETEXT && !pcr_found) {
+        av_log(pes->stream, AV_LOG_VERBOSE,
+               "Forcing DTS/PTS to be unset for a "
+               "non-trustworthy PES packet for PID %d as "
+               "PCR hasn't been received yet.\n",
+               pes->pid);
+        pes->dts = pes->pts = AV_NOPTS_VALUE;
+    }
+}
+
 static AVBufferRef *buffer_pool_get(MpegTSContext *ts, int size)
 {
     int index = av_log2(size + AV_INPUT_BUFFER_PADDING_SIZE);
@@ -1336,68 +1397,10 @@ skip:
                     p += 5;
                     buf_size -= 5;
                 }
-                if (   pes->ts->fix_teletext_pts
-                    && (   pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_TELETEXT
-                        || pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_SUBTITLE)
-                    ) {
-                    AVProgram *p = NULL;
-                    int pcr_found = 0;
-                    while ((p = av_find_program_from_stream(pes->stream, p, pes->st->index))) {
-                        if (p->pcr_pid != -1 && p->discard != AVDISCARD_ALL) {
-                            MpegTSFilter *f = pes->ts->pids[p->pcr_pid];
-                            if (f) {
-                                AVStream *st = NULL;
-                                if (f->type == MPEGTS_PES) {
-                                    PESContext *pcrpes = f->u.pes_filter.opaque;
-                                    if (pcrpes)
-                                        st = pcrpes->st;
-                                } else if (f->type == MPEGTS_PCR) {
-                                    int i;
-                                    for (i = 0; i < p->nb_stream_indexes; i++) {
-                                        AVStream *pst = pes->stream->streams[p->stream_index[i]];
-                                        if (pst->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
-                                            st = pst;
-                                    }
-                                }
-                                if (f->last_pcr != -1 && !f->discard) {
-                                    // teletext packets do not always have correct timestamps,
-                                    // the standard says they should be handled after 40.6 ms at most,
-                                    // and the pcr error to this packet should be no more than 100 ms.
-                                    // TODO: we should interpolate the PCR, not just use the last one
-                                    int64_t pcr = f->last_pcr / SYSTEM_CLOCK_FREQUENCY_DIVISOR;
-                                    pcr_found = 1;
-                                    if (st) {
-                                        const FFStream *const sti = ffstream(st);
-                                        FFStream *const pes_sti   = ffstream(pes->st);
-
-                                        pes_sti->pts_wrap_reference = sti->pts_wrap_reference;
-                                        pes_sti->pts_wrap_behavior  = sti->pts_wrap_behavior;
-                                    }
-                                    if (pes->dts == AV_NOPTS_VALUE || pes->dts < pcr) {
-                                        pes->pts = pes->dts = pcr;
-                                    } else if (pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_TELETEXT &&
-                                               pes->dts > pcr + 3654 + 9000) {
-                                        pes->pts = pes->dts = pcr + 3654 + 9000;
-                                    } else if (pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_SUBTITLE &&
-                                               pes->dts > pcr + 10*90000) { //10sec
-                                        pes->pts = pes->dts = pcr + 3654 + 9000;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_TELETEXT &&
-                        !pcr_found) {
-                        av_log(pes->stream, AV_LOG_VERBOSE,
-                               "Forcing DTS/PTS to be unset for a "
-                               "non-trustworthy PES packet for PID %d as "
-                               "PCR hasn't been received yet.\n",
-                               pes->pid);
-                        pes->dts = pes->pts = AV_NOPTS_VALUE;
-                    }
-                }
+                if (pes->ts->fix_teletext_pts &&
+                    (pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_TELETEXT ||
+                     pes->st->codecpar->codec_id == AV_CODEC_ID_DVB_SUBTITLE))
+                    mpegts_handle_dvb_teletext_subtitles(pes);
             }
             break;
         case MPEGTS_PAYLOAD:

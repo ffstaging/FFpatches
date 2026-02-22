@@ -166,7 +166,7 @@ static const uint32_t mac_to_unicode[128] = {
     0x00AF,0x02D8,0x02D9,0x02DA,0x00B8,0x02DD,0x02DB,0x02C7,
 };
 
-static int mov_read_mac_string(MOVContext *c, AVIOContext *pb, int len,
+static int mov_read_mac_string(AVIOContext *const pb, int len,
                                char *dst, int dstlen)
 {
     char *p = dst;
@@ -521,7 +521,7 @@ retry:
         parse(c, pb, str_size, key);
     else {
         if (!raw && (data_type == 3 || (data_type == 0 && (langcode < 0x400 || langcode == 0x7fff)))) { // MAC Encoded
-            mov_read_mac_string(c, pb, str_size, str, str_size_alloc);
+            mov_read_mac_string(pb, str_size, str, str_size_alloc);
         } else if (data_type == 21) { // BE signed integer, variable size
             int val = 0;
             if (str_size == 1)
@@ -2736,7 +2736,7 @@ static void mov_parse_stsd_video(MOVContext *c, AVIOContext *pb,
     len = avio_r8(pb); /* codec name, pascal string */
     if (len > 31)
         len = 31;
-    mov_read_mac_string(c, pb, len, codec_name, sizeof(codec_name));
+    mov_read_mac_string(pb, len, codec_name, sizeof(codec_name));
     if (len < 31)
         avio_skip(pb, 31 - len);
 
@@ -4705,7 +4705,6 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
     unsigned int stsc_index = 0;
     unsigned int stss_index = 0;
     unsigned int stps_index = 0;
-    unsigned int i, j;
     uint64_t stream_size = 0;
 
     int ret = build_open_gop_key_points(st);
@@ -4713,11 +4712,11 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
         return;
 
     if (sc->elst_count) {
-        int i, edit_start_index = 0, multiple_edits = 0;
+        int edit_start_index = 0, multiple_edits = 0;
         int64_t empty_duration = 0; // empty duration of the first edit list entry
         int64_t start_time = 0; // start time of the media
 
-        for (i = 0; i < sc->elst_count; i++) {
+        for (unsigned i = 0; i < sc->elst_count; ++i) {
             const MOVElst *e = &sc->elst_data[i];
             if (i == 0 && e->time == -1) {
                 /* if empty, the first entry is the start time of the stream
@@ -4790,7 +4789,7 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
         if (ret < 0)
             return;
 
-        for (i = 0; i < sc->chunk_count; i++) {
+        for (unsigned i = 0; i < sc->chunk_count; ++i) {
             int64_t next_offset = i+1 < sc->chunk_count ? sc->chunk_offsets[i+1] : INT64_MAX;
             current_offset = sc->chunk_offsets[i];
             while (mov_stsc_index_valid(stsc_index, sc->stsc_count) &&
@@ -4807,7 +4806,7 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
                 sc->stsz_sample_size = sc->sample_size;
             }
 
-            for (j = 0; j < sc->stsc_data[stsc_index].count; j++) {
+            for (unsigned j = 0; j < sc->stsc_data[stsc_index].count; ++j) {
                 int keyframe = 0;
                 if (current_sample >= sc->sample_count) {
                     av_log(mov->fc, AV_LOG_ERROR, "wrong sample count\n");
@@ -4889,7 +4888,7 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
             return;
 
         // compute total chunk count
-        for (i = 0; i < sc->stsc_count; i++) {
+        for (unsigned i = 0; i < sc->stsc_count; ++i) {
             unsigned count, chunk_count;
 
             chunk_samples = sc->stsc_data[i].count;
@@ -4927,7 +4926,7 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
         sti->index_entries_allocated_size = (sti->nb_index_entries + total) * sizeof(*sti->index_entries);
 
         // populate index
-        for (i = 0; i < sc->chunk_count; i++) {
+        for (unsigned i = 0; i < sc->chunk_count; ++i) {
             current_offset = sc->chunk_offsets[i];
             if (mov_stsc_index_valid(stsc_index, sc->stsc_count) &&
                 i + 1 == sc->stsc_data[stsc_index + 1].first)
@@ -5803,7 +5802,7 @@ static int mov_read_trun(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     int64_t dts, pts = AV_NOPTS_VALUE;
     int data_offset = 0;
     unsigned entries, first_sample_flags = frag->flags;
-    int flags, distance, i;
+    int flags, distance;
     int64_t prev_dts = AV_NOPTS_VALUE;
     int next_frag_index = -1, index_entry_pos;
     size_t requested_size;
@@ -5816,7 +5815,7 @@ static int mov_read_trun(MOVContext *c, AVIOContext *pb, MOVAtom atom)
         return AVERROR_INVALIDDATA;
     }
 
-    for (i = 0; i < c->fc->nb_streams; i++) {
+    for (unsigned i = 0; i < c->fc->nb_streams; ++i) {
         sc = c->fc->streams[i]->priv_data;
         if (sc->id == frag->track_id) {
             st = c->fc->streams[i];
@@ -5839,7 +5838,7 @@ static int mov_read_trun(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     // and it's samples are in index_entries at the given position.
     // New index entries will be inserted before the index_entry found.
     index_entry_pos = sti->nb_index_entries;
-    for (i = c->frag_index.current + 1; i < c->frag_index.nb_items; i++) {
+    for (int i = c->frag_index.current + 1; i < c->frag_index.nb_items; ++i) {
         frag_stream_info = get_frag_stream_info(&c->frag_index, i, frag->track_id);
         if (frag_stream_info && frag_stream_info->index_entry >= 0) {
             next_frag_index = i;
@@ -5971,9 +5970,10 @@ static int mov_read_trun(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     if (index_entry_pos > 0)
         prev_dts = sti->index_entries[index_entry_pos-1].timestamp;
 
-    for (i = 0; i < entries && !pb->eof_reached; i++) {
+    unsigned cur_entry;
+    for (cur_entry = 0; cur_entry < entries && !pb->eof_reached; ++cur_entry) {
         unsigned sample_size = frag->size;
-        int sample_flags = i ? frag->flags : first_sample_flags;
+        int sample_flags = cur_entry ? frag->flags : first_sample_flags;
         unsigned sample_duration = frag->duration;
         unsigned ctts_duration = 0;
         int keyframe = 0;
@@ -6047,10 +6047,10 @@ static int mov_read_trun(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     }
     if (frag_stream_info)
         frag_stream_info->next_trun_dts = dts + sc->time_offset;
-    if (i < entries) {
+    if (cur_entry < entries) {
         // EOF found before reading all entries.  Fix the hole this would
         // leave in index_entries and tts_data
-        int gap = entries - i;
+        int gap = entries - cur_entry;
         memmove(sti->index_entries + index_entry_pos,
                 sti->index_entries + index_entry_pos + gap,
                 sizeof(*sti->index_entries) *
@@ -6065,7 +6065,7 @@ static int mov_read_trun(MOVContext *c, AVIOContext *pb, MOVAtom atom)
         if (index_entry_pos < sc->current_sample) {
             sc->current_sample -= gap;
         }
-        entries = i;
+        entries = cur_entry;
     }
 
     // The end of this new fragment may overlap in time with the start
@@ -9099,7 +9099,7 @@ static int mov_read_iref_dimg(MOVContext *c, AVIOContext *pb, int version)
 {
     HEIFItem *item = NULL;
     HEIFGrid *grid;
-    int entries, i;
+    int entries;
     int from_item_id = version ? avio_rb32(pb) : avio_rb16(pb);
 
     for (int i = 0; i < c->nb_heif_grid; i++) {
@@ -9144,7 +9144,7 @@ static int mov_read_iref_dimg(MOVContext *c, AVIOContext *pb, int version)
     if (!grid->tile_id_list || !grid->tile_item_list || !grid->tile_idx_list)
         return AVERROR(ENOMEM);
     /* 'to' item ids */
-    for (i = 0; i < entries; i++)
+    for (int i = 0; i < entries; i++)
         grid->tile_id_list[i] = version ? avio_rb32(pb) : avio_rb16(pb);
     grid->nb_tiles = entries;
     grid->item = item;
@@ -9751,14 +9751,13 @@ static void mov_read_chapters(AVFormatContext *s)
     MOVContext *mov = s->priv_data;
     MOVStreamContext *sc;
     int64_t cur_pos;
-    int i, j;
     int chapter_track;
 
-    for (j = 0; j < mov->nb_chapter_tracks; j++) {
+    for (unsigned j = 0; j < mov->nb_chapter_tracks; j++) {
         AVStream *st = NULL;
         FFStream *sti = NULL;
         chapter_track = mov->chapter_tracks[j];
-        for (i = 0; i < s->nb_streams; i++) {
+        for (unsigned i = 0; i < s->nb_streams; i++) {
             sc = mov->fc->streams[i]->priv_data;
             if (sc->id == chapter_track) {
                 st = s->streams[i];
@@ -10237,7 +10236,7 @@ static int read_image_grid(AVFormatContext *s, const HEIFGrid *grid,
     MOVContext *c = s->priv_data;
     const HEIFItem *item = grid->item;
     int64_t offset = 0, pos = avio_tell(s->pb);
-    int x = 0, y = 0, i = 0;
+    int x = 0, y = 0;
     int tile_rows, tile_cols;
     int flags, size;
 
@@ -10287,18 +10286,19 @@ static int read_image_grid(AVFormatContext *s, const HEIFGrid *grid,
     if (!tile_grid->offsets)
         return AVERROR(ENOMEM);
 
+    unsigned cur_tile = 0;
     while (y < tile_grid->coded_height) {
-        int left_col = i;
+        unsigned left_col = cur_tile;
 
         while (x < tile_grid->coded_width) {
-            if (i == tile_grid->nb_tiles)
+            if (cur_tile == tile_grid->nb_tiles)
                 return AVERROR_INVALIDDATA;
 
-            tile_grid->offsets[i].idx        = grid->tile_idx_list[i];
-            tile_grid->offsets[i].horizontal = x;
-            tile_grid->offsets[i].vertical   = y;
+            tile_grid->offsets[cur_tile].idx        = grid->tile_idx_list[cur_tile];
+            tile_grid->offsets[cur_tile].horizontal = x;
+            tile_grid->offsets[cur_tile].vertical   = y;
 
-            x += grid->tile_item_list[i++]->width;
+            x += grid->tile_item_list[cur_tile++]->width;
         }
 
         if (x > tile_grid->coded_width) {
@@ -10310,7 +10310,7 @@ static int read_image_grid(AVFormatContext *s, const HEIFGrid *grid,
         y += grid->tile_item_list[left_col]->height;
     }
 
-    if (y > tile_grid->coded_height || i != tile_grid->nb_tiles) {
+    if (y > tile_grid->coded_height || cur_tile != tile_grid->nb_tiles) {
         av_log(c->fc, AV_LOG_ERROR, "Non uniform HEIF tiles\n");
         return AVERROR_INVALIDDATA;
     }
@@ -11253,7 +11253,6 @@ static int mov_read_packet(AVFormatContext *s, AVPacket *pkt)
     FFStream *avsti = NULL;
     int64_t current_index;
     int ret;
-    int i;
     mov->fc = s;
  retry:
     if (s->pb->pos == 0) {
@@ -11270,7 +11269,7 @@ static int mov_read_packet(AVFormatContext *s, AVPacket *pkt)
             mov->frag_index.complete = 0;
         }
 
-        for (i = 0; i < s->nb_streams; i++) {
+        for (unsigned i = 0; i < s->nb_streams; i++) {
             AVStream *avst = s->streams[i];
             MOVStreamContext *msc = avst->priv_data;
 
@@ -11585,23 +11584,21 @@ static int mov_read_seek(AVFormatContext *s, int stream_index, int64_t sample_ti
         sti->skip_samples = mov_get_skip_samples(st, sample);
 
         for (i = 0; i < s->nb_streams; i++) {
-            AVStream *const st  = s->streams[i];
-            FFStream *const sti = ffstream(st);
+            AVStream *const st2  = s->streams[i];
+            FFStream *const sti2 = ffstream(st2);
             int64_t timestamp;
 
             if (stream_index == i)
                 continue;
 
-            timestamp = av_rescale_q(seek_timestamp, s->streams[stream_index]->time_base, st->time_base);
-            sample = mov_seek_stream(s, st, timestamp, flags);
+            timestamp = av_rescale_q(seek_timestamp, s->streams[stream_index]->time_base, st2->time_base);
+            sample = mov_seek_stream(s, st2, timestamp, flags);
             if (sample >= 0)
-                sti->skip_samples = mov_get_skip_samples(st, sample);
+                sti2->skip_samples = mov_get_skip_samples(st2, sample);
         }
     } else {
         for (i = 0; i < s->nb_streams; i++) {
-            MOVStreamContext *sc;
-            st = s->streams[i];
-            sc = st->priv_data;
+            MOVStreamContext *sc = s->streams[i]->priv_data;
             mov_current_sample_set(sc, 0);
         }
         while (1) {

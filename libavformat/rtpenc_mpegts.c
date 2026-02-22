@@ -61,7 +61,7 @@ static int rtp_mpegts_write_header(AVFormatContext *s)
     const AVOutputFormat *mpegts_format = av_guess_format("mpegts", NULL, NULL);
     const AVOutputFormat *rtp_format    = av_guess_format("rtp", NULL, NULL);
     int i, ret = AVERROR(ENOMEM);
-    AVStream *st;
+    AVStream *new_st;
     AVDictionary *mpegts_muxer_options = NULL;
     AVDictionary *rtp_muxer_options = NULL;
 
@@ -107,14 +107,14 @@ static int rtp_mpegts_write_header(AVFormatContext *s)
         goto fail;
     }
     rtp_ctx->oformat = rtp_format;
-    st = avformat_new_stream(rtp_ctx, NULL);
-    if (!st) {
+    new_st = avformat_new_stream(rtp_ctx, NULL);
+    if (!new_st) {
         ret = AVERROR(ENOMEM);
         goto fail;
     }
-    st->time_base.num   = 1;
-    st->time_base.den   = 90000;
-    st->codecpar->codec_id = AV_CODEC_ID_MPEG2TS;
+    new_st->time_base.num   = 1;
+    new_st->time_base.den   = 90000;
+    new_st->codecpar->codec_id = AV_CODEC_ID_MPEG2TS;
     rtp_ctx->pb = s->pb;
     av_dict_copy(&rtp_muxer_options, chain->rtp_muxer_options, 0);
     ret = avformat_write_header(rtp_ctx, &rtp_muxer_options);

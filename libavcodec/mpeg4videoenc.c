@@ -459,7 +459,7 @@ static void mpeg4_encode_mb(MPVEncContext *const s, int16_t block[][64],
     const int interleaved_stats = (s->c.avctx->flags & AV_CODEC_FLAG_PASS1) && !s->data_partitioning;
 
     if (!s->c.mb_intra) {
-        int i, cbp;
+        int cbp;
 
         if (s->c.pict_type == AV_PICTURE_TYPE_B) {
             /* convert from mv_dir to type */
@@ -467,7 +467,7 @@ static void mpeg4_encode_mb(MPVEncContext *const s, int16_t block[][64],
             int mb_type = mb_type_table[s->c.mv_dir];
 
             if (s->c.mb_x == 0) {
-                for (i = 0; i < 2; i++)
+                for (int i = 0; i < 2; ++i)
                     s->c.last_mv[i][0][0] =
                     s->c.last_mv[i][0][1] =
                     s->c.last_mv[i][1][0] =
@@ -566,7 +566,7 @@ static void mpeg4_encode_mb(MPVEncContext *const s, int16_t block[][64],
                         put_bits(&s->pb, 1, s->c.field_select[1][1]);
                     }
                     if (s->c.mv_dir & MV_DIR_FORWARD) {
-                        for (i = 0; i < 2; i++) {
+                        for (int i = 0; i < 2; ++i) {
                             ff_h263_encode_motion_vector(s,
                                                          s->c.mv[0][i][0] - s->c.last_mv[0][i][0],
                                                          s->c.mv[0][i][1] - s->c.last_mv[0][i][1] / 2,
@@ -576,7 +576,7 @@ static void mpeg4_encode_mb(MPVEncContext *const s, int16_t block[][64],
                         }
                     }
                     if (s->c.mv_dir & MV_DIR_BACKWARD) {
-                        for (i = 0; i < 2; i++) {
+                        for (int i = 0; i < 2; ++i) {
                             ff_h263_encode_motion_vector(s,
                                                          s->c.mv[1][i][0] - s->c.last_mv[1][i][0],
                                                          s->c.mv[1][i][1] - s->c.last_mv[1][i][1] / 2,
@@ -740,7 +740,7 @@ static void mpeg4_encode_mb(MPVEncContext *const s, int16_t block[][64],
                 if (interleaved_stats)
                     s->misc_bits += get_bits_diff(s);
 
-                for (i = 0; i < 4; i++) {
+                for (int i = 0; i < 4; ++i) {
                     /* motion vectors: 8x8 mode*/
                     ff_h263_pred_motion(&s->c, i, 0, &pred_x, &pred_y);
 
@@ -765,7 +765,6 @@ static void mpeg4_encode_mb(MPVEncContext *const s, int16_t block[][64],
         int dir[6];      // prediction direction
         int zigzag_last_index[6];
         const uint8_t *scan_table[6];
-        int i;
 
         for (int i = 0; i < 6; i++) {
             int pred  = mpeg4_pred_dc(&s->c, i, &dir[i]);
@@ -779,13 +778,13 @@ static void mpeg4_encode_mb(MPVEncContext *const s, int16_t block[][64],
         if (s->c.avctx->flags & AV_CODEC_FLAG_AC_PRED) {
             s->c.ac_pred = decide_ac_pred(s, block, dir, scan_table, zigzag_last_index);
         } else {
-            for (i = 0; i < 6; i++)
+            for (int i = 0; i < 6; ++i)
                 scan_table[i] = s->c.intra_scantable.permutated;
         }
 
         /* compute cbp */
         cbp = 0;
-        for (i = 0; i < 6; i++)
+        for (int i = 0; i < 6; ++i)
             if (s->c.block_last_index[i] >= 1)
                 cbp |= 1 << (5 - i);
 

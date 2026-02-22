@@ -166,7 +166,6 @@ static const uint8_t huff_bits[] = {
 static av_cold void qdmc_init_static_data(void)
 {
     const uint8_t (*hufftab)[2] = qdmc_hufftab;
-    int i;
 
     for (unsigned i = 0, offset = 0; i < FF_ARRAY_ELEMS(vtable); i++) {
         static VLCElem vlc_buffer[13698];
@@ -179,7 +178,7 @@ static av_cold void qdmc_init_static_data(void)
         offset  += vtable[i].table_size;
     }
 
-    for (i = 0; i < 512; i++)
+    for (int i = 0; i < 512; ++i)
         sin_table[i] = sin(2.0f * i * M_PI * 0.001953125f);
 }
 

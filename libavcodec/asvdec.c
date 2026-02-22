@@ -156,23 +156,21 @@ static inline int asv1_decode_block(ASVDecContext *a, int16_t block[64])
 
 static inline int asv2_decode_block(ASVDecContext *a, int16_t block[64])
 {
-    int i, count, ccp;
-
-    count = get_bits_le(&a->gb, 4);
+    int count = get_bits_le(&a->gb, 4);
 
     block[0] = 8 * get_bits_le(&a->gb, 8);
 
-    ccp = asv2_get_vlc2(&a->gb, dc_ccp_vlc, DC_CCP_VLC_BITS);
-    if (ccp) {
-        if (ccp & 4)
+    int dc_ccp = asv2_get_vlc2(&a->gb, dc_ccp_vlc, DC_CCP_VLC_BITS);
+    if (dc_ccp) {
+        if (dc_ccp & 4)
             block[a->permutated_scantable[1]] = (asv2_get_level(&a->gb) * a->intra_matrix[1]) >> 4;
-        if (ccp & 2)
+        if (dc_ccp & 2)
             block[a->permutated_scantable[2]] = (asv2_get_level(&a->gb) * a->intra_matrix[2]) >> 4;
-        if (ccp & 1)
+        if (dc_ccp & 1)
             block[a->permutated_scantable[3]] = (asv2_get_level(&a->gb) * a->intra_matrix[3]) >> 4;
     }
 
-    for (i = 1; i < count + 1; i++) {
+    for (int i = 1; i < count + 1; ++i) {
         const int ccp = asv2_get_vlc2(&a->gb, ac_ccp_vlc, AC_CCP_VLC_BITS);
 
         if (ccp) {

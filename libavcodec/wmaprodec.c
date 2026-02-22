@@ -804,7 +804,6 @@ static void decode_decorrelation_matrix(WMAProDecodeCtx *s,
  */
 static int decode_channel_transform(WMAProDecodeCtx* s)
 {
-    int i;
     /* should never consume more than 1921 bits for the 8 channel case
      * 1 + MAX_CHANNELS * (MAX_CHANNELS + 2 + 3 * MAX_CHANNELS * MAX_CHANNELS
      * + MAX_CHANNELS + MAX_BANDS + 1)
@@ -830,7 +829,7 @@ static int decode_channel_transform(WMAProDecodeCtx* s)
 
             /** decode channel mask */
             if (remaining_channels > 2) {
-                for (i = 0; i < s->channels_for_cur_subframe; i++) {
+                for (int i = 0; i < s->channels_for_cur_subframe; ++i) {
                     int channel_idx = s->channel_indexes_for_cur_subframe[i];
                     if (!s->channel[channel_idx].grouped
                         && get_bits1(&s->gb)) {
@@ -841,7 +840,7 @@ static int decode_channel_transform(WMAProDecodeCtx* s)
                 }
             } else {
                 chgroup->num_channels = remaining_channels;
-                for (i = 0; i < s->channels_for_cur_subframe; i++) {
+                for (int i = 0; i < s->channels_for_cur_subframe; ++i) {
                     int channel_idx = s->channel_indexes_for_cur_subframe[i];
                     if (!s->channel[channel_idx].grouped)
                         *channel_data++ = s->channel[channel_idx].coeffs;
@@ -1062,9 +1061,8 @@ static int decode_scale_factors(WMAProDecodeCtx* s)
                     *sf = val;
                 }
             } else {
-                int i;
                 /** run level decode differences to the resampled factors */
-                for (i = 0; i < s->num_bands; i++) {
+                for (int j = 0; j < s->num_bands; ++j) {
                     int idx;
                     int skip;
                     int val;
@@ -1085,13 +1083,13 @@ static int decode_scale_factors(WMAProDecodeCtx* s)
                         sign = get_bits1(&s->gb)-1;
                     }
 
-                    i += skip;
-                    if (i >= s->num_bands) {
+                    j += skip;
+                    if (j >= s->num_bands) {
                         av_log(s->avctx, AV_LOG_ERROR,
                                "invalid scale factor coding\n");
                         return AVERROR_INVALIDDATA;
                     }
-                    s->channel[c].scale_factors[i] += (val ^ sign) - sign;
+                    s->channel[c].scale_factors[j] += (val ^ sign) - sign;
                 }
             }
             /** swap buffers */
@@ -1953,7 +1951,7 @@ static int xma_decode_packet(AVCodecContext *avctx, AVFrame *frame,
 static av_cold int xma_decode_init(AVCodecContext *avctx)
 {
     XMADecodeCtx *s = avctx->priv_data;
-    int i, ret, start_channels = 0;
+    int ret, start_channels = 0;
 
     avctx->block_align = 2048;
 
@@ -1998,7 +1996,7 @@ static av_cold int xma_decode_init(AVCodecContext *avctx)
     }
 
     /* init all streams (several streams of 1/2ch make Nch files) */
-    for (i = 0; i < s->num_streams; i++) {
+    for (int i = 0; i < s->num_streams; ++i) {
         ret = decode_init(&s->xma[i], avctx, i);
         if (ret < 0)
             return ret;

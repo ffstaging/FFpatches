@@ -154,10 +154,10 @@ static av_cold void dv_init_static(void)
     VLC dv_vlc = { .table = vlc_buf, .table_allocated = FF_ARRAY_ELEMS(vlc_buf) };
     const unsigned offset = FF_ARRAY_ELEMS(dv_rl_vlc) - (2 * NB_DV_VLC - NB_DV_ZERO_LEVEL_ENTRIES);
     RL_VLC_ELEM *tmp = dv_rl_vlc + offset;
-    int i, j;
+    int j = 0;
 
     /* it's faster to include sign bit in a generic VLC parsing scheme */
-    for (i = 0, j = 0; i < NB_DV_VLC; i++, j++) {
+    for (int i = 0; i < NB_DV_VLC; ++i, ++j) {
         tmp[j].len8  = ff_dv_vlc_len[i];
         tmp[j].run   = ff_dv_vlc_run[i];
         tmp[j].level = ff_dv_vlc_level[i];

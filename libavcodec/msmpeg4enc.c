@@ -379,7 +379,7 @@ static void msmpeg4_encode_mb(MPVEncContext *const s,
                               int motion_x, int motion_y)
 {
     MSMPEG4EncContext *const ms = mpv_to_msmpeg4(s);
-    int cbp, coded_cbp, i;
+    int cbp, coded_cbp;
     int pred_x, pred_y;
 
     ff_msmpeg4_handle_slices(s);
@@ -387,7 +387,7 @@ static void msmpeg4_encode_mb(MPVEncContext *const s,
     if (!s->c.mb_intra) {
         /* compute cbp */
         cbp = 0;
-        for (i = 0; i < 6; i++) {
+        for (int i = 0; i < 6; ++i) {
             if (s->c.block_last_index[i] >= 0)
                 cbp |= 1 << (5 - i);
         }
@@ -433,9 +433,8 @@ static void msmpeg4_encode_mb(MPVEncContext *const s,
 
         s->mv_bits += get_bits_diff(s);
 
-        for (i = 0; i < 6; i++) {
+        for (int i = 0; i < 6; ++i)
             ff_msmpeg4_encode_block(s, block[i], i);
-        }
         s->p_tex_bits += get_bits_diff(s);
     } else {
         /* compute cbp */
@@ -491,9 +490,8 @@ static void msmpeg4_encode_mb(MPVEncContext *const s,
         }
         s->misc_bits += get_bits_diff(s);
 
-        for (i = 0; i < 6; i++) {
+        for (int i = 0; i < 6; ++i)
             ff_msmpeg4_encode_block(s, block[i], i);
-        }
         s->i_tex_bits += get_bits_diff(s);
         s->i_count++;
     }

@@ -952,7 +952,7 @@ static int lpc_encode_choose_datapath(FlacEncodeContext *s, int32_t bps,
 
 static int encode_residual_ch(FlacEncodeContext *s, int ch)
 {
-    int i, n;
+    int n;
     int min_order, max_order, opt_order, omethod;
     FlacFrame *frame;
     FlacSubframe *sub;
@@ -970,6 +970,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
 
     /* CONSTANT */
     if (sub->obits > 32) {
+        int i;
         for (i = 1; i < n; i++)
             if(smp_33bps[i] != smp_33bps[0])
                 break;
@@ -978,6 +979,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
             return subframe_count_exact(s, sub, 0);
         }
     } else {
+        int i;
         for (i = 1; i < n; i++)
             if(smp[i] != smp[0])
                 break;
@@ -1006,7 +1008,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
             max_order = MAX_FIXED_ORDER;
         opt_order = 0;
         bits[0]   = UINT32_MAX;
-        for (i = min_order; i <= max_order; i++) {
+        for (int i = min_order; i <= max_order; ++i) {
             if (sub->obits == 33) {
                 if (encode_residual_fixed_with_residual_limit_33bps(res, smp_33bps, n, i))
                     continue;
@@ -1029,7 +1031,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
         if (sub->order != max_order) {
             if (sub->obits == 33)
                 encode_residual_fixed_with_residual_limit_33bps(res, smp_33bps, n, sub->order);
-            else if (sub->obits + i >= 32)
+            else if (sub->obits + max_order >= 32)
                 encode_residual_fixed_with_residual_limit(res, smp, n, sub->order);
             else
                 encode_residual_fixed(res, smp, n, sub->order);
@@ -1045,7 +1047,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
          * probably isn't predictable anyway, throw away LSB for analysis
          * so it fits 32 bit int and existing function can be used
          * unmodified */
-        for (i = 0; i < n; i++)
+        for (int i = 0; i < n; ++i)
             smp[i] = smp_33bps[i] >> 1;
 
     opt_order = ff_lpc_calc_coefs(&s->lpc_ctx, smp, n, min_order, max_order,
@@ -1062,7 +1064,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
         int opt_index   = levels-1;
         opt_order       = max_order-1;
         bits[opt_index] = UINT32_MAX;
-        for (i = levels-1; i >= 0; i--) {
+        for (int i = levels-1; i >= 0; --i) {
             int last_order = order;
             order = min_order + (((max_order-min_order+1) * (i+1)) / levels)-1;
             order = av_clip(order, min_order - 1, max_order - 1);
@@ -1082,7 +1084,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
         uint64_t bits[MAX_LPC_ORDER];
         opt_order = 0;
         bits[0]   = UINT32_MAX;
-        for (i = min_order-1; i < max_order; i++) {
+        for (int i = min_order - 1; i < max_order; ++i) {
             if(lpc_encode_choose_datapath(s, sub->obits, res, smp, smp_33bps, n, i+1, coefs[i], shift[i]))
                 continue;
             bits[i] = find_subframe_rice_params(s, sub, i+1);
@@ -1099,7 +1101,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
 
         for (step = 16; step; step >>= 1) {
             int last = opt_order;
-            for (i = last-step; i <= last+step; i += step) {
+            for (int i = last - step; i <= last + step; i += step) {
                 if (i < min_order-1 || i >= max_order || bits[i] < UINT32_MAX)
                     continue;
                 if(lpc_encode_choose_datapath(s, sub->obits, res, smp, smp_33bps, n, i+1, coefs[i], shift[i]))
@@ -1155,7 +1157,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
     sub->order     = opt_order;
     sub->type_code = sub->type | (sub->order-1);
     sub->shift     = shift[sub->order-1];
-    for (i = 0; i < sub->order; i++)
+    for (int i = 0; i < sub->order; ++i)
         sub->coefs[i] = coefs[sub->order-1][i];
 
     if(lpc_encode_choose_datapath(s, sub->obits, res, smp, smp_33bps, n, sub->order, sub->coefs, sub->shift)) {

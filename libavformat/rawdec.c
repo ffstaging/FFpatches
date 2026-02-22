@@ -161,12 +161,11 @@ const FFInputFormat ff_data_demuxer = {
 #if CONFIG_MJPEG_DEMUXER
 static int mjpeg_probe(const AVProbeData *p)
 {
-    int i;
     int state = -1;
     int nb_invalid = 0;
     int nb_frames = 0;
 
-    for (i = 0; i < p->buf_size - 1; i++) {
+    for (int i = 0; i < p->buf_size - 1; ++i) {
         int c;
         if (p->buf[i] != 0xFF)
             continue;
@@ -211,9 +210,8 @@ static int mjpeg_probe(const AVProbeData *p)
 
     if (nb_invalid*4 + 1 < nb_frames) {
         static const char ct_jpeg[] = "\r\nContent-Type: image/jpeg\r\n";
-        int i;
 
-        for (i=0; i<FFMIN(p->buf_size - (int)sizeof(ct_jpeg), 100); i++)
+        for (int i = 0; i < FFMIN(p->buf_size - (int)sizeof(ct_jpeg), 100); ++i)
             if (!memcmp(p->buf + i, ct_jpeg, sizeof(ct_jpeg) - 1))
                 return AVPROBE_SCORE_EXTENSION;
 

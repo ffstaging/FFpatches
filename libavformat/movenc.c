@@ -6612,7 +6612,7 @@ static int mov_flush_fragment(AVFormatContext *s, int force)
     if (mov->frag_interleave) {
         for (i = 0; i < mov->nb_tracks; i++) {
             MOVTrack *track = &mov->tracks[i];
-            int ret;
+
             if ((ret = mov_flush_fragment_interleaving(s, track)) < 0)
                 return ret;
         }
@@ -6779,7 +6779,6 @@ int ff_mov_write_packet(AVFormatContext *s, AVPacket *pkt)
     }
 
     if (mov->flags & FF_MOV_FLAG_FRAGMENT || mov->mode == MODE_AVIF) {
-        int ret;
         if (mov->moov_written || mov->flags & FF_MOV_FLAG_EMPTY_MOOV) {
             if (mov->frag_interleave && mov->fragments > 0) {
                 if (trk->entry - trk->entries_flushed >= mov->frag_interleave) {
@@ -7428,15 +7427,15 @@ static int mov_write_packet(AVFormatContext *s, AVPacket *pkt)
          * handled.
          */
         for (i = 0; i < mov->nb_tracks; i++) {
-            MOVTrack *trk = &mov->tracks[i];
+            MOVTrack *trk2 = &mov->tracks[i];
             int ret;
 
-            if (trk->par->codec_id == AV_CODEC_ID_MOV_TEXT &&
-                trk->track_duration < pkt->dts &&
-                (trk->entry == 0 || !trk->last_sample_is_subtitle_end)) {
-                ret = mov_write_subtitle_end_packet(s, i, trk->track_duration);
+            if (trk2->par->codec_id == AV_CODEC_ID_MOV_TEXT &&
+                trk2->track_duration < pkt->dts &&
+                (trk2->entry == 0 || !trk2->last_sample_is_subtitle_end)) {
+                ret = mov_write_subtitle_end_packet(s, i, trk2->track_duration);
                 if (ret < 0) return ret;
-                trk->last_sample_is_subtitle_end = 1;
+                trk2->last_sample_is_subtitle_end = 1;
             }
         }
 
@@ -7776,7 +7775,7 @@ static uint32_t rgb_to_yuv(uint32_t rgb)
 static int mov_create_dvd_sub_decoder_specific_info(MOVTrack *track,
                                                     AVStream *st)
 {
-    int i, width = 720, height = 480;
+    int width = 720, height = 480;
     int have_palette = 0, have_size = 0;
     uint32_t palette[16];
     char *cur = track->extradata[track->last_stsd_index];
@@ -7811,7 +7810,7 @@ static int mov_create_dvd_sub_decoder_specific_info(MOVTrack *track,
         track->extradata[track->last_stsd_index] = av_malloc(16*4 + AV_INPUT_BUFFER_PADDING_SIZE);
         if (!track->extradata[track->last_stsd_index])
             return AVERROR(ENOMEM);
-        for (i = 0; i < 16; i++) {
+        for (int i = 0; i < 16; ++i) {
             AV_WB32(track->extradata[track->last_stsd_index] + i * 4, palette[i]);
         }
         memset(track->extradata[track->last_stsd_index] + 16*4, 0, AV_INPUT_BUFFER_PADDING_SIZE);
@@ -7906,7 +7905,7 @@ static int mov_init(AVFormatContext *s)
 {
     MOVMuxContext *mov = s->priv_data;
     int has_iamf = 0;
-    int i, ret;
+    int  ret;
 
     mov->fc = s;
     mov->pkt = ffformatcontext(s)->pkt;
@@ -8042,13 +8041,13 @@ static int mov_init(AVFormatContext *s)
     }
 
 #if CONFIG_IAMFENC
-    for (i = 0; i < s->nb_stream_groups; i++) {
+    for (unsigned i = 0; i < s->nb_stream_groups; ++i) {
         AVStreamGroup *stg = s->stream_groups[i];
 
         if (stg->type != AV_STREAM_GROUP_PARAMS_IAMF_AUDIO_ELEMENT)
             continue;
 
-        for (int j = 0; j < stg->nb_streams; j++) {
+        for (unsigned j = 0; j < stg->nb_streams; ++j) {
             AVStream *st = stg->streams[j];
 
             if (st->priv_data) {
@@ -8065,7 +8064,7 @@ static int mov_init(AVFormatContext *s)
     }
 #endif
 
-    for (i = 0; i < s->nb_streams; i++) {
+    for (unsigned i = 0; i < s->nb_streams; ++i) {
         AVStream *st = s->streams[i];
         if (st->priv_data)
             continue;
@@ -8085,7 +8084,7 @@ static int mov_init(AVFormatContext *s)
         mov->chapter_track = mov->nb_tracks++;
 
     if (mov->flags & FF_MOV_FLAG_RTP_HINT) {
-        for (i = 0; i < s->nb_streams; i++)
+        for (unsigned i = 0; i < s->nb_streams; ++i)
             if (rtp_hinting_needed(s->streams[i]))
                 mov->nb_tracks++;
     }
@@ -8100,7 +8099,7 @@ static int mov_init(AVFormatContext *s)
                                                     NULL, 0);
 
         /* +1 tmcd track for each video stream with a timecode */
-        for (i = 0; i < s->nb_streams; i++) {
+        for (unsigned i = 0; i < s->nb_streams; ++i) {
             AVStream *st = s->streams[i];
             AVDictionaryEntry *t = global_tcr;
             if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
@@ -8114,7 +8113,7 @@ static int mov_init(AVFormatContext *s)
 
         /* check if there is already a tmcd track to remux */
         if (mov->nb_meta_tmcd) {
-            for (i = 0; i < s->nb_streams; i++) {
+            for (unsigned i = 0; i < s->nb_streams; ++i) {
                 AVStream *st = s->streams[i];
                 if (st->codecpar->codec_tag == MKTAG('t','m','c','d')) {
                     av_log(s, AV_LOG_WARNING, "You requested a copy of the original timecode track "
@@ -8133,7 +8132,7 @@ static int mov_init(AVFormatContext *s)
     if (!mov->tracks)
         return AVERROR(ENOMEM);
 
-    for (i = 0; i < mov->nb_tracks; i++) {
+    for (int i = 0; i < mov->nb_tracks; ++i) {
         MOVTrack *track = &mov->tracks[i];
 
         track->stsd_count     = 1;
@@ -8182,7 +8181,7 @@ static int mov_init(AVFormatContext *s)
         st->priv_data = &mov->tracks[i++];
     }
 
-    for (i = 0; i < s->nb_streams; i++) {
+    for (unsigned i = 0; i < s->nb_streams; i++) {
         AVStream *st= s->streams[i];
         MOVTrack *track = st->priv_data;
         AVDictionaryEntry *lang = av_dict_get(st->metadata, "language", NULL,0);
@@ -8280,7 +8279,7 @@ static int mov_init(AVFormatContext *s)
         } else if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
             track->timescale = st->codecpar->sample_rate;
             if (!st->codecpar->frame_size && !av_get_bits_per_sample(st->codecpar->codec_id)) {
-                av_log(s, AV_LOG_WARNING, "track %d: codec frame size is not set\n", i);
+                av_log(s, AV_LOG_WARNING, "track %u: codec frame size is not set\n", i);
                 track->audio_vbr = 1;
             }else if (st->codecpar->codec_id == AV_CODEC_ID_ADPCM_MS ||
                      st->codecpar->codec_id == AV_CODEC_ID_ADPCM_IMA_WAV ||
@@ -8303,11 +8302,11 @@ static int mov_init(AVFormatContext *s)
             if (track->mode != MODE_MOV &&
                 track->par->codec_id == AV_CODEC_ID_MP3 && track->timescale < 16000) {
                 if (s->strict_std_compliance >= FF_COMPLIANCE_NORMAL) {
-                    av_log(s, AV_LOG_ERROR, "track %d: muxing mp3 at %dhz is not standard, to mux anyway set strict to -1\n",
+                    av_log(s, AV_LOG_ERROR, "track %u: muxing mp3 at %dhz is not standard, to mux anyway set strict to -1\n",
                         i, track->par->sample_rate);
                     return AVERROR(EINVAL);
                 } else {
-                    av_log(s, AV_LOG_WARNING, "track %d: muxing mp3 at %dhz is not standard in MP4\n",
+                    av_log(s, AV_LOG_WARNING, "track %u: muxing mp3 at %dhz is not standard in MP4\n",
                            i, track->par->sample_rate);
                 }
             }

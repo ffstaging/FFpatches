@@ -244,7 +244,6 @@ static int store_huffman_tables(HYuvEncContext *s, uint8_t *buf)
 static av_cold int encode_init(AVCodecContext *avctx)
 {
     HYuvEncContext *s = avctx->priv_data;
-    int i, j;
     int ret;
     const AVPixFmtDescriptor *desc;
 
@@ -388,15 +387,15 @@ static av_cold int encode_init(AVCodecContext *avctx)
     if (avctx->stats_in) {
         char *p = avctx->stats_in;
 
-        for (i = 0; i < 4; i++)
-            for (j = 0; j < s->vlc_n; j++)
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < s->vlc_n; ++j)
                 s->stats[i][j] = 1;
 
         for (;;) {
-            for (i = 0; i < 4; i++) {
+            for (int i = 0; i < 4; ++i) {
                 char *next;
 
-                for (j = 0; j < s->vlc_n; j++) {
+                for (int j = 0; j < s->vlc_n; ++j) {
                     s->stats[i][j] += strtol(p, &next, 0);
                     if (next == p) return -1;
                     p = next;
@@ -405,8 +404,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
             if (p[0] == 0 || p[1] == 0 || p[2] == 0) break;
         }
     } else {
-        for (i = 0; i < 4; i++)
-            for (j = 0; j < s->vlc_n; j++) {
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < s->vlc_n; ++j) {
                 int d = FFMIN(j, s->vlc_n - j);
 
                 s->stats[i][j] = 100000000 / (d*d + 1);
@@ -419,16 +418,16 @@ static av_cold int encode_init(AVCodecContext *avctx)
     avctx->extradata_size += ret;
 
     if (s->context) {
-        for (i = 0; i < 4; i++) {
+        for (int i = 0; i < 4; ++i) {
             int pels = avctx->width * avctx->height / (i ? 40 : 10);
-            for (j = 0; j < s->vlc_n; j++) {
+            for (int j = 0; j < s->vlc_n; ++j) {
                 int d = FFMIN(j, s->vlc_n - j);
                 s->stats[i][j] = pels/(d*d + 1);
             }
         }
     } else {
-        for (i = 0; i < 4; i++)
-            for (j = 0; j < s->vlc_n; j++)
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < s->vlc_n; ++j)
                 s->stats[i][j]= 0;
     }
 
@@ -704,7 +703,7 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     const int fake_ystride = (1 + s->interlaced) * p->linesize[0];
     const int fake_ustride = (1 + s->interlaced) * p->linesize[1];
     const int fake_vstride = (1 + s->interlaced) * p->linesize[2];
-    int i, j, size = 0, ret;
+    int size = 0, ret;
 
     if ((ret = ff_alloc_packet(avctx, pkt, width * height * 3 * 4 + FF_INPUT_BUFFER_MIN_SIZE)) < 0)
         return ret;
@@ -714,8 +713,8 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
         if (size < 0)
             return size;
 
-        for (i = 0; i < 4; i++)
-            for (j = 0; j < s->vlc_n; j++)
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < s->vlc_n; ++j)
                 s->stats[i][j] >>= 1;
     }
 
@@ -945,18 +944,17 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     size /= 4;
 
     if ((s->flags & AV_CODEC_FLAG_PASS1) && (s->picture_number & 31) == 0) {
-        int j;
-        char *p = avctx->stats_out;
-        char *end = p + STATS_OUT_SIZE;
-        for (i = 0; i < 4; i++) {
-            for (j = 0; j < s->vlc_n; j++) {
-                snprintf(p, end-p, "%"PRIu64" ", s->stats[i][j]);
-                p += strlen(p);
+        char *d = avctx->stats_out;
+        char *end = d + STATS_OUT_SIZE;
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < s->vlc_n; ++j) {
+                snprintf(d, end-d, "%"PRIu64" ", s->stats[i][j]);
+                d += strlen(d);
                 s->stats[i][j]= 0;
             }
-            snprintf(p, end-p, "\n");
-            p++;
-            if (end <= p)
+            snprintf(d, end-d, "\n");
+            d++;
+            if (end <= d)
                 return AVERROR(ENOMEM);
         }
     } else if (avctx->stats_out)

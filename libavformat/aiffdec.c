@@ -366,12 +366,12 @@ static int aiff_read_header(AVFormatContext *s)
 
                     size--;
                     if (len == 11 && size > 11) {
-                        uint8_t chunk[11];
+                        uint8_t buf[11];
 
-                        ret = avio_read(pb, chunk, 11);
+                        ret = avio_read(pb, buf, 11);
                         if (ret > 0)
                             size -= ret;
-                        if (!memcmp(chunk, "VADPCMCODES", sizeof(chunk))) {
+                        if (!memcmp(buf, "VADPCMCODES", sizeof(buf))) {
                             if ((ret = ff_get_extradata(s, st->codecpar, pb, size)) < 0)
                                 return ret;
                             size -= ret;

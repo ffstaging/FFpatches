@@ -307,8 +307,8 @@ static int write_adaptation_set(AVFormatContext *s, int as_index)
 {
     WebMDashMuxContext *w = s->priv_data;
     AdaptationSet *as = &w->as[as_index];
-    const AVStream *st = s->streams[as->streams[0]];
-    AVCodecParameters *par = st->codecpar;
+    const AVStream *st0 = s->streams[as->streams[0]];
+    AVCodecParameters *par = st0->codecpar;
     AVDictionaryEntry *lang;
     AVIOContext *pb = s->pb;
     int i;
@@ -332,7 +332,7 @@ static int write_adaptation_set(AVFormatContext *s, int as_index)
                 par->codec_type == AVMEDIA_TYPE_VIDEO ? "video" : "audio");
     avio_printf(pb, " codecs=\"%s\"", get_codec_name(par->codec_id));
 
-    lang = av_dict_get(st->metadata, "language", NULL, 0);
+    lang = av_dict_get(st0->metadata, "language", NULL, 0);
     if (lang)
         avio_printf(pb, " lang=\"%s\"", lang->value);
 
@@ -358,7 +358,7 @@ static int write_adaptation_set(AVFormatContext *s, int as_index)
 
     if (w->is_live) {
         AVDictionaryEntry *filename =
-            av_dict_get(st->metadata, FILENAME, NULL, 0);
+            av_dict_get(st0->metadata, FILENAME, NULL, 0);
         char *underscore_pos, *period_pos;
         int ret;
         if (!filename)
@@ -477,7 +477,6 @@ static int parse_adaptation_sets(AVFormatContext *s)
 
 static int webm_dash_manifest_write_header(AVFormatContext *s)
 {
-    int i;
     double start = 0.0;
     int ret;
     WebMDashMuxContext *w = s->priv_data;
@@ -505,7 +504,7 @@ static int webm_dash_manifest_write_header(AVFormatContext *s)
     }
     avio_printf(s->pb, " >\n");
 
-    for (i = 0; i < w->nb_as; i++) {
+    for (int i = 0; i < w->nb_as; ++i) {
         ret = write_adaptation_set(s, i);
         if (ret < 0) {
             goto fail;

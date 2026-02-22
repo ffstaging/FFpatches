@@ -649,7 +649,6 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
     ALSSpecificConfig *sconf = &ctx->sconf;
     AVCodecContext *avctx    = ctx->avctx;
     GetBitContext *gb        = &ctx->gb;
-    unsigned int k;
     unsigned int s[8];
     unsigned int sx[8];
     unsigned int sub_blocks, log2_sub_blocks, sb_length;
@@ -692,19 +691,19 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 
     if (sconf->bgmc) {
         s[0] = get_bits(gb, 8 + (sconf->resolution > 1));
-        for (k = 1; k < sub_blocks; k++)
+        for (unsigned k = 1; k < sub_blocks; k++)
             s[k] = s[k - 1] + decode_rice(gb, 2);
 
-        for (k = 0; k < sub_blocks; k++) {
+        for (unsigned k = 0; k < sub_blocks; k++) {
             sx[k]   = s[k] & 0x0F;
             s [k] >>= 4;
         }
     } else {
         s[0] = get_bits(gb, 4 + (sconf->resolution > 1));
-        for (k = 1; k < sub_blocks; k++)
+        for (unsigned k = 1; k < sub_blocks; k++)
             s[k] = s[k - 1] + decode_rice(gb, 0);
     }
-    for (k = 1; k < sub_blocks; k++)
+    for (unsigned k = 1; k < sub_blocks; k++)
         if (s[k] > 32) {
             av_log(avctx, AV_LOG_ERROR, "k invalid for rice code.\n");
             return AVERROR_INVALIDDATA;
@@ -745,14 +744,13 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
                     quant_cof[1] = -32 * parcor_scaled_values[get_bits(gb, 7)];
 
                 // read coefficients 2 to opt_order
-                for (k = 2; k < opt_order; k++)
+                for (unsigned k = 2; k < opt_order; ++k)
                     quant_cof[k] = get_bits(gb, 7);
             } else {
-                int k_max;
                 add_base = 1;
 
                 // read coefficient 0 to 19
-                k_max = FFMIN(opt_order, 20);
+                unsigned k, k_max = FFMIN(opt_order, 20);
                 for (k = 0; k < k_max; k++) {
                     int rice_param = parcor_rice_table[sconf->coef_table][k][1];
                     int offset     = parcor_rice_table[sconf->coef_table][k][0];
@@ -780,7 +778,7 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
                     quant_cof[1] = -32 * parcor_scaled_values[quant_cof[1] + 64];
             }
 
-            for (k = 2; k < opt_order; k++)
+            for (unsigned k = 2; k < opt_order; ++k)
                 quant_cof[k] = (quant_cof[k] * (1U << 14)) + (add_base << 13);
         }
     }
@@ -1708,7 +1706,6 @@ static int read_frame_data(ALSDecContext *ctx, unsigned int ra_frame)
         }
     } else { // multi-channel coding
         ALSBlockData   bd = { 0 };
-        int            b, ret;
         int            *reverted_channels = ctx->reverted_channels;
         unsigned int   offset             = 0;
 
@@ -1725,7 +1722,7 @@ static int read_frame_data(ALSDecContext *ctx, unsigned int ra_frame)
 
         get_block_sizes(ctx, div_blocks, &bs_info);
 
-        for (b = 0; b < ctx->num_blocks; b++) {
+        for (unsigned b = 0; b < ctx->num_blocks; ++b) {
             bd.block_length = div_blocks[b];
             if (bd.block_length <= 0) {
                 av_log(ctx->avctx, AV_LOG_WARNING,

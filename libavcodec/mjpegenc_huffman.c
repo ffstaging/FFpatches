@@ -83,9 +83,6 @@ static void mjpegenc_huffman_compute_bits(PTable *prob_table,
                                           int size, int max_length)
 {
     PackageMergerList list_a, list_b, *to = &list_a, *from = &list_b, *temp;
-
-    int times, i, j, k;
-
     int nbits[257] = {0};
 
     int min;
@@ -98,12 +95,10 @@ static void mjpegenc_huffman_compute_bits(PTable *prob_table,
     from->item_idx[0] = 0;
     AV_QSORT(prob_table, size, PTable, compare_by_prob);
 
-    for (times = 0; times <= max_length; times++) {
+    for (int i, times = 0; times <= max_length; ++times) {
+        int j = 0;
         to->nitems = 0;
         to->item_idx[0] = 0;
-
-        j = 0;
-        k = 0;
 
         if (times < max_length) {
             i = 0;
@@ -119,7 +114,7 @@ static void mjpegenc_huffman_compute_bits(PTable *prob_table,
                 to->probability[to->nitems - 1] = prob_table[i].prob;
                 i++;
             } else {
-                for (k = from->item_idx[j]; k < from->item_idx[j + 2]; k++) {
+                for (int k = from->item_idx[j]; k < from->item_idx[j + 2]; k++) {
                     to->items[to->item_idx[to->nitems]++] = from->items[k];
                 }
                 to->probability[to->nitems - 1] =
@@ -133,9 +128,8 @@ static void mjpegenc_huffman_compute_bits(PTable *prob_table,
     }
 
     min = (size - 1 < from->nitems) ? size - 1 : from->nitems;
-    for (i = 0; i < from->item_idx[min]; i++) {
+    for (int i = 0; i < from->item_idx[min]; ++i)
         nbits[from->items[i]]++;
-    }
     // we don't want to return the 256 bit count (it was just in here to prevent
     // all 1s encoding)
     memset(counts, 0, sizeof(counts[0]) * (max_length + 1));

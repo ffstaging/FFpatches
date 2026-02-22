@@ -75,7 +75,7 @@ static av_cold void build_canonical_huff(const uint8_t *cb, const uint8_t **xlat
 
 av_cold void ff_atrac3p_init_vlcs(void)
 {
-    int i, tab_offset = 0;
+    int tab_offset = 0;
     const uint8_t *xlats;
 
     xlats = atrac3p_wl_ct_xlats;
@@ -93,7 +93,7 @@ av_cold void ff_atrac3p_init_vlcs(void)
 
     /* build huffman tables for spectrum decoding */
     xlats = atrac3p_spectra_xlats;
-    for (i = 0; i < 112; i++) {
+    for (int i = 0; i < 112; ++i) {
         if (atrac3p_spectra_cbs[i][0] >= 0)
             build_canonical_huff(atrac3p_spectra_cbs[i],
                                  &xlats, &tab_offset, &spec_vlc_tabs[i]);
@@ -103,13 +103,13 @@ av_cold void ff_atrac3p_init_vlcs(void)
 
     /* build huffman tables for gain data decoding */
     xlats = atrac3p_gain_xlats;
-    for (i = 0; i < 11; i++)
+    for (int i = 0; i < 11; ++i)
         build_canonical_huff(atrac3p_gain_cbs[i], &xlats,
                              &tab_offset, &gain_vlc_tabs[i]);
 
     /* build huffman tables for tone decoding */
     xlats = atrac3p_tone_xlats;
-    for (i = 0; i < 7; i++)
+    for (int i = 0; i < 7; ++i)
         build_canonical_huff(atrac3p_tone_cbs[i], &xlats,
                              &tab_offset, &tone_vlc_tabs[i]);
 }

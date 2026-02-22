@@ -410,7 +410,7 @@ static void decorrelation(PSContext *ps, INTFLOAT (*out)[32][2], const INTFLOAT 
     const float a_smooth          = 0.25f; ///< Smoothing coefficient
 #endif /* USE_FIXED */
     const int8_t *const k_to_i = is34 ? ff_k_to_i_34 : ff_k_to_i_20;
-    int i, k, m, n;
+    int k;
     int n0 = 0, nL = 32;
     const INTFLOAT peak_decay_factor = Q31(0.76592833836465f);
 
@@ -431,8 +431,8 @@ static void decorrelation(PSContext *ps, INTFLOAT (*out)[32][2], const INTFLOAT 
 
     //Transient detection
 #if USE_FIXED
-    for (i = 0; i < NR_PAR_BANDS[is34]; i++) {
-        for (n = n0; n < nL; n++) {
+    for (int i = 0; i < NR_PAR_BANDS[is34]; ++i) {
+        for (int n = n0; n < nL; n++) {
             int decayed_peak;
             decayed_peak = (int)(((int64_t)peak_decay_factor * \
                                            peak_decay_nrg[i] + 0x40000000) >> 31);
@@ -448,8 +448,8 @@ static void decorrelation(PSContext *ps, INTFLOAT (*out)[32][2], const INTFLOAT 
         }
     }
 #else
-    for (i = 0; i < NR_PAR_BANDS[is34]; i++) {
-        for (n = n0; n < nL; n++) {
+    for (int i = 0; i < NR_PAR_BANDS[is34]; ++i) {
+        for (int n = n0; n < nL; n++) {
             float decayed_peak = peak_decay_factor * peak_decay_nrg[i];
             float denom;
             peak_decay_nrg[i] = FFMAX(decayed_peak, power[i][n]);
@@ -490,7 +490,7 @@ static void decorrelation(PSContext *ps, INTFLOAT (*out)[32][2], const INTFLOAT 
 #endif /* USE_FIXED */
         memcpy(delay[k], delay[k]+nL, PS_MAX_DELAY*sizeof(delay[k][0]));
         memcpy(delay[k]+PS_MAX_DELAY, s[k], numQMFSlots*sizeof(delay[k][0]));
-        for (m = 0; m < PS_AP_LINKS; m++) {
+        for (int m = 0; m < PS_AP_LINKS; ++m) {
             memcpy(ap_delay[k][m],   ap_delay[k][m]+numQMFSlots,           5*sizeof(ap_delay[k][m][0]));
         }
         ps->dsp.decorrelate(out[k], delay[k] + PS_MAX_DELAY - 2, ap_delay[k],

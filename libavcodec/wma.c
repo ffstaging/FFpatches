@@ -80,7 +80,7 @@ av_cold int ff_wma_init(AVCodecContext *avctx, int flags2)
 {
     WMACodecContext *s = avctx->priv_data;
     int channels = avctx->ch_layout.nb_channels;
-    int i, ret;
+    int ret;
     float bps1, high_freq;
     float bps;
     int sample_rate1;
@@ -283,12 +283,11 @@ av_cold int ff_wma_init(AVCodecContext *avctx, int flags2)
 
 #ifdef TRACE
     {
-        int i, j;
-        for (i = 0; i < s->nb_block_sizes; i++) {
+        for (int i = 0; i < s->nb_block_sizes; ++i) {
             ff_tlog(s->avctx, "%5d: n=%2d:",
                     s->frame_len >> i,
                     s->exponent_sizes[i]);
-            for (j = 0; j < s->exponent_sizes[i]; j++)
+            for (int j = 0; j < s->exponent_sizes[i]; ++j)
                 ff_tlog(s->avctx, " %d", s->exponent_bands[i][j]);
             ff_tlog(s->avctx, "\n");
         }
@@ -296,7 +295,7 @@ av_cold int ff_wma_init(AVCodecContext *avctx, int flags2)
 #endif /* TRACE */
 
     /* init MDCT windows : simple sine window */
-    for (i = 0; i < s->nb_block_sizes; i++) {
+    for (int i = 0; i < s->nb_block_sizes; ++i) {
         ff_init_ff_sine_windows(s->frame_len_bits - i);
         s->windows[i] = ff_sine_windows[s->frame_len_bits - i];
     }
@@ -311,7 +310,7 @@ av_cold int ff_wma_init(AVCodecContext *avctx, int flags2)
             s->noise_mult = 0.04;
 
 #ifdef TRACE
-        for (i = 0; i < NOISE_TAB_SIZE; i++)
+        for (int i = 0; i < NOISE_TAB_SIZE; ++i)
             s->noise_table[i] = 1.0 * s->noise_mult;
 #else
         {
@@ -319,7 +318,7 @@ av_cold int ff_wma_init(AVCodecContext *avctx, int flags2)
             float norm;
             seed = 1;
             norm = (1.0 / (float) (1LL << 31)) * sqrt(3) * s->noise_mult;
-            for (i = 0; i < NOISE_TAB_SIZE; i++) {
+            for (int i = 0; i < NOISE_TAB_SIZE; ++i) {
                 seed              = seed * 314159 + 1;
                 s->noise_table[i] = (float) ((int) seed) * norm;
             }

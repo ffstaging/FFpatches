@@ -39,7 +39,7 @@ static int pnm_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
 {
     PHMEncContext *s = avctx->priv_data;
     uint8_t *bytestream, *bytestream_start, *bytestream_end;
-    int i, h, h1, c, n, linesize, ret;
+    int h, h1, c, n, linesize, ret;
     int size = av_image_get_buffer_size(avctx->pix_fmt,
                                         avctx->width, avctx->height, 1);
 
@@ -198,7 +198,7 @@ static int pnm_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     } else {
         const uint8_t *ptr = p->data[0];
         linesize = p->linesize[0];
-        for (i = 0; i < h; i++) {
+        for (int i = 0; i < h; ++i) {
             memcpy(bytestream, ptr, n);
             bytestream += n;
             ptr        += linesize;
@@ -209,7 +209,7 @@ static int pnm_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
         const uint8_t *ptr1 = p->data[1], *ptr2 = p->data[2];
         h >>= 1;
         n >>= 1;
-        for (i = 0; i < h; i++) {
+        for (int i = 0; i < h; ++i) {
             memcpy(bytestream, ptr1, n);
             bytestream += n;
             memcpy(bytestream, ptr2, n);

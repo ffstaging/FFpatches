@@ -38,10 +38,9 @@ static int bmp_decode_frame(AVCodecContext *avctx, AVFrame *p,
     unsigned int depth;
     BiCompression comp;
     unsigned int ihsize;
-    int i, j, n, linesize, ret;
+    int n, ret;
     uint32_t rgb[3] = {0};
     uint32_t alpha = 0;
-    uint8_t *ptr;
     int dsize;
     const uint8_t *buf0 = buf;
     GetByteContext gb;
@@ -229,14 +228,6 @@ static int bmp_decode_frame(AVCodecContext *avctx, AVFrame *p,
     if (comp == BMP_RLE4 || comp == BMP_RLE8)
         memset(p->data[0], 0, avctx->height * p->linesize[0]);
 
-    if (height > 0) {
-        ptr      = p->data[0] + (avctx->height - 1) * p->linesize[0];
-        linesize = -p->linesize[0];
-    } else {
-        ptr      = p->data[0];
-        linesize = p->linesize[0];
-    }
-
     if (avctx->pix_fmt == AV_PIX_FMT_PAL8) {
         int colors = 1 << depth;
 
@@ -263,10 +254,10 @@ static int bmp_decode_frame(AVCodecContext *avctx, AVFrame *p,
                 av_log(avctx, AV_LOG_ERROR, "palette doesn't fit in packet\n");
                 return AVERROR_INVALIDDATA;
             }
-            for (i = 0; i < colors; i++)
+            for (int i = 0; i < colors; ++i)
                 ((uint32_t*)p->data[1])[i] = (0xFFU<<24) | bytestream_get_le24(&buf);
         } else {
-            for (i = 0; i < colors; i++)
+            for (int i = 0; i < colors; ++i)
                 ((uint32_t*)p->data[1])[i] = 0xFFU << 24 | bytestream_get_le32(&buf);
         }
         buf = buf0 + hsize;
@@ -283,9 +274,19 @@ static int bmp_decode_frame(AVCodecContext *avctx, AVFrame *p,
             p->linesize[0] = -p->linesize[0];
         }
     } else {
+        uint8_t *ptr;
+        int linesize;
+        if (height > 0) {
+            ptr      = p->data[0] + (avctx->height - 1) * p->linesize[0];
+            linesize = -p->linesize[0];
+        } else {
+            ptr      = p->data[0];
+            linesize = p->linesize[0];
+        }
+
         switch (depth) {
         case 1:
-            for (i = 0; i < avctx->height; i++) {
+            for (int i = 0; i < avctx->height; ++i) {
                 int j;
                 for (j = 0; j < avctx->width >> 3; j++) {
                     ptr[j*8+0] =  buf[j] >> 7;
@@ -307,14 +308,14 @@ static int bmp_decode_frame(AVCodecContext *avctx, AVFrame *p,
         case 8:
         case 24:
         case 32:
-            for (i = 0; i < avctx->height; i++) {
+            for (int i = 0; i < avctx->height; ++i) {
                 memcpy(ptr, buf, n);
                 buf += n;
                 ptr += linesize;
             }
             break;
         case 4:
-            for (i = 0; i < avctx->height; i++) {
+            for (int i = 0; i < avctx->height; ++i) {
                 int j;
                 for (j = 0; j < n; j++) {
                     ptr[j*2+0] = (buf[j] >> 4) & 0xF;
@@ -325,11 +326,11 @@ static int bmp_decode_frame(AVCodecContext *avctx, AVFrame *p,
             }
             break;
         case 16:
-            for (i = 0; i < avctx->height; i++) {
+            for (int i = 0; i < avctx->height; ++i) {
                 const uint16_t *src = (const uint16_t *) buf;
                 uint16_t *dst       = (uint16_t *) ptr;
 
-                for (j = 0; j < avctx->width; j++)
+                for (int j = 0; j < avctx->width; ++j)
                     *dst++ = av_le2ne16(*src++);
 
                 buf += n;
@@ -342,6 +343,7 @@ static int bmp_decode_frame(AVCodecContext *avctx, AVFrame *p,
         }
     }
     if (avctx->pix_fmt == AV_PIX_FMT_BGRA) {
+        int i;
         for (i = 0; i < avctx->height; i++) {
             int j;
             uint8_t *ptr = p->data[0] + p->linesize[0]*i + 3;

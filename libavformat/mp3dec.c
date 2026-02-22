@@ -439,8 +439,8 @@ static int mp3_read_header(AVFormatContext *s)
         return off;
 
     // the seek index is relative to the end of the xing vbr headers
-    for (int i = 0; i < sti->nb_index_entries; i++)
-        sti->index_entries[i].pos += off;
+    for (int j = 0; j < sti->nb_index_entries; ++j)
+        sti->index_entries[j].pos += off;
 
     /* the parameters will be extracted from the compressed bitstream */
     return 0;

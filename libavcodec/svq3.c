@@ -1047,8 +1047,7 @@ static int svq3_decode_slice_header(AVCodecContext *avctx)
         }
 
         if (s->watermark_key) {
-            uint32_t header = AV_RL32(&s->slice_buf[1]);
-            AV_WL32(&s->slice_buf[1], header ^ s->watermark_key);
+            AV_WL32(&s->slice_buf[1], AV_RL32(&s->slice_buf[1]) ^ s->watermark_key);
         }
         init_get_bits(&s->gb_slice, s->slice_buf, slice_bits);
 
@@ -1394,7 +1393,7 @@ static int svq3_decode_frame(AVCodecContext *avctx, AVFrame *rframe,
     SVQ3Context *s     = avctx->priv_data;
     int buf_size       = avpkt->size;
     int left;
-    int ret, m, i;
+    int ret;
 
     /* special case for last picture */
     if (buf_size == 0) {
@@ -1436,11 +1435,11 @@ static int svq3_decode_frame(AVCodecContext *avctx, AVFrame *rframe,
     if (ret < 0)
         return ret;
 
-    for (i = 0; i < 16; i++) {
+    for (int i = 0; i < 16; ++i) {
         s->block_offset[i]           = (4 * ((scan8[i] - scan8[0]) & 7)) + 4 * s->cur_pic->f->linesize[0] * ((scan8[i] - scan8[0]) >> 3);
         s->block_offset[48 + i]      = (4 * ((scan8[i] - scan8[0]) & 7)) + 8 * s->cur_pic->f->linesize[0] * ((scan8[i] - scan8[0]) >> 3);
     }
-    for (i = 0; i < 16; i++) {
+    for (int i = 0; i < 16; ++i) {
         s->block_offset[16 + i]      =
         s->block_offset[32 + i]      = (4 * ((scan8[i] - scan8[0]) & 7)) + 4 * s->cur_pic->f->linesize[1] * ((scan8[i] - scan8[0]) >> 3);
         s->block_offset[48 + 16 + i] =
@@ -1492,9 +1491,8 @@ static int svq3_decode_frame(AVCodecContext *avctx, AVFrame *rframe,
             s->prev_frame_num_offset += 256;
     }
 
-    for (m = 0; m < 2; m++) {
-        int i;
-        for (i = 0; i < 4; i++) {
+    for (int m = 0; m < 2; ++m) {
+        for (int i = 0; i < 4; ++i) {
             int j;
             for (j = -1; j < 4; j++)
                 s->ref_cache[m][scan8[0] + 8 * i + j] = 1;

@@ -498,7 +498,7 @@ av_cold int ff_rate_control_init(MPVMainEncContext *const m)
     MPVEncContext  *const s = &m->s;
     RateControlContext *rcc = &m->rc_context;
     AVCodecContext *const avctx = s->c.avctx;
-    int i, res;
+    int res;
     static const char * const const_names[] = {
         "PI",
         "E",
@@ -549,7 +549,7 @@ av_cold int ff_rate_control_init(MPVMainEncContext *const m)
         return res;
     }
 
-    for (i = 0; i < 5; i++) {
+    for (int i = 0; i < 5; ++i) {
         rcc->pred[i].coeff = FF_QP2LAMBDA * 7.0;
         rcc->pred[i].count = 1.0;
         rcc->pred[i].decay = 0.4;
@@ -567,24 +567,24 @@ av_cold int ff_rate_control_init(MPVMainEncContext *const m)
         rcc->buffer_index = avctx->rc_buffer_size * 3 / 4;
 
     if (avctx->flags & AV_CODEC_FLAG_PASS2) {
-        int i;
+        int num_entries;
         char *p;
 
         /* find number of pics */
         p = avctx->stats_in;
-        for (i = -1; p; i++)
+        for (num_entries = -1; p; ++num_entries)
             p = strchr(p + 1, ';');
-        i += m->max_b_frames;
-        if (i <= 0 || i >= INT_MAX / sizeof(RateControlEntry))
+        num_entries += m->max_b_frames;
+        if (num_entries <= 0 || num_entries >= INT_MAX / sizeof(RateControlEntry))
             return -1;
-        rcc->entry       = av_mallocz(i * sizeof(RateControlEntry));
+        rcc->entry       = av_mallocz(num_entries * sizeof(RateControlEntry));
         if (!rcc->entry)
             return AVERROR(ENOMEM);
-        rcc->num_entries = i;
+        rcc->num_entries = num_entries;
 
         /* init all to skipped P-frames
          * (with B-frames we might have a not encoded frame at the end FIXME) */
-        for (i = 0; i < rcc->num_entries; i++) {
+        for (int i = 0; i < rcc->num_entries; ++i) {
             RateControlEntry *rce = &rcc->entry[i];
 
             rce->pict_type  = rce->new_pict_type = AV_PICTURE_TYPE_P;
@@ -595,7 +595,7 @@ av_cold int ff_rate_control_init(MPVMainEncContext *const m)
 
         /* read stats */
         p = avctx->stats_in;
-        for (i = 0; i < rcc->num_entries - m->max_b_frames; i++) {
+        for (int i = 0; i < rcc->num_entries - m->max_b_frames; ++i) {
             RateControlEntry *rce;
             int picture_number;
             int e;
@@ -650,7 +650,7 @@ av_cold int ff_rate_control_init(MPVMainEncContext *const m)
         }
         /* init stuff with the user specified complexity */
         if (rcc->initial_cplx) {
-            for (i = 0; i < 60 * 30; i++) {
+            for (int i = 0; i < 60 * 30; ++i) {
                 double bits = rcc->initial_cplx * (i / 10000.0 + 1.0) * s->c.mb_num;
                 RateControlEntry rce;
 

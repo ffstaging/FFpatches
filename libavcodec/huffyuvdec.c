@@ -326,14 +326,13 @@ static int read_old_huffman_tables(HYuvDecContext *s)
 static av_cold int decode_end(AVCodecContext *avctx)
 {
     HYuvDecContext *s = avctx->priv_data;
-    int i;
 
     for (int i = 0; i < 3; i++)
         av_freep(&s->temp[i]);
 
     av_freep(&s->bitstream_buffer);
 
-    for (i = 0; i < 8; i++)
+    for (int i = 0; i < 8; ++i)
         ff_vlc_free(&s->vlc[i]);
 
     return 0;

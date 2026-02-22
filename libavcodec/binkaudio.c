@@ -174,7 +174,6 @@ static const uint8_t rle_length_tab[16] = {
 static int decode_block(BinkAudioContext *s, float **out, int use_dct,
                         int channels, int ch_offset)
 {
-    int ch, i, j, k;
     float q, quant[25];
     int width, coeff;
     GetBitContext *gb = &s->gb;
@@ -183,7 +182,7 @@ static int decode_block(BinkAudioContext *s, float **out, int use_dct,
     if (use_dct)
         skip_bits(gb, 2);
 
-    for (ch = 0; ch < channels; ch++) {
+    for (int ch = 0; ch < channels; ++ch) {
         if (s->version_b) {
             if (get_bits_left(gb) < 64)
                 return AVERROR_INVALIDDATA;
@@ -198,17 +197,15 @@ static int decode_block(BinkAudioContext *s, float **out, int use_dct,
 
         if (get_bits_left(gb) < s->num_bands * 8)
             return AVERROR_INVALIDDATA;
-        for (i = 0; i < s->num_bands; i++) {
+        for (int i = 0; i < s->num_bands; ++i) {
             int value = get_bits(gb, 8);
             quant[i]  = s->quant_table[FFMIN(value, 95)];
         }
 
-        k = 0;
-        q = quant[0];
-
         // parse coefficients
-        i = 2;
-        while (i < s->frame_len) {
+        q = quant[0];
+        for (int i = 2, k = 0; i < s->frame_len;) {
+            int j;
             if (s->version_b) {
                 j = i + 16;
             } else {
@@ -262,12 +259,10 @@ static int decode_block(BinkAudioContext *s, float **out, int use_dct,
         }
     }
 
-    for (ch = 0; ch < channels; ch++) {
-        int j;
+    for (int ch = 0; ch < channels; ++ch) {
         int count = s->overlap_len * channels;
         if (!s->first) {
-            j = ch;
-            for (i = 0; i < s->overlap_len; i++, j += channels)
+            for (int i = 0, j = ch; i < s->overlap_len; ++i, j += channels)
                 out[ch + ch_offset][i] = (s->previous[ch + ch_offset][i] * (count - j) +
                                                   out[ch + ch_offset][i] *          j) / count;
         }

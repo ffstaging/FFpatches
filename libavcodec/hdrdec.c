@@ -142,7 +142,6 @@ static int hdr_decode_frame(AVCodecContext *avctx, AVFrame *p,
         float *dst_g = (float *)(p->data[0] + y * p->linesize[0]);
         float *dst_b = (float *)(p->data[1] + y * p->linesize[1]);
         uint8_t *scanline = p->data[0] + y * p->linesize[0];
-        int i;
 
         if (width < MINELEN || width > MAXELEN) {
             ret = decompress(scanline, width, &gb, scanline);
@@ -151,8 +150,7 @@ static int hdr_decode_frame(AVCodecContext *avctx, AVFrame *p,
             goto convert;
         }
 
-        i = bytestream2_peek_byte(&gb);
-        if (i != 2) {
+        if (bytestream2_peek_byte(&gb) != 2) {
             ret = decompress(scanline, width, &gb, scanline);
             if (ret < 0)
                 return ret;
@@ -162,20 +160,18 @@ static int hdr_decode_frame(AVCodecContext *avctx, AVFrame *p,
 
         scanline[1] = bytestream2_get_byte(&gb);
         scanline[2] = bytestream2_get_byte(&gb);
-        i = bytestream2_get_byte(&gb);
+        unsigned byte = bytestream2_get_byte(&gb);
 
         if (scanline[1] != 2 || scanline[2] & 128) {
             scanline[0] = 2;
-            scanline[3] = i;
+            scanline[3] = byte;
             ret = decompress(scanline + 4, width - 1, &gb, scanline);
             if (ret < 0)
                 return ret;
             goto convert;
         }
 
-        for (int i = 0; i < 4; i++) {
-            uint8_t *scanline = p->data[0] + y * p->linesize[0] + i;
-
+        for (int i = 0; i < 4; ++i, ++scanline) {
             for (int j = 0; j < width * 4 && bytestream2_get_bytes_left(&gb) > 0;) {
                 int run = bytestream2_get_byte(&gb);
                 if (run > 128) {

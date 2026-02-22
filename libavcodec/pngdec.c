@@ -1091,7 +1091,6 @@ static int decode_trns_chunk(AVCodecContext *avctx, PNGDecContext *s,
                              GetByteContext *gb)
 {
     int length = bytestream2_get_bytes_left(gb);
-    int v, i;
 
     if (!(s->hdr_state & PNG_IHDR)) {
         av_log(avctx, AV_LOG_ERROR, "trns before IHDR\n");
@@ -1107,7 +1106,7 @@ static int decode_trns_chunk(AVCodecContext *avctx, PNGDecContext *s,
         if (length > 256 || !(s->hdr_state & PNG_PLTE))
             return AVERROR_INVALIDDATA;
 
-        for (i = 0; i < length; i++) {
+        for (int i = 0; i < length; ++i) {
             unsigned v = bytestream2_get_byte(gb);
             s->palette[i] = (s->palette[i] & 0x00ffffff) | (v << 24);
         }
@@ -1117,9 +1116,9 @@ static int decode_trns_chunk(AVCodecContext *avctx, PNGDecContext *s,
             s->bit_depth == 1)
             return AVERROR_INVALIDDATA;
 
-        for (i = 0; i < length / 2; i++) {
+        for (int i = 0; i < length / 2; ++i) {
             /* only use the least significant bits */
-            v = av_zero_extend(bytestream2_get_be16(gb), s->bit_depth);
+            unsigned v = av_zero_extend(bytestream2_get_be16(gb), s->bit_depth);
 
             if (s->bit_depth > 8)
                 AV_WB16(&s->transparent_color_be[2 * i], v);
@@ -1485,7 +1484,7 @@ static int decode_frame_common(AVCodecContext *avctx, PNGDecContext *s,
     const AVCRC *crc_tab = av_crc_get_table(AV_CRC_32_IEEE_LE);
     uint32_t tag, length;
     int decode_next_dat = 0;
-    int i, ret;
+    int ret;
 
     for (;;) {
         GetByteContext gb_chunk;
@@ -1642,7 +1641,7 @@ static int decode_frame_common(AVCodecContext *avctx, PNGDecContext *s,
             s->white_point[1] = bytestream2_get_be32(&gb_chunk);
 
             /* RGB Primaries */
-            for (i = 0; i < 3; i++) {
+            for (int i = 0; i < 3; ++i) {
                 s->display_primaries[i][0] = bytestream2_get_be32(&gb_chunk);
                 s->display_primaries[i][1] = bytestream2_get_be32(&gb_chunk);
             }

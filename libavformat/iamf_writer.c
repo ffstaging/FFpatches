@@ -934,8 +934,8 @@ static int iamf_write_mixing_presentation(const IAMFContext *iamf,
         avio_wb16(dyn_bc, rescale_rational(sub_mix->default_mix_gain, 1 << 8));
 
         ffio_write_leb(dyn_bc, sub_mix->nb_layouts); // nb_layouts
-        for (int i = 0; i < sub_mix->nb_layouts; i++) {
-            const AVIAMFSubmixLayout *submix_layout = sub_mix->layouts[i];
+        for (unsigned j = 0; j < sub_mix->nb_layouts; ++j) {
+            const AVIAMFSubmixLayout *submix_layout = sub_mix->layouts[j];
             int layout, info_type;
             int dialogue = submix_layout->dialogue_anchored_loudness.num &&
                            submix_layout->dialogue_anchored_loudness.den;

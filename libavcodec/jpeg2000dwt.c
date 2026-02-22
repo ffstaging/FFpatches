@@ -251,11 +251,10 @@ static void dwt_encode97_int(DWTContext *s, int *t)
     int lev;
     int w = s->linelen[s->ndeclevels-1][0];
     int h = s->linelen[s->ndeclevels-1][1];
-    int i;
     int *line = s->i_linebuf;
     line += 5;
 
-    for (i = 0; i < w * h; i++)
+    for (int i = 0; i < w * h; ++i)
         t[i] *= 1 << I_PRESHIFT;
 
     for (lev = s->ndeclevels-1; lev >= 0; lev--){
@@ -302,7 +301,7 @@ static void dwt_encode97_int(DWTContext *s, int *t)
 
     }
 
-    for (i = 0; i < w * h; i++)
+    for (int i = 0; i < w * h; ++i)
         t[i] = (t[i] + ((1<<(I_PRESHIFT))>>1)) >> (I_PRESHIFT);
 }
 
@@ -485,7 +484,6 @@ static void dwt_decode97_int(DWTContext *s, int32_t *t)
     int lev;
     int w       = s->linelen[s->ndeclevels - 1][0];
     int h       = s->linelen[s->ndeclevels - 1][1];
-    int i;
     int32_t *line = s->i_linebuf;
     int32_t *data = t;
     /* position at index O of line range [0-5,w+5] cf. extend function */
@@ -531,7 +529,7 @@ static void dwt_decode97_int(DWTContext *s, int32_t *t)
         }
     }
 
-    for (i = 0; i < w * h; i++)
+    for (int i = 0; i < w * h; ++i)
         // We shift down by `I_PRESHIFT` because the input coefficients `datap[]` were shifted up by `I_PRESHIFT` to secure the precision
         data[i] = (int32_t)(data[i] + ((1LL<<(I_PRESHIFT))>>1)) >> (I_PRESHIFT);
 }

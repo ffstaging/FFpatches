@@ -172,12 +172,10 @@ static void build_frame_code(AVFormatContext *s)
     int end   = 254;
     int keyframe_0_esc = s->nb_streams > 2;
     int pred_table[10];
-    FrameCode *ft;
 
-    ft            = &nut->frame_code[start];
-    ft->flags     = FLAG_CODED;
-    ft->size_mul  = 1;
-    ft->pts_delta = 1;
+    nut->frame_code[start].flags     = FLAG_CODED;
+    nut->frame_code[start].size_mul  = 1;
+    nut->frame_code[start].pts_delta = 1;
     start++;
 
     if (keyframe_0_esc) {
@@ -231,8 +229,8 @@ static void build_frame_code(AVFormatContext *s)
             if (par->block_align > 0) {
                 frame_bytes = par->block_align;
             } else {
-                int frame_size = av_get_audio_frame_duration2(par, 0);
-                frame_bytes = frame_size * (int64_t)par->bit_rate / (8 * par->sample_rate);
+                int frame_samples = av_get_audio_frame_duration2(par, 0);
+                frame_bytes = frame_samples * (int64_t)par->bit_rate / (8 * par->sample_rate);
             }
 
             for (pts = 0; pts < 2; pts++) {
@@ -965,9 +963,8 @@ static int nut_write_packet(AVFormatContext *s, AVPacket *pkt)
     NUTContext *nut    = s->priv_data;
     StreamContext *nus = &nut->stream[pkt->stream_index];
     AVIOContext *bc    = s->pb, *dyn_bc, *sm_bc = NULL;
-    FrameCode *fc;
     int64_t coded_pts;
-    int best_length, frame_code, flags, needed_flags, i, header_idx;
+    int best_length, frame_code, needed_flags, header_idx;
     int best_header_idx;
     int key_frame = !!(pkt->flags & AV_PKT_FLAG_KEY);
     int store_sp  = 0;
@@ -1014,7 +1011,7 @@ static int nut_write_packet(AVFormatContext *s, AVPacket *pkt)
         int64_t sp_pos = INT64_MAX;
 
         ff_nut_reset_ts(nut, *nus->time_base, pkt->dts);
-        for (i = 0; i < s->nb_streams; i++) {
+        for (unsigned i = 0; i < s->nb_streams; ++i) {
             AVStream *st   = s->streams[i];
             FFStream *const sti = ffstream(st);
             int64_t dts_tb = av_rescale_rnd(pkt->dts,
@@ -1054,15 +1051,15 @@ static int nut_write_packet(AVFormatContext *s, AVPacket *pkt)
 
             if ((1ll<<60) % nut->sp_count == 0)
                 for (unsigned i = 0; i < s->nb_streams; i++) {
-                    StreamContext *nus = &nut->stream[i];
-                    av_reallocp_array(&nus->keyframe_pts, 2*nut->sp_count, sizeof(*nus->keyframe_pts));
-                    if (!nus->keyframe_pts) {
+                    StreamContext *nus2 = &nut->stream[i];
+                    av_reallocp_array(&nus2->keyframe_pts, 2*nut->sp_count, sizeof(*nus2->keyframe_pts));
+                    if (!nus2->keyframe_pts) {
                         ret = AVERROR(ENOMEM);
                         goto fail;
                     }
                     for (int j = nut->sp_count == 1 ? 0 : nut->sp_count;
                          j < 2 * nut->sp_count; j++)
-                        nus->keyframe_pts[j] = AV_NOPTS_VALUE;
+                        nus2->keyframe_pts[j] = AV_NOPTS_VALUE;
             }
         }
     }
@@ -1076,7 +1073,7 @@ static int nut_write_packet(AVFormatContext *s, AVPacket *pkt)
 
     best_length = INT_MAX;
     frame_code  = -1;
-    for (i = 0; i < 256; i++) {
+    for (int i = 0; i < 256; ++i) {
         int length    = 0;
         FrameCode *fc = &nut->frame_code[i];
         int flags     = fc->flags;
@@ -1132,8 +1129,8 @@ static int nut_write_packet(AVFormatContext *s, AVPacket *pkt)
     }
     av_assert0(frame_code != -1);
 
-    fc           = &nut->frame_code[frame_code];
-    flags        = fc->flags;
+    FrameCode *fc = &nut->frame_code[frame_code];
+    int flags     = fc->flags;
     needed_flags = get_needed_flags(nut, nus, fc, pkt);
     header_idx   = fc->header_idx;
 

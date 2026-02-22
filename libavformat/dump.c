@@ -792,19 +792,19 @@ static void dump_stream_group(const AVFormatContext *ic, uint8_t *printed,
         dump_sidedata(NULL, tile_grid->coded_side_data, tile_grid->nb_coded_side_data,
                       tile_grid->width, tile_grid->height, (AVRational) {0,1},
                       "    ", AV_LOG_INFO);
-        for (int i = 0; i < tile_grid->nb_tiles; i++) {
+        for (unsigned j = 0; j < tile_grid->nb_tiles; ++j) {
             const AVStream *st = NULL;
-            if (tile_grid->offsets[i].idx < stg->nb_streams)
-                st = stg->streams[tile_grid->offsets[i].idx];
+            if (tile_grid->offsets[j].idx < stg->nb_streams)
+                st = stg->streams[tile_grid->offsets[j].idx];
             if (st && !printed[st->index]) {
-                dump_stream_format(ic, st->index, i, index, is_output, AV_LOG_VERBOSE);
+                dump_stream_format(ic, st->index, j, index, is_output, AV_LOG_VERBOSE);
                 printed[st->index] = 1;
             }
         }
-        for (int i = 0; i < stg->nb_streams; i++) {
-            const AVStream *st = stg->streams[i];
+        for (unsigned j = 0; j < stg->nb_streams; ++j) {
+            const AVStream *st = stg->streams[j];
             if (!printed[st->index]) {
-                dump_stream_format(ic, st->index, i, index, is_output, AV_LOG_INFO);
+                dump_stream_format(ic, st->index, j, index, is_output, AV_LOG_INFO);
                 printed[st->index] = 1;
             }
         }
@@ -830,9 +830,9 @@ static void dump_stream_group(const AVFormatContext *ic, uint8_t *printed,
         if (ptr)
             av_log(NULL, AV_LOG_INFO, "%s", ptr);
         av_log(NULL, AV_LOG_INFO, "\n");
-        for (int i = 0; i < stg->nb_streams; i++) {
-            const AVStream *st = stg->streams[i];
-            dump_stream_format(ic, st->index, i, index, is_output, AV_LOG_VERBOSE);
+        for (unsigned j = 0; j < stg->nb_streams; ++j) {
+            const AVStream *st = stg->streams[j];
+            dump_stream_format(ic, st->index, j, index, is_output, AV_LOG_VERBOSE);
             printed[st->index] = 1;
         }
         break;

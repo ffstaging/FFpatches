@@ -513,7 +513,7 @@ static int avi_write_header(AVFormatContext *s)
             AVRational dar = av_mul_q(st->sample_aspect_ratio,
                                       (AVRational) { par->width,
                                                      par->height });
-            int num, den, fields, i;
+            int num, den, fields;
             av_reduce(&num, &den, dar.num, dar.den, 0xFFFF);
             if (par->field_order == AV_FIELD_TT || par->field_order == AV_FIELD_BB ||
                 par->field_order == AV_FIELD_TB || par->field_order == AV_FIELD_BT) {
@@ -534,15 +534,15 @@ static int avi_write_header(AVFormatContext *s)
             avio_wl32(pb, par->height);
             avio_wl32(pb, fields); // fields per frame
 
-            for (i = 0; i < fields; i++) {
+            for (int j = 0; j < fields; ++j) {
                 int start_line;
                 // OpenDML v1.02 is not very specific on what value to use for
                 // start_line when frame data is not coming from a capturing device,
                 // so just use 0/1 depending on the field order for interlaced frames
                 if (par->field_order == AV_FIELD_TT || par->field_order == AV_FIELD_TB) {
-                    start_line = (i == 0) ? 0 : 1;
+                    start_line = (j == 0) ? 0 : 1;
                 } else if (par->field_order == AV_FIELD_BB || par->field_order == AV_FIELD_BT) {
-                    start_line = (i == 0) ? 1 : 0;
+                    start_line = (j == 0) ? 1 : 0;
                 } else {
                     start_line = 0;
                 }
