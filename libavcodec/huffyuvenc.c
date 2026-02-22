@@ -909,7 +909,10 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                     y++;
                 }
 
-                lefttop = p->data[plane][0];
+                if (s->bps <= 8)
+                    lefttop = p->data[plane][0];
+                else
+                    lefttop = ((const uint16_t *)p->data[plane])[0];
 
                 for (; y < h; y++) {
                     const uint8_t *dst = p->data[plane] + p->linesize[plane] * y;
