@@ -38,7 +38,7 @@ typedef enum SwsPixelType {
 
 const char *ff_sws_pixel_type_name(SwsPixelType type);
 int ff_sws_pixel_type_size(SwsPixelType type) av_const;
-bool ff_sws_pixel_type_is_int(SwsPixelType type) av_const;
+_Bool ff_sws_pixel_type_is_int(SwsPixelType type) av_const;
 
 typedef enum SwsOpType {
     SWS_OP_INVALID = 0,
@@ -88,7 +88,7 @@ static_assert(sizeof(SwsConst) == sizeof(AVRational) * 4,
 
 typedef struct SwsComps {
     unsigned flags[4]; /* knowledge about (output) component contents */
-    bool unused[4];    /* which input components are definitely unused */
+    _Bool unused[4];    /* which input components are definitely unused */
 
     /* Keeps track of the known possible value range, or {0, 0} for undefined
      * or (unknown range) floating point inputs */
@@ -98,7 +98,7 @@ typedef struct SwsComps {
 typedef struct SwsReadWriteOp {
     uint8_t elems; /* number of elements (of type `op.type`) to read/write */
     uint8_t frac;  /* fractional pixel step factor (log2) */
-    bool packed;   /* read multiple elements from a single plane */
+    _Bool packed;   /* read multiple elements from a single plane */
 
     /** Examples:
      *    rgba      = 4x u8 packed
@@ -133,7 +133,7 @@ typedef struct SwsSwizzleOp {
 
 typedef struct SwsConvertOp {
     SwsPixelType to; /* type of pixel to convert to */
-    bool expand; /* if true, integers are expanded to the full range */
+    _Bool expand; /* if true, integers are expanded to the full range */
 } SwsConvertOp;
 
 typedef struct SwsDitherOp {
@@ -253,7 +253,7 @@ SwsOpList *ff_sws_op_list_duplicate(const SwsOpList *ops);
  * Returns whether an op list represents a true no-op operation, i.e. may be
  * eliminated entirely from an execution graph.
  */
-bool ff_sws_op_list_is_noop(const SwsOpList *ops);
+_Bool ff_sws_op_list_is_noop(const SwsOpList *ops);
 
 /**
  * Returns the size of the largest pixel type used in `ops`.
