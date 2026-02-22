@@ -1,3 +1,11 @@
+FATE_CNG-$(call FRAMEMD5, WAV, COMFORTNOISE, NUT_MUXER NUT_DEMUXER COMFORTNOISE_ENCODER PCM_S16LE_DECODER) += fate-cng-encode
+fate-cng-encode: tests/data/asynth-8000-1.wav
+fate-cng-encode: SRC = tests/data/asynth-8000-1.wav
+fate-cng-encode: CMD = enc_dec_pcm nut framemd5 s16le $(SRC) -c:a comfortnoise
+
+FATE_FFMPEG += $(FATE_CNG-yes)
+fate-cng: $(FATE_CNG-yes)
+
 FATE_G722-$(call FRAMECRC, G722, ADPCM_G722) += fate-g722dec-1
 fate-g722dec-1: CMD = framecrc -i $(TARGET_SAMPLES)/g722/conf-adminmenu-162.g722
 

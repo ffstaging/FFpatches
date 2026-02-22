@@ -3,6 +3,31 @@ fate-filter-adelay: tests/data/asynth-44100-2.wav
 fate-filter-adelay: SRC = $(TARGET_PATH)/tests/data/asynth-44100-2.wav
 fate-filter-adelay: CMD = framecrc -i $(SRC) -af aresample,adelay=42,aresample
 
+FATE_AFILTER-$(call FILTERDEMDECENCMUX, ADERIVATIVE ARESAMPLE, WAV, PCM_S16LE, PCM_S16LE, WAV) += fate-filter-aderivative
+fate-filter-aderivative: tests/data/asynth-44100-2.wav
+fate-filter-aderivative: SRC = $(TARGET_PATH)/tests/data/asynth-44100-2.wav
+fate-filter-aderivative: CMD = framecrc -i $(SRC) -af aresample,aderivative,aresample
+
+FATE_AFILTER-$(call FILTERDEMDECENCMUX, ADERIVATIVE ARESAMPLE AFORMAT, WAV, PCM_S16LE, PCM_S16LE, WAV) += fate-filter-aderivative-fltp
+fate-filter-aderivative-fltp: tests/data/asynth-44100-2.wav
+fate-filter-aderivative-fltp: SRC = $(TARGET_PATH)/tests/data/asynth-44100-2.wav
+fate-filter-aderivative-fltp: CMD = framecrc -i $(SRC) -af aresample,aformat=sample_fmts=fltp,aderivative,aresample
+
+FATE_AFILTER-$(call FILTERDEMDECENCMUX, ADERIVATIVE ARESAMPLE AFORMAT, WAV, PCM_S16LE, PCM_S16LE, WAV) += fate-filter-aderivative-s32p
+fate-filter-aderivative-s32p: tests/data/asynth-44100-2.wav
+fate-filter-aderivative-s32p: SRC = $(TARGET_PATH)/tests/data/asynth-44100-2.wav
+fate-filter-aderivative-s32p: CMD = framecrc -i $(SRC) -af "aresample,aformat=sample_fmts=s32p,aderivative=enable=lt(t\,0.5),aresample"
+
+FATE_AFILTER-$(call FILTERDEMDECENCMUX, AINTEGRAL ARESAMPLE, WAV, PCM_S16LE, PCM_S16LE, WAV) += fate-filter-aintegral
+fate-filter-aintegral: tests/data/asynth-44100-2.wav
+fate-filter-aintegral: SRC = $(TARGET_PATH)/tests/data/asynth-44100-2.wav
+fate-filter-aintegral: CMD = framecrc -i $(SRC) -af aresample,aintegral,aresample
+
+FATE_AFILTER-$(call FILTERDEMDECENCMUX, AINTEGRAL ARESAMPLE AFORMAT, WAV, PCM_S16LE, PCM_S16LE, WAV) += fate-filter-aintegral-dblp
+fate-filter-aintegral-dblp: tests/data/asynth-44100-2.wav
+fate-filter-aintegral-dblp: SRC = $(TARGET_PATH)/tests/data/asynth-44100-2.wav
+fate-filter-aintegral-dblp: CMD = framecrc -i $(SRC) -af aresample,aformat=sample_fmts=dblp,aintegral,aresample
+
 FATE_AFILTER-$(call FILTERDEMDECENCMUX, AECHO ARESAMPLE, WAV, PCM_S16LE, PCM_S16LE, WAV) += fate-filter-aecho
 fate-filter-aecho: tests/data/asynth-44100-2.wav
 fate-filter-aecho: SRC = $(TARGET_PATH)/tests/data/asynth-44100-2.wav
