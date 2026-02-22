@@ -125,8 +125,12 @@ static int dtshd_read_header(AVFormatContext *s)
             value = av_malloc(chunk_size);
             if (!value)
                 goto skip;
-            avio_read(pb, value, chunk_size);
-            value[chunk_size - 1] = 0;
+            ret = avio_read(pb, value, chunk_size);
+            if (ret < 0) {
+                av_free(value);
+                return ret;
+            }
+            value[ret - 1] = 0;
             av_dict_set(&s->metadata, "fileinfo", value,
                         AV_DICT_DONT_STRDUP_VAL);
             break;

@@ -79,7 +79,8 @@ static int check_file_header(AVIOContext *pb, uint64_t guid)
     size = avio_rl32(pb);
     if (size < 52)
         return AVERROR_INVALIDDATA;
-    avio_read(pb, version, 8);
+    if (avio_read(pb, version, 8) < 8)
+        return AVERROR_INVALIDDATA;
     if (memcmp(version, MLV_VERSION, 5) || avio_rl64(pb) != guid)
         return AVERROR_INVALIDDATA;
     avio_skip(pb, size - 24);
