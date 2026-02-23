@@ -902,7 +902,17 @@ static void set_colorspace(AVCodecContext *avctx)
         vpx_cs = ctx->vpx_cs;
     } else {
         switch (avctx->colorspace) {
-        case AVCOL_SPC_RGB:         vpx_cs = VPX_CS_SRGB;      break;
+        case AVCOL_SPC_RGB:
+            // RGB pixel formats (GBRP, GBRP10, GBRP12) set ctx->vpx_cs
+            // to VPX_CS_SRGB in set_pix_fmt() and take the branch above,
+            // so reaching here means the pixel format is YUV with
+            // incorrect RGB colorspace metadata.
+            av_log(avctx, AV_LOG_WARNING,
+                   "RGB colorspace is not compatible with pixel format %s, "
+                   "using BT.709 instead.\n",
+                   av_get_pix_fmt_name(avctx->pix_fmt));
+            vpx_cs = VPX_CS_BT_709;
+            break;
         case AVCOL_SPC_BT709:       vpx_cs = VPX_CS_BT_709;    break;
         case AVCOL_SPC_UNSPECIFIED: vpx_cs = VPX_CS_UNKNOWN;   break;
         case AVCOL_SPC_RESERVED:    vpx_cs = VPX_CS_RESERVED;  break;
