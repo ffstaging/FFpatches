@@ -33,6 +33,10 @@ OBJS-$(CONFIG_UNSTABLE) +=                              \
        ops_memcpy.o                                     \
        ops_optimizer.o                                  \
 
+OBJS-$(CONFIG_VULKAN) += vulkan.o
+OBJS-$(CONFIG_LIBGLSLANG) += vulkan_glslang.o
+OBJS-$(CONFIG_LIBSHADERC) += vulkan_shaderc.o
+
 # Objects duplicated from other libraries for shared builds
 SHLIBOBJS                    += log2_tab.o half2float.o
 

@@ -37,6 +37,9 @@
 #include "libavutil/pixfmt.h"
 #include "libavutil/pixdesc.h"
 #include "libavutil/slicethread.h"
+#include "libavutil/vulkan.h"
+#include "libavutil/vulkan_spirv.h"
+
 #if HAVE_ALTIVEC
 #include "libavutil/ppc/util_altivec.h"
 #endif
@@ -325,6 +328,15 @@ typedef void (*planarX2_YV12_fn)(uint8_t *dst, uint8_t *dst2,
 
 struct SwsSlice;
 struct SwsFilterDescriptor;
+
+#if CONFIG_UNSTABLE
+typedef struct SwsInternalVulkan {
+    FFVulkanContext ctx;
+    FFVkSPIRVCompiler *spvc;
+    AVBufferRef *hwframe_ref;
+    int initialized;
+} SwsInternalVulkan;
+#endif
 
 /* This struct should be aligned on at least a 32-byte boundary. */
 struct SwsInternal {
@@ -701,6 +713,10 @@ struct SwsInternal {
     int          color_conversion_warned;
 
     Half2FloatTables *h2f_tables;
+
+#if CONFIG_UNSTABLE
+    SwsInternalVulkan vk;
+#endif
 };
 //FIXME check init (where 0)
 

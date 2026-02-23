@@ -57,6 +57,7 @@
 #include "libavutil/x86/asm.h"
 #include "libavutil/x86/cpu.h"
 #include "libavutil/loongarch/cpu.h"
+#include "config_components.h"
 
 #include "rgb2rgb.h"
 #include "swscale.h"
@@ -2252,6 +2253,36 @@ fail:
     return NULL;
 }
 
+int sws_context_attach_hwcontext(SwsContext *sws, AVBufferRef *hwctx)
+{
+#if CONFIG_UNSTABLE && CONFIG_VULKAN
+    SwsInternal *c = sws_internal(sws);
+    int err = ff_vk_init(&c->vk.ctx, sws, hwctx, NULL);
+    if (err < 0)
+        return err;
+
+#if CONFIG_LIBSHADERC
+    c->vk.spvc = ff_vk_shaderc_init();
+    if (!c->vk.spvc) {
+        ff_vk_uninit(&c->vk.ctx);
+        return AVERROR(ENOMEM);
+    }
+#elif CONFIG_LIBGLSLANG
+    c->vk.spvc = ff_vk_glslang_init();
+    if (!c->vk.spvc) {
+        ff_vk_uninit(&c->vk.ctx);
+        return AVERROR(ENOMEM);
+    }
+#endif
+
+    c->vk.initialized = 1;
+
+    return 0;
+#else
+    return AVERROR(ENOTSUP);
+#endif
+}
+
 void sws_freeContext(SwsContext *sws)
 {
     SwsInternal *c = sws_internal(sws);
@@ -2330,6 +2361,16 @@ void sws_freeContext(SwsContext *sws)
     av_freep(&c->xyz_scratch);
 
     ff_free_filters(c);
+#if CONFIG_UNSTABLE
+#if CONFIG_VULKAN
+    av_buffer_unref(&c->vk.hwframe_ref);
+    ff_vk_uninit(&c->vk.ctx);
+#endif
+#if CONFIG_LIBSHADERC || CONFIG_LIBGLSLANG
+    if (c->vk.spvc)
+        c->vk.spvc->uninit(&c->vk.spvc);
+#endif
+#endif
 
     av_free(c);
 }

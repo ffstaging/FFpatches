@@ -22,6 +22,7 @@
 #include "vulkan.h"
 
 #include "config.h"
+#include "config_components.h"
 
 typedef struct FFVkSPIRVCompiler {
     void *priv;

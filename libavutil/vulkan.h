@@ -65,11 +65,13 @@
     } while (0)
 
 /* Helper, pretty much every Vulkan return value needs to be checked */
+#ifndef RET
 #define RET(x)                                                                 \
     do {                                                                       \
         if ((err = (x)) < 0)                                                   \
             goto fail;                                                         \
     } while (0)
+#endif
 
 /* Convenience macros for specialization lists */
 #define SPEC_LIST_MAX 256

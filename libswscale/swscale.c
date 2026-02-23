@@ -34,6 +34,7 @@
 #include "config.h"
 #include "swscale_internal.h"
 #include "swscale.h"
+#include "libavutil/hwcontext_vulkan.h"
 
 DECLARE_ALIGNED(8, const uint8_t, ff_dither_8x8_128)[9][8] = {
     {  36, 68,  60, 92,  34, 66,  58, 90, },
@@ -1209,6 +1210,34 @@ void sws_frame_end(SwsContext *sws)
     c->src_ranges.nb_ranges = 0;
 }
 
+#if CONFIG_UNSTABLE
+static int sws_hwframe_ref_init(SwsContext *sws)
+{
+    int err;
+    SwsInternal *c = sws_internal(sws);
+
+    av_buffer_unref(&c->vk.hwframe_ref);
+    c->vk.hwframe_ref = av_hwframe_ctx_alloc(c->vk.ctx.device_ref);
+    if (!c->vk.hwframe_ref)
+        return AVERROR(ENOMEM);
+
+    AVHWFramesContext *hwfc = (AVHWFramesContext *)c->vk.hwframe_ref->data;
+    hwfc->format = AV_PIX_FMT_VULKAN;
+    hwfc->sw_format = sws->dst_format;
+    hwfc->width = sws->dst_w;
+    hwfc->height = sws->dst_h;
+
+    err = av_hwframe_ctx_init(c->vk.hwframe_ref);
+    if (err) {
+        av_log(sws, AV_LOG_ERROR, "AVHWFramesContext init failed: %s!\n",
+               av_err2str(err));
+        return err;
+    }
+
+    return 0;
+}
+#endif
+
 int sws_frame_start(SwsContext *sws, AVFrame *dst, const AVFrame *src)
 {
     SwsInternal *c = sws_internal(sws);
@@ -1221,11 +1250,27 @@ int sws_frame_start(SwsContext *sws, AVFrame *dst, const AVFrame *src)
     if (!dst->buf[0]) {
         dst->width  = sws->dst_w;
         dst->height = sws->dst_h;
-        dst->format = sws->dst_format;
 
-        ret = av_frame_get_buffer(dst, 0);
-        if (ret < 0)
-            return ret;
+#if CONFIG_UNSTABLE
+        if (c->vk.initialized) {
+            dst->format = AV_PIX_FMT_VULKAN;
+            if (!c->vk.hwframe_ref) {
+                ret = sws_hwframe_ref_init(sws);
+                if (ret < 0)
+                    return ret;
+            }
+            ret = av_hwframe_get_buffer(c->vk.hwframe_ref, dst, 0);
+            if (ret < 0)
+                return ret;
+        } else
+#endif
+        {
+            dst->format = sws->dst_format;
+            ret = av_frame_get_buffer(dst, 0);
+            if (ret < 0)
+                return ret;
+        }
+
         allocated = 1;
     }
 

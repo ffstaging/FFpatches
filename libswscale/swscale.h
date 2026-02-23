@@ -262,6 +262,12 @@ SwsContext *sws_alloc_context(void);
  */
 void sws_free_context(SwsContext **ctx);
 
+/**
+ * Attach a hardware device to the context.
+ * Required to be called if either the input or output frames are hardware.
+ */
+int sws_context_attach_hwcontext(SwsContext *ctx, AVBufferRef *hwctx);
+
 /***************************
  * Supported frame formats *
  ***************************/
