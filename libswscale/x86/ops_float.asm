@@ -77,6 +77,20 @@ IF W,   vcvtdq2ps mw2, mw2
         CONTINUE tmp0q
 %endmacro
 
+%macro conv32to32f 0
+op convert_U32_F32
+        LOAD_CONT tmp0q
+IF X,   vcvtdq2ps mx, mx
+IF Y,   vcvtdq2ps my, my
+IF Z,   vcvtdq2ps mz, mz
+IF W,   vcvtdq2ps mw, mw
+IF X,   vcvtdq2ps mx2, mx2
+IF Y,   vcvtdq2ps my2, my2
+IF Z,   vcvtdq2ps mz2, mz2
+IF W,   vcvtdq2ps mw2, mw2
+        CONTINUE tmp0q
+%endmacro
+
 %macro conv32fto8 0
 op convert_F32_U8
         LOAD_CONT tmp0q
@@ -127,6 +141,20 @@ IF X,   vpermq mx, mx, q3120
 IF Y,   vpermq my, my, q3120
 IF Z,   vpermq mz, mz, q3120
 IF W,   vpermq mw, mw, q3120
+        CONTINUE tmp0q
+%endmacro
+
+%macro conv32fto32 0
+op convert_F32_U32
+        LOAD_CONT tmp0q
+IF X,   cvttps2dq mx, mx
+IF Y,   cvttps2dq my, my
+IF Z,   cvttps2dq mz, mz
+IF W,   cvttps2dq mw, mw
+IF X,   cvttps2dq mx2, mx2
+IF Y,   cvttps2dq my2, my2
+IF Z,   cvttps2dq mz2, mz2
+IF W,   cvttps2dq mw2, mw2
         CONTINUE tmp0q
 %endmacro
 
@@ -375,8 +403,10 @@ op dot3
 INIT_YMM avx2
 decl_common_patterns conv8to32f
 decl_common_patterns conv16to32f
+decl_common_patterns conv32to32f
 decl_common_patterns conv32fto8
 decl_common_patterns conv32fto16
+decl_common_patterns conv32fto32
 decl_common_patterns min_max
 decl_common_patterns scale
 decl_common_patterns dither_fns

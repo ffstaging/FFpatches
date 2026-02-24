@@ -182,6 +182,13 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
     DECL_COMMON_PATTERNS(F32, scale##EXT,                                       \
         .op = SWS_OP_SCALE,                                                     \
         .setup = ff_sws_setup_q,                                                \
+        .flexible = true,                                                       \
+    );
+
+#define DECL_EXPAND_BITS(EXT, BITS)                                             \
+    DECL_ASM(U##BITS, expand_bits##BITS##EXT,                                   \
+        .op = SWS_OP_SCALE,                                                     \
+        .scale = Q((1 << (BITS)) - 1),                                          \
     );
 
 static int setup_dither(const SwsOp *op, SwsOpPriv *out)
@@ -267,6 +274,7 @@ static int setup_linear(const SwsOp *op, SwsOpPriv *out)
     DECL_RW(EXT, U8, read_nibbles,  READ,  1, false, 1)                         \
     DECL_RW(EXT, U8, read_bits,     READ,  1, false, 3)                         \
     DECL_RW(EXT, U8, write_bits,    WRITE, 1, false, 3)                         \
+    DECL_EXPAND_BITS(EXT, 8)                                                    \
     DECL_PACKED_RW(EXT, 8)                                                      \
     DECL_PACK_UNPACK(EXT, U8, 1, 2, 1, 0)                                       \
     DECL_PACK_UNPACK(EXT, U8, 3, 3, 2, 0)                                       \
@@ -335,6 +343,7 @@ static const SwsOpTable ops8##EXT = {                                           
         &op_read_nibbles1##EXT,                                                 \
         &op_read_bits1##EXT,                                                    \
         &op_write_bits1##EXT,                                                   \
+        &op_expand_bits8##EXT,                                                  \
         &op_pack_1210##EXT,                                                     \
         &op_pack_3320##EXT,                                                     \
         &op_pack_2330##EXT,                                                     \
@@ -385,6 +394,7 @@ static const SwsOpTable ops8##EXT = {                                           
 
 #define DECL_FUNCS_16(SIZE, EXT, FLAG)                                          \
     DECL_PACKED_RW(EXT, 16)                                                     \
+    DECL_EXPAND_BITS(EXT, 16)                                                   \
     DECL_PACK_UNPACK(EXT, U16, 4, 4, 4, 0)                                      \
     DECL_PACK_UNPACK(EXT, U16, 5, 5, 5, 0)                                      \
     DECL_PACK_UNPACK(EXT, U16, 5, 6, 5, 0)                                      \
@@ -413,6 +423,7 @@ static const SwsOpTable ops16##EXT = {                                          
         &op_unpack_4440##EXT,                                                   \
         &op_unpack_5550##EXT,                                                   \
         &op_unpack_5650##EXT,                                                   \
+        &op_expand_bits16##EXT,                                                 \
         REF_COMMON_PATTERNS(swap_bytes_U16##EXT),                               \
         REF_COMMON_PATTERNS(convert_U8_U16##EXT),                               \
         REF_COMMON_PATTERNS(convert_U16_U8##EXT),                               \
@@ -439,6 +450,8 @@ static const SwsOpTable ops16##EXT = {                                          
     DECL_CONVERT(EXT, F32,  U8)                                                 \
     DECL_CONVERT(EXT, U16, F32)                                                 \
     DECL_CONVERT(EXT, F32, U16)                                                 \
+    DECL_CONVERT(EXT, U32, F32)                                                 \
+    DECL_CONVERT(EXT, F32, U32)                                                 \
     DECL_EXPAND(EXT,   U8, U32)                                                 \
     DECL_MIN_MAX(EXT)                                                           \
     DECL_SCALE(EXT)                                                             \
@@ -489,6 +502,8 @@ static const SwsOpTable ops32##EXT = {                                          
         REF_COMMON_PATTERNS(convert_F32_U8##EXT),                               \
         REF_COMMON_PATTERNS(convert_U16_F32##EXT),                              \
         REF_COMMON_PATTERNS(convert_F32_U16##EXT),                              \
+        REF_COMMON_PATTERNS(convert_U32_F32##EXT),                              \
+        REF_COMMON_PATTERNS(convert_F32_U32##EXT),                              \
         REF_COMMON_PATTERNS(expand_U8_U32##EXT),                                \
         REF_COMMON_PATTERNS(min##EXT),                                          \
         REF_COMMON_PATTERNS(max##EXT),                                          \
@@ -551,7 +566,7 @@ static bool op_is_type_invariant(const SwsOp *op)
     switch (op->op) {
     case SWS_OP_READ:
     case SWS_OP_WRITE:
-        return !op->rw.packed && !op->rw.frac;
+        return !(op->rw.elems > 1 && op->rw.packed) && !op->rw.frac;
     case SWS_OP_SWIZZLE:
     case SWS_OP_CLEAR:
         return true;
