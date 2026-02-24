@@ -62,6 +62,26 @@ static const uint8_t hevc_sub_height_c[] = {
     1, 2, 1, 1
 };
 
+static int read_window(HEVCWindow *window, GetBitContext *gb, int chroma_format_idc, int w, int h)
+{
+    int vert_mult  = hevc_sub_height_c[chroma_format_idc];
+    int horiz_mult = hevc_sub_width_c [chroma_format_idc];
+    unsigned left   = get_ue_golomb_long(gb);
+    unsigned right  = get_ue_golomb_long(gb);
+    unsigned top    = get_ue_golomb_long(gb);
+    unsigned bottom = get_ue_golomb_long(gb);
+
+    if (left > w || right  > w ||
+        top  > h || bottom > h)
+        return AVERROR_INVALIDDATA;
+
+    window->left_offset   = left   * horiz_mult;
+    window->right_offset  = right  * horiz_mult;
+    window->top_offset    = top    * vert_mult;
+    window->bottom_offset = bottom * vert_mult;
+    return 0;
+}
+
 static void remove_sps(HEVCParamSets *s, int id)
 {
     int i;
@@ -683,6 +703,10 @@ static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps
     vps->rep_format.pic_width_in_luma_samples  = get_bits(gb, 16);
     vps->rep_format.pic_height_in_luma_samples = get_bits(gb, 16);
 
+    if (vps->rep_format.pic_width_in_luma_samples  > HEVC_MAX_WIDTH ||
+        vps->rep_format.pic_height_in_luma_samples > HEVC_MAX_HEIGHT)
+        return AVERROR_INVALIDDATA;
+
     if (!get_bits1(gb) /* chroma_and_bit_depth_vps_present_flag */) {
         av_log(avctx, AV_LOG_ERROR,
                "chroma_and_bit_depth_vps_present_flag=0 in first rep_format\n");
@@ -702,12 +726,12 @@ static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps
     }
 
     if (get_bits1(gb) /* conformance_window_vps_flag */) {
-        int vert_mult  = hevc_sub_height_c[vps->rep_format.chroma_format_idc];
-        int horiz_mult = hevc_sub_width_c[vps->rep_format.chroma_format_idc];
-        vps->rep_format.conf_win_left_offset   = get_ue_golomb(gb) * horiz_mult;
-        vps->rep_format.conf_win_right_offset  = get_ue_golomb(gb) * horiz_mult;
-        vps->rep_format.conf_win_top_offset    = get_ue_golomb(gb) * vert_mult;
-        vps->rep_format.conf_win_bottom_offset = get_ue_golomb(gb) * vert_mult;
+        int ret = read_window(&vps->rep_format.conf_win, gb,
+                              vps->rep_format.chroma_format_idc,
+                              vps->rep_format.pic_width_in_luma_samples,
+                              vps->rep_format.pic_height_in_luma_samples);
+        if (ret < 0)
+            return ret;
     }
 
     vps->max_one_active_ref_layer = get_bits1(gb);
@@ -919,7 +943,7 @@ err:
     return ret;
 }
 
-static void decode_vui(GetBitContext *gb, AVCodecContext *avctx,
+static int decode_vui(GetBitContext *gb, AVCodecContext *avctx,
                        int apply_defdispwin, HEVCSPS *sps)
 {
     VUI backup_vui, *vui = &sps->vui;
@@ -962,12 +986,7 @@ static void decode_vui(GetBitContext *gb, AVCodecContext *avctx,
         vui->default_display_window_flag = get_bits1(gb);
 
     if (vui->default_display_window_flag) {
-        int vert_mult  = hevc_sub_height_c[sps->chroma_format_idc];
-        int horiz_mult = hevc_sub_width_c[sps->chroma_format_idc];
-        vui->def_disp_win.left_offset   = get_ue_golomb_long(gb) * horiz_mult;
-        vui->def_disp_win.right_offset  = get_ue_golomb_long(gb) * horiz_mult;
-        vui->def_disp_win.top_offset    = get_ue_golomb_long(gb) *  vert_mult;
-        vui->def_disp_win.bottom_offset = get_ue_golomb_long(gb) *  vert_mult;
+        int ret = read_window(&vui->def_disp_win, gb, sps->chroma_format_idc, sps->width, sps->height);
 
         if (apply_defdispwin &&
             avctx->flags2 & AV_CODEC_FLAG2_IGNORE_CROP) {
@@ -983,7 +1002,8 @@ static void decode_vui(GetBitContext *gb, AVCodecContext *avctx,
             vui->def_disp_win.right_offset  =
             vui->def_disp_win.top_offset    =
             vui->def_disp_win.bottom_offset = 0;
-        }
+        } else if (ret < 0)
+            return ret;
     }
 
 timing_info:
@@ -1044,6 +1064,8 @@ timing_info:
         alt = 1;
         goto timing_info;
     }
+
+    return 0;
 }
 
 static void set_default_scaling_list_data(ScalingList *sl)
@@ -1281,10 +1303,10 @@ int ff_hevc_parse_sps(HEVCSPS *sps, GetBitContext *gb, unsigned int *sps_id,
         sps->width                 = rf->pic_width_in_luma_samples;
         sps->height                = rf->pic_height_in_luma_samples;
 
-        sps->pic_conf_win.left_offset   = rf->conf_win_left_offset;
-        sps->pic_conf_win.right_offset  = rf->conf_win_right_offset;
-        sps->pic_conf_win.top_offset    = rf->conf_win_top_offset;
-        sps->pic_conf_win.bottom_offset = rf->conf_win_bottom_offset;
+        sps->pic_conf_win.left_offset   = rf->conf_win.left_offset;
+        sps->pic_conf_win.right_offset  = rf->conf_win.right_offset;
+        sps->pic_conf_win.top_offset    = rf->conf_win.top_offset;
+        sps->pic_conf_win.bottom_offset = rf->conf_win.bottom_offset;
 
     } else {
         sps->chroma_format_idc = get_ue_golomb_long(gb);
@@ -1301,18 +1323,12 @@ int ff_hevc_parse_sps(HEVCSPS *sps, GetBitContext *gb, unsigned int *sps_id,
 
         sps->width  = get_ue_golomb_long(gb);
         sps->height = get_ue_golomb_long(gb);
-        if ((ret = av_image_check_size(sps->width,
-                                       sps->height, 0, avctx)) < 0)
+        if (sps->width > HEVC_MAX_WIDTH || sps->height > HEVC_MAX_HEIGHT)
             return ret;
 
         sps->conformance_window = get_bits1(gb);
         if (sps->conformance_window) {
-            int vert_mult  = hevc_sub_height_c[sps->chroma_format_idc];
-            int horiz_mult = hevc_sub_width_c[sps->chroma_format_idc];
-            sps->pic_conf_win.left_offset   = get_ue_golomb_long(gb) * horiz_mult;
-            sps->pic_conf_win.right_offset  = get_ue_golomb_long(gb) * horiz_mult;
-            sps->pic_conf_win.top_offset    = get_ue_golomb_long(gb) *  vert_mult;
-            sps->pic_conf_win.bottom_offset = get_ue_golomb_long(gb) *  vert_mult;
+            ret = read_window(&sps->pic_conf_win, gb, sps->chroma_format_idc, sps->width, sps->height);
 
             if (avctx->flags2 & AV_CODEC_FLAG2_IGNORE_CROP) {
                 av_log(avctx, AV_LOG_DEBUG,
@@ -1327,7 +1343,8 @@ int ff_hevc_parse_sps(HEVCSPS *sps, GetBitContext *gb, unsigned int *sps_id,
                 sps->pic_conf_win.right_offset  =
                 sps->pic_conf_win.top_offset    =
                 sps->pic_conf_win.bottom_offset = 0;
-            }
+            } else if (ret < 0)
+                return ret;
         }
 
         sps->bit_depth = get_ue_golomb_31(gb) + 8;
@@ -1504,8 +1521,11 @@ int ff_hevc_parse_sps(HEVCSPS *sps, GetBitContext *gb, unsigned int *sps_id,
     sps->strong_intra_smoothing_enabled = get_bits1(gb);
     sps->vui.common.sar = (AVRational){0, 1};
     sps->vui_present = get_bits1(gb);
-    if (sps->vui_present)
-        decode_vui(gb, avctx, apply_defdispwin, sps);
+    if (sps->vui_present) {
+        ret = decode_vui(gb, avctx, apply_defdispwin, sps);
+        if (ret < 0)
+            return ret;
+    }
 
     sps->extension_present = get_bits1(gb);
     if (sps->extension_present) {
