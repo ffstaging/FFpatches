@@ -301,6 +301,7 @@ TESTPROGS = adler32                                                     \
             side_data_array                                             \
             softfloat                                                   \
             tree                                                        \
+            timecode                                                    \
             twofish                                                     \
             utf8                                                        \
             uuid                                                        \

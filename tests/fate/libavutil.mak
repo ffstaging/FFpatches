@@ -179,6 +179,11 @@ fate-uuid: libavutil/tests/uuid$(EXESUF)
 fate-uuid: CMD = run libavutil/tests/uuid$(EXESUF)
 fate-uuid: CMP = null
 
+FATE_LIBAVUTIL += fate-timecode
+fate-timecode: libavutil/tests/timecode$(EXESUF)
+fate-timecode: CMD = run libavutil/tests/timecode$(EXESUF)
+fate-timecode: CMP = null
+
 FATE_LIBAVUTIL += $(FATE_LIBAVUTIL-yes)
 FATE-$(CONFIG_AVUTIL) += $(FATE_LIBAVUTIL)
 fate-libavutil: $(FATE_LIBAVUTIL)

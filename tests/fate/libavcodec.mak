@@ -114,5 +114,10 @@ FATE_LIBAVCODEC-yes += fate-libavcodec-htmlsubtitles
 fate-libavcodec-htmlsubtitles: libavcodec/tests/htmlsubtitles$(EXESUF)
 fate-libavcodec-htmlsubtitles: CMD = run libavcodec/tests/htmlsubtitles$(EXESUF)
 
+FATE_LIBAVCODEC-$(CONFIG_CBS_H264) += fate-libavcodec-cbs-sei
+fate-libavcodec-cbs-sei: libavcodec/tests/cbs_sei$(EXESUF)
+fate-libavcodec-cbs-sei: CMD = run libavcodec/tests/cbs_sei$(EXESUF)
+fate-libavcodec-cbs-sei: CMP = null
+
 FATE-$(CONFIG_AVCODEC) += $(FATE_LIBAVCODEC-yes)
 fate-libavcodec: $(FATE_LIBAVCODEC-yes)
