@@ -97,6 +97,7 @@ typedef struct SegmentContext {
     int64_t time;          ///< segment duration
     int64_t min_seg_duration;  ///< minimum segment duration
     int use_strftime;      ///< flag to expand filename with strftime
+    int use_strftime_mkdir; ///< flag to create parent directories with strftime_mkdir
     int increment_tc;      ///< flag to increment timecode if found
 
     char *times_str;       ///< segment times specification string
@@ -207,6 +208,20 @@ static int set_segment_filename(AVFormatContext *s)
         if (!av_bprint_is_complete(&filename)) {
             av_bprint_finalize(&filename, NULL);
             return AVERROR(ENOMEM);
+        }
+
+        if (seg->use_strftime_mkdir) {
+            const char* dir;
+            char* fn_copy = av_strdup(filename.str);
+            if (!fn_copy)
+                return AVERROR(ENOMEM);
+            dir = av_dirname(fn_copy);
+            if (ff_mkdir_p(dir) == -1 && errno != EEXIST) {
+                av_log(s, AV_LOG_ERROR, "Could not create directory %s with use_strftime_mkdir\n", dir);
+                av_freep(&fn_copy);
+                return AVERROR(errno);
+            }
+            av_freep(&fn_copy);
         }
     } else {
         ret = ff_bprint_get_frame_filename(&filename, s->url, seg->segment_idx, 0);
@@ -1077,6 +1092,7 @@ static const AVOption options[] = {
     { "segment_start_number", "set the sequence number of the first segment", OFFSET(segment_idx), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
     { "segment_wrap_number", "set the number of wrap before the first segment", OFFSET(segment_idx_wrap_nb), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
     { "strftime",          "set filename expansion with strftime at segment creation", OFFSET(use_strftime), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, E },
+    { "strftime_mkdir", "create last directory component in strftime-generated filename", OFFSET(use_strftime_mkdir), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, E },
     { "increment_tc", "increment timecode between each segment", OFFSET(increment_tc), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, E },
     { "break_non_keyframes", "allow breaking segments on non-keyframes", OFFSET(break_non_keyframes), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, E },
 
