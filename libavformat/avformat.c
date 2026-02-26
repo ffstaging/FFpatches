@@ -868,6 +868,37 @@ void ff_format_set_url(AVFormatContext *s, char *url)
     s->url = url;
 }
 
+int ff_format_check_set_url(AVFormatContext *s, char *url)
+{
+    av_assert0(url);
+    char proto[64];
+    char auth[256];
+    char host[256];
+    char path[256];
+    int port=-1;
+
+    av_url_split(proto, sizeof(proto), auth, sizeof(auth), host, sizeof(host), &port, path, sizeof(path), url);
+
+    if (s->protocol_whitelist && av_match_list(proto, s->protocol_whitelist, ',') <= 0) {
+        av_log(s, AV_LOG_ERROR, "Protocol '%s' not on whitelist '%s'!\n", proto, s->protocol_whitelist);
+        return AVERROR(EINVAL);
+    }
+
+    if (s->protocol_blacklist && av_match_list(proto, s->protocol_blacklist, ',') > 0) {
+        av_log(s, AV_LOG_ERROR, "Protocol '%s' on blacklist '%s'!\n", proto, s->protocol_blacklist);
+        return AVERROR(EINVAL);
+    }
+
+    url = av_strdup(url);
+    if (!url)
+        return AVERROR(ENOMEM);
+
+    av_freep(&s->url);
+    s->url = url;
+    return 0;
+}
+
+
 int ff_format_io_close(AVFormatContext *s, AVIOContext **pb)
 {
     int ret = 0;
