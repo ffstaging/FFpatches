@@ -326,6 +326,18 @@ typedef void (*planarX2_YV12_fn)(uint8_t *dst, uint8_t *dst2,
 struct SwsSlice;
 struct SwsFilterDescriptor;
 
+typedef struct SwsBufferPool {
+    AVBufferPool *pools[4]; /* pool for each plane allocation */
+    int linesize[4];
+    int format;
+    int width;
+    int height;
+} SwsBufferPool;
+
+int ff_sws_buffer_pool_reinit(SwsBufferPool *pool, const AVFrame *dst);
+void ff_sws_buffer_pool_uninit(SwsBufferPool *pool);
+int ff_sws_buffer_pool_get(const SwsBufferPool *pool, AVFrame *dst, int plane);
+
 /* This struct should be aligned on at least a 32-byte boundary. */
 struct SwsInternal {
     /* Currently active user-facing options. Also contains AVClass */
@@ -341,6 +353,7 @@ struct SwsInternal {
 
     /* Scaling graph, reinitialized dynamically as needed. */
     SwsGraph *graph[2]; /* top, bottom fields */
+    SwsBufferPool pool; /* pool for allocations */
 
     // values passed to current sws_receive_slice() call
     int dst_slice_start;
@@ -709,8 +722,9 @@ static_assert(offsetof(SwsInternal, redDither) + DITHER32_INT == offsetof(SwsInt
 
 #if ARCH_X86_64
 /* x86 yuv2gbrp uses the SwsInternal for yuv coefficients
-   if struct offsets change the asm needs to be updated too */
-static_assert(offsetof(SwsInternal, yuv2rgb_y_offset) == 40348,
+ * if struct offsets change the asm needs to be updated too
+ * See: libswscale/x86/output.asm */
+static_assert(offsetof(SwsInternal, yuv2rgb_y_offset) == 40412,
               "yuv2rgb_y_offset must be updated in x86 asm");
 #endif
 

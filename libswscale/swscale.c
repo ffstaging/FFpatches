@@ -27,6 +27,7 @@
 #include "libavutil/common.h"
 #include "libavutil/cpu.h"
 #include "libavutil/emms.h"
+#include "libavutil/imgutils.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/mem.h"
 #include "libavutil/mem_internal.h"
@@ -1350,20 +1351,54 @@ static SwsImg get_frame_img(const AVFrame *frame, int field)
     return img;
 }
 
-/* Subset of av_frame_ref() that only references (video) data buffers */
-static int frame_ref(AVFrame *dst, const AVFrame *src)
+/* Similar to av_frame_ref() but only references planes in the given map */
+static int frame_ref(AVFrame *dst, const AVFrame *src, const int plane_copy[4])
 {
-    /* ref the buffers */
-    for (int i = 0; i < FF_ARRAY_ELEMS(src->buf); i++) {
-        if (!src->buf[i])
+    int copied[4] = {0};
+    int nb_copied = 0;
+
+    for (int i = 0; i < 4; i++) {
+        const int idx = plane_copy[i];
+        if (idx < 0)
             continue;
-        dst->buf[i] = av_buffer_ref(src->buf[i]);
-        if (!dst->buf[i])
-            return AVERROR(ENOMEM);
+        /* Find corresponding source buffer */
+        uint8_t *src_data = src->data[idx];
+        av_assert0(src_data);
+        for (int j = 0; j < 4; j++) {
+            AVBufferRef *buf = src->buf[j];
+            if (!buf)
+                break;
+            if (src_data < buf->data || src_data >= buf->data + buf->size)
+                continue; /* wrong buffer */
+            if (!copied[j]) {
+                AVBufferRef *ref = av_buffer_ref(buf);
+                if (!ref)
+                    return AVERROR(ENOMEM);
+                dst->buf[nb_copied++] = ref;
+                copied[j] = 1;
+            }
+            dst->data[i]     = src_data;
+            dst->linesize[i] = src->linesize[idx];
+        }
     }
 
-    memcpy(dst->data,     src->data,     sizeof(src->data));
-    memcpy(dst->linesize, src->linesize, sizeof(src->linesize));
+    return 0;
+}
+
+static int frame_alloc_buffers(SwsContext *sws, AVFrame *frame)
+{
+    SwsInternal *c = sws_internal(sws);
+    const SwsBufferPool *pool = &c->pool;
+
+    const int nb_planes = av_pix_fmt_count_planes(frame->format);
+    for (int i = 0; i < nb_planes; i++) {
+        if (frame->data[i])
+            continue; /* already ref'd by frame_ref */
+        int ret = ff_sws_buffer_pool_get(pool, frame, i);
+        if (ret < 0)
+            return ret;
+    }
+
     return 0;
 }
 
@@ -1397,29 +1432,47 @@ int sws_scale_frame(SwsContext *sws, AVFrame *dst, const AVFrame *src)
     if (!src->data[0])
         return 0;
 
-    if (c->graph[FIELD_TOP]->noop &&
-        (!c->graph[FIELD_BOTTOM] || c->graph[FIELD_BOTTOM]->noop) &&
-        src->buf[0] && !dst->buf[0] && !dst->data[0])
-    {
-        /* Lightweight refcopy */
-        ret = frame_ref(dst, src);
-        if (ret < 0)
-            return ret;
-    } else {
-        if (!dst->data[0]) {
-            ret = av_frame_get_buffer(dst, 0);
-            if (ret < 0)
-                return ret;
+    const SwsGraph *top = c->graph[FIELD_TOP];
+    const SwsGraph *bot = c->graph[FIELD_BOTTOM];
+    if (dst->data[0]) /* user-provided buffers */
+        goto process_frame;
+
+    /* Sanity */
+    memset(dst->buf, 0, sizeof(dst->buf));
+    memset(dst->data, 0, sizeof(dst->data));
+    memset(dst->linesize, 0, sizeof(dst->linesize));
+    dst->extended_data = dst->data;
+
+    if (src->buf[0]) {
+        /* Determine end-to-end plane copy map */
+        int plane_copy[FF_ARRAY_ELEMS(top->plane_copy)];
+        memcpy(plane_copy, top->plane_copy, sizeof(plane_copy));
+        for (int i = 0; bot && i < FF_ARRAY_ELEMS(plane_copy); i++) {
+            if (bot->plane_copy[i] != plane_copy[i])
+                plane_copy[i] = -1;
         }
 
-        for (int field = 0; field < 2; field++) {
-            SwsGraph *graph = c->graph[field];
-            SwsImg input  = get_frame_img(src, field);
-            SwsImg output = get_frame_img(dst, field);
-            ff_sws_graph_run(graph, &output, &input);
-            if (!graph->dst.interlaced)
-                break;
-        }
+        ret = frame_ref(dst, src, plane_copy);
+        if (ret < 0)
+            return ret;
+
+        if (top->noop && (!bot || bot->noop))
+            return 0; /* all planes should be ref'd now */
+    }
+
+    /* Allocate any missing buffers not yet ref'd */
+    ret = frame_alloc_buffers(sws, dst);
+    if (ret < 0)
+        return ret;
+
+process_frame:
+    for (int field = 0; field < 2; field++) {
+        SwsGraph *graph = c->graph[field];
+        SwsImg input  = get_frame_img(src, field);
+        SwsImg output = get_frame_img(dst, field);
+        ff_sws_graph_run(graph, &output, &input);
+        if (!bot)
+            break;
     }
 
     return 0;
@@ -1449,6 +1502,10 @@ int sws_frame_setup(SwsContext *ctx, const AVFrame *dst, const AVFrame *src)
     if (!src || !dst)
         return AVERROR(EINVAL);
     if ((ret = validate_params(ctx)) < 0)
+        return ret;
+
+    ret = ff_sws_buffer_pool_reinit(&s->pool, dst);
+    if (ret < 0)
         return ret;
 
     for (int field = 0; field < 2; field++) {

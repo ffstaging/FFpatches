@@ -102,6 +102,15 @@ struct SwsPass {
     SwsPassBuffer *output; /* refstruct */
 
     /**
+     * Map of planes which are directly copied from the pass input. These
+     * may be promoted from a memcpy to a refcopy.
+     *
+     * Each entry maps the output index to the corresponding input plane
+     * index, or -1 for no copythrough.
+     */
+    int plane_copy[4];
+
+    /**
      * Called once from the main thread before running the filter. Optional.
      */
     void (*setup)(const SwsImg *out, const SwsImg *in, const SwsPass *pass);
@@ -122,6 +131,16 @@ typedef struct SwsGraph {
     int num_threads; /* resolved at init() time */
     bool incomplete; /* set during init() if formats had to be inferred */
     bool noop;       /* set during init() if the graph is a no-op */
+
+    /**
+     * Map of planes which directly copied from the input. These may be
+     * promoted from a memcpy to a refcopy. This requires special handling
+     * by the caller.
+     *
+     * Each entry maps the output index to the corresponding input plane
+     * index, or -1 for no copythrough.
+     */
+    int plane_copy[4];
 
     /** Sorted sequence of filter passes to apply */
     SwsPass **passes;

@@ -2261,6 +2261,7 @@ void sws_freeContext(SwsContext *sws)
 
     for (i = 0; i < FF_ARRAY_ELEMS(c->graph); i++)
         ff_sws_graph_free(&c->graph[i]);
+    ff_sws_buffer_pool_uninit(&c->pool);
 
     for (i = 0; i < c->nb_slice_ctx; i++)
         sws_freeContext(c->slice_ctx[i]);
@@ -2455,4 +2456,92 @@ int ff_range_add(RangeList *rl, unsigned int start, unsigned int len)
     }
 
     return 0;
+}
+
+void ff_sws_buffer_pool_uninit(SwsBufferPool *pool)
+{
+    for (int i = 0; i < FF_ARRAY_ELEMS(pool->pools); i++)
+        av_buffer_pool_uninit(&pool->pools[i]);
+    memset(pool, 0, sizeof(*pool));
+}
+
+int ff_sws_buffer_pool_reinit(SwsBufferPool *pool, const AVFrame *dst)
+{
+    const int align = av_cpu_max_align();
+    if (pool->format == dst->format &&
+        pool->width  == dst->width  &&
+        pool->height == dst->height)
+        return 0; /* pool already compatible */
+
+    ff_sws_buffer_pool_uninit(pool);
+
+    int ret = av_image_check_size2(dst->width, dst->height, INT64_MAX,
+                                   dst->format, 0, NULL);
+    if (ret < 0)
+        goto fail;
+
+    for (int i = 1; i <= align; i += i) {
+        ret = av_image_fill_linesizes(pool->linesize, dst->format, FFALIGN(dst->width, i));
+        if (ret < 0)
+            goto fail;
+        if (!(pool->linesize[0] & (align - 1)))
+            break;
+    }
+
+    ptrdiff_t linesize1[4];
+    for (int i = 0; i < 4; i++)
+        linesize1[i] = pool->linesize[i] = FFALIGN(pool->linesize[i], align);
+
+    size_t sizes[4];
+    ret = av_image_fill_plane_sizes(sizes, dst->format, dst->height, linesize1);
+    if (ret < 0)
+        goto fail;
+
+    for (int i = 0; i < 4 && sizes[i]; i++) {
+        if (sizes[i] > SIZE_MAX - align) {
+            ret = AVERROR(EINVAL);
+            goto fail;
+        }
+
+        pool->pools[i] = av_buffer_pool_init(sizes[i] + align, NULL);
+        if (!pool->pools[i]) {
+            ret = AVERROR(ENOMEM);
+            goto fail;
+        }
+    }
+
+    pool->format = dst->format;
+    pool->width  = dst->width;
+    pool->height = dst->height;
+    return 0;
+
+fail:
+    ff_sws_buffer_pool_uninit(pool);
+    return ret;
+}
+
+int ff_sws_buffer_pool_get(const SwsBufferPool *pool, AVFrame *dst, int plane)
+{
+    av_assert0(plane >= 0 && plane < FF_ARRAY_ELEMS(pool->pools));
+    if (!pool->pools[plane])
+        return AVERROR(EINVAL);
+
+    AVBufferRef *buf = av_buffer_pool_get(pool->pools[plane]);
+    if (!buf)
+        return AVERROR(ENOMEM);
+
+    const int align = av_cpu_max_align();
+    uint8_t *aligned_data = (uint8_t *) FFALIGN((uintptr_t) buf->data, align);
+    for (int i = 0; i < FF_ARRAY_ELEMS(dst->buf); i++) {
+        if (!dst->buf[i]) {
+            dst->data[plane] = aligned_data;
+            dst->linesize[plane] = pool->linesize[plane];
+            dst->buf[i] = buf;
+            return 0;
+        }
+    }
+
+    /* No free buffer slot found? Shouldn't be possible */
+    av_buffer_unref(&buf);
+    return AVERROR_BUG;
 }

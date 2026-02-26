@@ -69,12 +69,20 @@ typedef enum SwsOpType {
     SWS_OP_TYPE_NB,
 } SwsOpType;
 
-enum SwsCompFlags {
+const char *ff_sws_op_type_name(SwsOpType op);
+
+typedef enum SwsCompFlags {
     SWS_COMP_GARBAGE = 1 << 0, /* contents are undefined / garbage data */
     SWS_COMP_EXACT   = 1 << 1, /* value is an exact integer */
     SWS_COMP_ZERO    = 1 << 2, /* known to be a constant zero */
     SWS_COMP_SWAPPED = 1 << 3, /* byte order is swapped */
-};
+    SWS_COMP_PLANE0  = 1 << 4, /* depends on values from plane 0 */
+    SWS_COMP_PLANE1  = 1 << 5, /* depends on values from plane 1 */
+    SWS_COMP_PLANE2  = 1 << 6, /* depends on values from plane 2 */
+    SWS_COMP_PLANE3  = 1 << 7, /* depends on values from plane 3 */
+    SWS_COMP_COPY    = 1 << 8, /* value is unmodified from the source plane */
+    SWS_COMP_CONST   = 1 << 9, /* value is a fixed constant */
+} SwsCompFlags;
 
 typedef union SwsConst {
     /* Generic constant value */
@@ -87,8 +95,8 @@ static_assert(sizeof(SwsConst) == sizeof(AVRational) * 4,
               "First field of SwsConst should span the entire union");
 
 typedef struct SwsComps {
-    unsigned flags[4]; /* knowledge about (output) component contents */
-    bool unused[4];    /* which input components are definitely unused */
+    SwsCompFlags flags[4]; /* knowledge about (output) component contents */
+    bool unused[4]; /* which input components are definitely unused */
 
     /* Keeps track of the known possible value range, or {0, 0} for undefined
      * or (unknown range) floating point inputs */
@@ -294,10 +302,8 @@ enum SwsOpCompileFlags {
 /**
  * Resolves an operation list to a graph pass. The first and last operations
  * must be a read/write respectively. `flags` is a list of SwsOpCompileFlags.
- *
- * Note: `ops` may be modified by this function.
  */
-int ff_sws_compile_pass(SwsGraph *graph, SwsOpList *ops, int flags, SwsFormat dst,
-                        SwsPass *input, SwsPass **output);
+int ff_sws_compile_pass(SwsGraph *graph, const SwsOpList *ops, int flags,
+                        SwsFormat dst, SwsPass *input, SwsPass **output);
 
 #endif
