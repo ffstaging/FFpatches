@@ -40,6 +40,8 @@
 #include "avstring.h"
 #include "reverse.h"
 
+#define MAX_DEPTH 100
+
 typedef struct Parser {
     const AVClass *class;
     int stack_index;
@@ -176,6 +178,7 @@ struct AVExpr {
     struct AVExpr *param[3];
     double *var;
     FFSFC64 *prng_state;
+    int depth;
 };
 
 static double etime(double v)
@@ -430,13 +433,16 @@ static int parse_primary(AVExpr **e, Parser *p)
         av_expr_free(d);
         return ret;
     }
+    d->depth = FFMAX(d->depth, d->param[0]->depth+1);
     if (p->s[0]== ',') {
         p->s++; // ","
         parse_expr(&d->param[1], p);
+        d->depth = FFMAX(d->depth, d->param[1]->depth+1);
     }
     if (p->s[0]== ',') {
         p->s++; // ","
         parse_expr(&d->param[2], p);
+        d->depth = FFMAX(d->depth, d->param[2]->depth+1);
     }
     if (p->s[0] != ')') {
         av_log(p, AV_LOG_ERROR, "Missing ')' or too many args in '%s'\n", s0);
@@ -529,6 +535,9 @@ static int parse_primary(AVExpr **e, Parser *p)
 
 static AVExpr *make_eval_expr(int type, int value, AVExpr *p0, AVExpr *p1)
 {
+    int depth = FFMAX(p0->depth, p1->depth) + 1;
+    if (depth > MAX_DEPTH)
+        return NULL;
     AVExpr *e = av_mallocz(sizeof(AVExpr));
     if (!e)
         return NULL;
@@ -536,6 +545,7 @@ static AVExpr *make_eval_expr(int type, int value, AVExpr *p0, AVExpr *p1)
     e->value    =value  ;
     e->param[0] =p0     ;
     e->param[1] =p1     ;
+    e->depth    = depth;
     return e;
 }
 
