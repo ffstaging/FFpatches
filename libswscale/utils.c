@@ -854,6 +854,8 @@ int sws_setColorspaceDetails(SwsContext *sws, const int inv_table[4],
     const AVPixFmtDescriptor *desc_dst;
     const AVPixFmtDescriptor *desc_src;
     int ret, need_reinit = 0;
+    if (!c || !c->is_legacy_init)
+        return AVERROR(EINVAL);
 
     if (c->nb_slice_ctx) {
         int parent_ret = 0;
@@ -1009,8 +1011,8 @@ int sws_getColorspaceDetails(SwsContext *sws, int **inv_table,
                              int *brightness, int *contrast, int *saturation)
 {
     SwsInternal *c = sws_internal(sws);
-    if (!c)
-        return -1;
+    if (!c || !c->is_legacy_init)
+        return AVERROR(EINVAL);
 
     if (c->nb_slice_ctx) {
         return sws_getColorspaceDetails(c->slice_ctx[0], inv_table, srcRange,
@@ -1891,6 +1893,24 @@ static int context_init_threaded(SwsContext *sws,
     return 0;
 }
 
+/**
+ * Clear out any state from the modern non-legacy API, and reset the context
+ * back to a state as if sws_scale_frame() had never been used with it.
+ */
+static void reset_dynamic_state(SwsContext *sws)
+{
+    SwsInternal *c = sws_internal(sws);
+    if (c->is_legacy_init)
+        return;
+
+    for (int i = 0; i < FF_ARRAY_ELEMS(c->graph); i++)
+        ff_sws_graph_free(&c->graph[i]);
+
+#if CONFIG_VULKAN
+    ff_sws_vk_uninit(sws);
+#endif
+}
+
 av_cold int sws_init_context(SwsContext *sws, SwsFilter *srcFilter,
                              SwsFilter *dstFilter)
 {
@@ -1899,6 +1919,9 @@ av_cold int sws_init_context(SwsContext *sws, SwsFilter *srcFilter,
     enum AVPixelFormat src_format, dst_format;
     int ret;
 
+    /* Clear any state related to the modern non-legacy API */
+    reset_dynamic_state(sws);
+    c->is_legacy_init = 1;
     c->frame_src = av_frame_alloc();
     c->frame_dst = av_frame_alloc();
     if (!c->frame_src || !c->frame_dst)
@@ -2263,13 +2286,13 @@ void sws_freeContext(SwsContext *sws)
     if (!c)
         return;
 
-#if CONFIG_VULKAN
-    ff_sws_vk_uninit(sws);
-#endif
+    if (!c->is_legacy_init) {
+        reset_dynamic_state(sws);
+        av_free(c);
+        return;
+    }
 
-    for (i = 0; i < FF_ARRAY_ELEMS(c->graph); i++)
-        ff_sws_graph_free(&c->graph[i]);
-
+    /* Uninit legacy API fields */
     for (i = 0; i < c->nb_slice_ctx; i++)
         sws_freeContext(c->slice_ctx[i]);
     av_freep(&c->slice_ctx);
