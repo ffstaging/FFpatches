@@ -79,8 +79,9 @@ static int lz4_decompress(AVCodecContext *avctx,
                           PutByteContext *pb)
 {
     unsigned reference_pos, delta, pos = 0;
-    uint8_t history[HISTORY_SIZE] = { 0 };
+    uint8_t history[HISTORY_SIZE];
     int match_length;
+    int wraped = 0;
 
     while (bytestream2_get_bytes_left(gb) > 0) {
         uint8_t token = bytestream2_get_byte(gb);
@@ -97,17 +98,16 @@ static int lz4_decompress(AVCodecContext *avctx,
         if (bytestream2_get_bytes_left(gb) < num_literals)
             return AVERROR_INVALIDDATA;
 
-        if (pos + num_literals < HISTORY_SIZE) {
-            bytestream2_get_buffer(gb, history + pos, num_literals);
-            pos += num_literals;
-        } else {
-            while (num_literals-- > 0) {
-                history[pos++] = bytestream2_get_byte(gb);
-                if (pos == HISTORY_SIZE) {
-                    bytestream2_put_buffer(pb, history, HISTORY_SIZE);
-                    pos = 0;
-                }
+        while (num_literals) {
+            int max_literals = FFMIN(num_literals, HISTORY_SIZE - pos);
+            bytestream2_get_buffer(gb, history + pos, max_literals);
+            pos += max_literals;
+            if (pos == HISTORY_SIZE) {
+                bytestream2_put_buffer(pb, history, HISTORY_SIZE);
+                pos = 0;
+                wraped = 1;
             }
+            num_literals -= max_literals;
         }
 
         if (bytestream2_get_bytes_left(gb) <= 0)
@@ -125,24 +125,33 @@ static int lz4_decompress(AVCodecContext *avctx,
                 match_length += current;
             } while (current == 255);
         }
-        reference_pos = (pos >= delta) ? (pos - delta) : (HISTORY_SIZE + pos - delta);
-        if (pos + match_length < HISTORY_SIZE && reference_pos + match_length < HISTORY_SIZE) {
-            if (pos >= reference_pos + match_length || reference_pos >= pos + match_length) {
-                memcpy(history + pos, history + reference_pos, match_length);
-                pos += match_length;
+        reference_pos = pos - delta;
+        if (pos < delta) {
+            if (!wraped)
+                return AVERROR_INVALIDDATA;
+            reference_pos += HISTORY_SIZE;
+        }
+
+        while (match_length) {
+            int max_match;
+            if (reference_pos > pos) {
+                max_match = FFMIN(match_length, HISTORY_SIZE - reference_pos);
+                memmove(history + pos, history + reference_pos, max_match);
+                pos += max_match;
+                reference_pos += max_match;
+                if (reference_pos == HISTORY_SIZE) reference_pos = 0;
             } else {
-                while (match_length-- > 0)
-                    history[pos++] = history[reference_pos++];
-            }
-        } else {
-            while (match_length-- > 0) {
-                history[pos++] = history[reference_pos++];
+                max_match = FFMIN(match_length, HISTORY_SIZE - pos);
+                av_memcpy_backptr(history + pos, pos - reference_pos, max_match);
+                pos += max_match;
+                reference_pos += max_match;
                 if (pos == HISTORY_SIZE) {
                     bytestream2_put_buffer(pb, history, HISTORY_SIZE);
                     pos = 0;
+                    wraped = 1;
                 }
-                reference_pos %= HISTORY_SIZE;
             }
+            match_length -= max_match;
         }
     }
 
