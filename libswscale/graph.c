@@ -791,12 +791,9 @@ int ff_sws_graph_create(SwsContext *ctx, const SwsFormat *dst, const SwsFormat *
 
     ret = avpriv_slicethread_create(&graph->slicethread, (void *) graph,
                                     sws_graph_worker, NULL, ctx->threads);
-    if (ret == AVERROR(ENOSYS))
-        graph->num_threads = 1;
-    else if (ret < 0)
+    if (ret < 0)
         goto error;
-    else
-        graph->num_threads = ret;
+    graph->num_threads = ret;
 
     ret = init_passes(graph);
     if (ret < 0)
