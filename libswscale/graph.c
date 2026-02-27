@@ -919,4 +919,7 @@ void ff_sws_graph_run(SwsGraph *graph, const AVFrame *dst, const AVFrame *src)
             pass->setup(graph->exec.output, graph->exec.input, pass);
         avpriv_slicethread_execute(graph->slicethread, pass->num_slices, 0);
     }
+
+    for (int i = 0; i < FF_ARRAY_ELEMS(graph->field_tmp); i++)
+        *graph->field_tmp[i] = (AVFrame) {0};
 }
