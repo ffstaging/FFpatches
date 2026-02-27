@@ -641,7 +641,10 @@ static int generate_sdp_offer(AVFormatContext *s)
         bundle[bundle_index++] = '1';
         bundle[bundle_index++] = ' ';
     }
-    bundle[bundle_index - 1] = '\0';
+    if (bundle_index > 0)
+        bundle[bundle_index - 1] = '\0';
+    else
+        bundle[0] = '\0';
 
     av_bprintf(&bp, ""
         "v=0\r\n"
