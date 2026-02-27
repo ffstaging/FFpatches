@@ -4116,7 +4116,7 @@ static int matroska_parse_block(MatroskaDemuxContext *matroska, AVBufferRef *buf
     int n, flags, laces = 0;
     uint64_t num;
     int trust_default_duration;
-
+    uint8_t *data_start = data;
     av_assert1(buf);
 
     ffio_init_read_context(&pb, data, size);
@@ -4200,7 +4200,7 @@ static int matroska_parse_block(MatroskaDemuxContext *matroska, AVBufferRef *buf
     if (cluster_time != (uint64_t)-1 && (block_time >= 0 || cluster_time >= -block_time))
         track->end_timecode =
             FFMAX(track->end_timecode, timecode + block_duration);
-
+    pos += (data - data_start);
     for (n = 0; n < laces; n++) {
         int64_t lace_duration = block_duration*(n+1) / laces - block_duration*n / laces;
         uint8_t *out_data = data;

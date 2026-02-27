@@ -68,7 +68,7 @@ dts_time=-0.007000
 duration=20
 duration_time=0.020000
 size=320
-pos=499
+pos=503
 flags=K__
 [SIDE_DATA]
 side_data_type=Skip Samples
@@ -88,7 +88,7 @@ dts_time=0.014000
 duration=20
 duration_time=0.020000
 size=159
-pos=826
+pos=830
 flags=K__
 [/PACKET]
 [PACKET]
@@ -101,7 +101,7 @@ dts_time=0.034000
 duration=20
 duration_time=0.020000
 size=148
-pos=992
+pos=996
 flags=K__
 [/PACKET]
 [STREAM]
