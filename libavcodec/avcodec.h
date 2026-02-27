@@ -615,7 +615,7 @@ typedef struct AVCodecContext {
     int coded_width, coded_height;
 
     /**
-     * sample aspect ratio (0 if unknown)
+     * sample aspect ratio (0/0 or 0 if unknown)
      * That is the width of a pixel divided by the height of the pixel.
      * Numerator and denominator must be relatively prime and smaller than 256 for some video standards.
      * - encoding: Set by user.

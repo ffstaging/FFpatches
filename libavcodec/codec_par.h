@@ -139,7 +139,7 @@ typedef struct AVCodecParameters {
      * should have when displayed.
      *
      * When the aspect ratio is unknown / undefined, the numerator should be
-     * set to 0 (the denominator may have any value).
+     * set to 0 (the denominator may have any value but 0 is the mathematical correct value).
      */
     AVRational sample_aspect_ratio;
 

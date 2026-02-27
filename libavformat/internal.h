@@ -289,7 +289,7 @@ typedef struct FFStream {
     uint8_t dts_misordered;
 
     /**
-     * display aspect ratio (0 if unknown)
+     * display aspect ratio (0 or 0/0 if unknown)
      * - encoding: unused
      * - decoding: Set by libavformat to calculate sample_aspect_ratio internally
      */

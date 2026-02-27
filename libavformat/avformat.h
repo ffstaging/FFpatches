@@ -817,7 +817,7 @@ typedef struct AVStream {
     enum AVDiscard discard; ///< Selects which packets can be discarded at will and do not need to be demuxed.
 
     /**
-     * sample aspect ratio (0 if unknown)
+     * sample aspect ratio (0/0 or 0 if unknown)
      * - encoding: Set by user.
      * - decoding: Set by libavformat.
      */

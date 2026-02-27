@@ -519,7 +519,7 @@ typedef struct AVFrame {
     enum AVPictureType pict_type;
 
     /**
-     * Sample aspect ratio for the video frame, 0/1 if unknown/unspecified.
+     * Sample aspect ratio for the video frame, 0/0 or 0/1 if unknown/unspecified.
      */
     AVRational sample_aspect_ratio;
 
