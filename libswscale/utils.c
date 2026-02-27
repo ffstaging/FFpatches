@@ -1132,6 +1132,7 @@ av_cold int ff_sws_init_single_context(SwsContext *sws, SwsFilter *srcFilter,
     int dstH              = sws->dst_h;
     int dst_stride        = FFALIGN(dstW * sizeof(int16_t) + 66, 16);
     int flags, cpu_flags;
+    int64_t tmpLumXInc, tmpLumYInc;
     enum AVPixelFormat srcFormat, dstFormat;
     const AVPixFmtDescriptor *desc_src;
     const AVPixFmtDescriptor *desc_dst;
@@ -1223,8 +1224,18 @@ av_cold int ff_sws_init_single_context(SwsContext *sws, SwsFilter *srcFilter,
     if (!srcFilter)
         srcFilter = &dummyFilter;
 
-    c->lumXInc      = (((int64_t)srcW << 16) + (dstW >> 1)) / dstW;
-    c->lumYInc      = (((int64_t)srcH << 16) + (dstH >> 1)) / dstH;
+    tmpLumXInc      = (((int64_t)srcW << 16) + (dstW >> 1)) / dstW;
+    tmpLumYInc      = (((int64_t)srcH << 16) + (dstH >> 1)) / dstH;
+
+    if (tmpLumXInc > INT_MAX || tmpLumYInc > INT_MAX) {
+        av_log(c, AV_LOG_ERROR, "%dx%d -> %dx%d makes invalid scaling increments\n",
+               srcW, srcH, dstW, dstH);
+        return AVERROR(EINVAL);
+    }
+
+    c->lumXInc      = tmpLumXInc;
+    c->lumYInc      = tmpLumYInc;
+
     c->dstFormatBpp = av_get_bits_per_pixel(desc_dst);
     c->srcFormatBpp = av_get_bits_per_pixel(desc_src);
     c->vRounder     = 4 * 0x0001000100010001ULL;
