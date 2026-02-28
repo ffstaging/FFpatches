@@ -3828,9 +3828,9 @@ void show_help_default(const char *opt, const char *arg)
            "s                   activate frame-step mode\n"
            "left/right          seek backward/forward 10 seconds or to custom interval if -seek_interval is set\n"
            "down/up             seek backward/forward 1 minute\n"
-           "page down/page up   seek backward/forward 10 minutes\n"
+           "page down/page up   seek to the previous or next chapter, or if there are no chapters, it will seek backward/forward 10 minutes\n"
            "right mouse click   seek to percentage in file corresponding to fraction of width\n"
-           "left double-click   toggle full screen\n"
+           "left mouse double-click   toggle full screen\n"
            );
 }
 
