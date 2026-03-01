@@ -89,6 +89,8 @@ av_cold void ff_huffyuvdsp_init(HuffYUVDSPContext *c, enum AVPixelFormat pix_fmt
 
 #if ARCH_RISCV
     ff_huffyuvdsp_init_riscv(c, pix_fmt);
+#elif ARCH_AARCH64
+    ff_huffyuvdsp_init_aarch64(c, pix_fmt);
 #elif ARCH_X86 && HAVE_X86ASM
     ff_huffyuvdsp_init_x86(c, pix_fmt);
 #endif
