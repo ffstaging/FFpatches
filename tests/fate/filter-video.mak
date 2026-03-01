@@ -845,6 +845,97 @@ FATE_SAMPLES_FFMPEG += $(FATE_FILTER_SAMPLES-yes)
 FATE_FFPROBE += $(FATE_FILTER_FFPROBE-yes)
 FATE_FFMPEG += $(FATE_FILTER-yes)
 
+#
+# scale_cuda filter tests (YUV<->RGB color space conversion)
+# These require a CUDA GPU and are only run when HWACCEL=cuda is set:
+#   make fate-filter-scale_cuda HWACCEL=cuda
+#
+SCALE_CUDA_DEPS = SCALE_CUDA_FILTER HWUPLOAD_CUDA_FILTER HWDOWNLOAD_FILTER \
+                  FORMAT_FILTER TESTSRC2_FILTER HWACCEL_CUDA_TESTS
+
+SCALE_CUDA_ALLYES = $(call ALLYES, $(SCALE_CUDA_DEPS))
+
+# YUV -> RGB conversion tests
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-nv12-bgra
+fate-filter-scale_cuda-nv12-bgra: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=nv12,hwupload_cuda,scale_cuda=format=bgra,hwdownload,format=bgra" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-nv12-bgra: CMP = oneline
+fate-filter-scale_cuda-nv12-bgra: REF = b42429ecd55f17a363462a1cefc091eb
+
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-yuv420p-bgra
+fate-filter-scale_cuda-yuv420p-bgra: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=yuv420p,hwupload_cuda,scale_cuda=format=bgra,hwdownload,format=bgra" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-yuv420p-bgra: CMP = oneline
+fate-filter-scale_cuda-yuv420p-bgra: REF = b42429ecd55f17a363462a1cefc091eb
+
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-p010-bgra
+fate-filter-scale_cuda-p010-bgra: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=p010,hwupload_cuda,scale_cuda=format=bgra,hwdownload,format=bgra" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-p010-bgra: CMP = oneline
+fate-filter-scale_cuda-p010-bgra: REF = 953e5995a4c063fefa9e0035cf3b47d0
+
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-yuv444p-bgra
+fate-filter-scale_cuda-yuv444p-bgra: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=yuv444p,hwupload_cuda,scale_cuda=format=bgra,hwdownload,format=bgra" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-yuv444p-bgra: CMP = oneline
+fate-filter-scale_cuda-yuv444p-bgra: REF = 371e4f6f2024c65b1d748df8004a174e
+
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-nv12-rgba
+fate-filter-scale_cuda-nv12-rgba: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=nv12,hwupload_cuda,scale_cuda=format=rgba,hwdownload,format=rgba" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-nv12-rgba: CMP = oneline
+fate-filter-scale_cuda-nv12-rgba: REF = e96deb453261a480fbbcdaf9659551fb
+
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-nv12-bgra-bt709
+fate-filter-scale_cuda-nv12-bgra-bt709: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=nv12,setparams=colorspace=bt709:range=tv,hwupload_cuda,scale_cuda=format=bgra,hwdownload,format=bgra" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-nv12-bgra-bt709: CMP = oneline
+fate-filter-scale_cuda-nv12-bgra-bt709: REF = e2879809be78787b6afbf3eb65fd9bd2
+
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-nv12-bgra-full
+fate-filter-scale_cuda-nv12-bgra-full: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=bgra,hwupload_cuda,scale_cuda=format=nv12:out_range=full,scale_cuda=format=bgra,hwdownload,format=bgra" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-nv12-bgra-full: CMP = oneline
+fate-filter-scale_cuda-nv12-bgra-full: REF = 31d661661f9e8d0b095c2bfe2eb08b80
+
+# RGB -> YUV conversion tests
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-bgra-nv12
+fate-filter-scale_cuda-bgra-nv12: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=bgra,hwupload_cuda,scale_cuda=format=nv12:out_range=limited,hwdownload,format=nv12" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-bgra-nv12: CMP = oneline
+fate-filter-scale_cuda-bgra-nv12: REF = 5c173e99a466c8f073955cfed6130cf3
+
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-bgra-yuv420p
+fate-filter-scale_cuda-bgra-yuv420p: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=bgra,hwupload_cuda,scale_cuda=format=yuv420p:out_range=limited,hwdownload,format=yuv420p" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-bgra-yuv420p: CMP = oneline
+fate-filter-scale_cuda-bgra-yuv420p: REF = 498dc518e097fff20df638116805a3c9
+
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-bgra-p010
+fate-filter-scale_cuda-bgra-p010: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=bgra,hwupload_cuda,scale_cuda=format=p010:out_range=limited,hwdownload,format=p010" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-bgra-p010: CMP = oneline
+fate-filter-scale_cuda-bgra-p010: REF = 64cae4618e8cc9c36628e6cb258e0e74
+
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-rgba-nv12
+fate-filter-scale_cuda-rgba-nv12: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=rgba,hwupload_cuda,scale_cuda=format=nv12:out_range=limited,hwdownload,format=nv12" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-rgba-nv12: CMP = oneline
+fate-filter-scale_cuda-rgba-nv12: REF = 5c173e99a466c8f073955cfed6130cf3
+
+# Roundtrip test: NV12 -> BGRA -> NV12
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-roundtrip-nv12
+fate-filter-scale_cuda-roundtrip-nv12: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=nv12,hwupload_cuda,scale_cuda=format=bgra,scale_cuda=format=nv12:out_range=limited,hwdownload,format=nv12" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-roundtrip-nv12: CMP = oneline
+fate-filter-scale_cuda-roundtrip-nv12: REF = 922566d893120bcfa80879d3a584dd80
+
+# Roundtrip test: BGRA -> YUV444P -> BGRA (lossless chroma, tighter match)
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-roundtrip-yuv444p
+fate-filter-scale_cuda-roundtrip-yuv444p: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=bgra,hwupload_cuda,scale_cuda=format=yuv444p:out_range=limited,scale_cuda=format=bgra,hwdownload,format=bgra" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-roundtrip-yuv444p: CMP = oneline
+fate-filter-scale_cuda-roundtrip-yuv444p: REF = 4ef255bc06d7f437827c228d72943471
+
+# Regression: existing YUV->YUV path should be unaffected
+FATE_SCALE_CUDA-$(SCALE_CUDA_ALLYES) += fate-filter-scale_cuda-nv12-nv12-scale
+fate-filter-scale_cuda-nv12-nv12-scale: CMD = md5 -lavfi "testsrc2=s=160x120:d=1:r=1,format=nv12,hwupload_cuda,scale_cuda=w=320:h=240:format=nv12,hwdownload,format=nv12" -frames:v 5 -f rawvideo
+fate-filter-scale_cuda-nv12-nv12-scale: CMP = oneline
+fate-filter-scale_cuda-nv12-nv12-scale: REF = d2f76fd184bf7888305866566a21b3eb
+
+# Add scale_cuda tests to FATE_HW (not included in default fate runs)
+FATE_HW-yes += $(FATE_SCALE_CUDA-yes)
+
+# Convenience target for running only scale_cuda tests
+fate-filter-scale_cuda: $(FATE_SCALE_CUDA-yes)
+
 fate-vfilter: $(FATE_FILTER-yes) $(FATE_FILTER_SAMPLES-yes) $(FATE_FILTER_VSYNTH-yes)
 
 fate-filter: fate-afilter fate-vfilter $(FATE_METADATA_FILTER-yes) $(FATE_FILTER_FFPROBE-yes)

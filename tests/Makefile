@@ -139,6 +139,16 @@ CONFIG_LARGE_TESTS:=
 !CONFIG_LARGE_TESTS:=yes
 endif
 
+# Enable CUDA hardware-accelerated tests when HWACCEL=cuda is set on
+# the make command line (e.g. make fate-filter-scale_cuda HWACCEL=cuda).
+ifeq ($(HWACCEL), cuda)
+CONFIG_HWACCEL_CUDA_TESTS:=yes
+!CONFIG_HWACCEL_CUDA_TESTS:=
+else
+CONFIG_HWACCEL_CUDA_TESTS:=
+!CONFIG_HWACCEL_CUDA_TESTS:=yes
+endif
+
 include $(SRC_PATH)/$(APITESTSDIR)/Makefile
 
 include $(SRC_PATH)/tests/fate/acodec.mak

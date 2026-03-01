@@ -34,6 +34,10 @@ typedef uint8_t* CUdeviceptr;
 #define SCALE_CUDA_PARAM_DEFAULT 999999.0f
 
 typedef struct {
+    float m[3][3];
+} CUDAScaleColorMatrix;
+
+typedef struct {
     CUtexObject src_tex[4];
     CUdeviceptr dst[4];
     int dst_width;
@@ -45,6 +49,9 @@ typedef struct {
     int src_height;
     float param;
     int mpeg_range;
+    int log2_chroma_w;
+    int log2_chroma_h;
+    CUDAScaleColorMatrix color_matrix;
 } CUDAScaleKernelParams;
 
 #endif
