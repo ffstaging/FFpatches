@@ -517,6 +517,49 @@ fate-filter-vflip: CMD = video_filter "vflip"
 FATE_FILTER_VSYNTH_PGMYUV-$(call ALLYES, SCALE_FILTER FORMAT_FILTER COLORLEVELS_FILTER) += fate-filter-colorlevels fate-filter-colorlevels-16
 fate-filter-colorlevels: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=rgb24,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
 fate-filter-colorlevels-16: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=rgb48,colorlevels,scale -pix_fmt rgb48le -flags +bitexact -sws_flags +accurate_rnd+bitexact
+FATE_FILTER_VSYNTH_PGMYUV-$(call ALLYES, SCALE_FILTER FORMAT_FILTER COLORLEVELS_FILTER) += \
+    fate-filter-colorlevels-gbrp \
+    fate-filter-colorlevels-gbrp10 \
+    fate-filter-colorlevels-gbrp16 \
+    fate-filter-colorlevels-gbrap \
+    fate-filter-colorlevels-preserve-lum \
+    fate-filter-colorlevels-preserve-max \
+    fate-filter-colorlevels-preserve-pwr \
+    fate-filter-colorlevels-autodetect \
+    fate-filter-colorlevels-autodetect-16 \
+    fate-filter-colorlevels-rgba \
+    fate-filter-colorlevels-rgba64 \
+    fate-filter-colorlevels-gbrap16 \
+    fate-filter-colorlevels-preserve-rgba \
+    fate-filter-colorlevels-preserve-rgba64 \
+    fate-filter-colorlevels-preserve-gbrap16 \
+    fate-filter-colorlevels-gbrp9 \
+    fate-filter-colorlevels-gbrp12 \
+    fate-filter-colorlevels-gbrp14 \
+    fate-filter-colorlevels-preserve-gbrp9 \
+    fate-filter-colorlevels-preserve-gbrp12 \
+    fate-filter-colorlevels-preserve-gbrp14
+fate-filter-colorlevels-gbrp: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-gbrp10: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp10,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-gbrp16: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp16,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-gbrap: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrap,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-preserve-lum: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp,colorlevels=preserve=lum -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-preserve-max: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp10,colorlevels=preserve=max -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-preserve-pwr: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp16,colorlevels=preserve=pwr -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-autodetect: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=rgb24,colorlevels=rimin=-1:rimax=-1:gimin=-1:gimax=-1:bimin=-1:bimax=-1 -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-autodetect-16: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=rgb48,colorlevels=rimin=-1:rimax=-1:gimin=-1:gimax=-1:bimin=-1:bimax=-1 -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-rgba: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=rgba,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-rgba64: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=rgba64,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-gbrap16: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrap16,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-preserve-rgba: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=rgba,colorlevels=preserve=lum -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-preserve-rgba64: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=rgba64,colorlevels=preserve=lum -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-preserve-gbrap16: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrap16,colorlevels=preserve=lum -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-gbrp9: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp9,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-gbrp12: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp12,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-gbrp14: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp14,colorlevels -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-preserve-gbrp9: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp9,colorlevels=preserve=lum -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-preserve-gbrp12: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp12,colorlevels=preserve=lum -flags +bitexact -sws_flags +accurate_rnd+bitexact
+fate-filter-colorlevels-preserve-gbrp14: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=gbrp14,colorlevels=preserve=lum -flags +bitexact -sws_flags +accurate_rnd+bitexact
 
 FATE_FILTER_VSYNTH_PGMYUV-$(call ALLYES, SCALE_FILTER FORMAT_FILTER COLORBALANCE_FILTER) += fate-filter-colorbalance fate-filter-colorbalance-gbrap fate-filter-colorbalance-rgba64 fate-filter-colorbalance-gbrap-16
 fate-filter-colorbalance: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf scale,format=rgb24,colorbalance=rs=.2 -flags +bitexact -sws_flags +accurate_rnd+bitexact -frames:v 3

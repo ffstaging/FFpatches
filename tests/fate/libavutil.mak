@@ -136,6 +136,10 @@ FATE_LIBAVUTIL += fate-random_seed
 fate-random_seed: libavutil/tests/random_seed$(EXESUF)
 fate-random_seed: CMD = run libavutil/tests/random_seed$(EXESUF)
 
+FATE_LIBAVUTIL += fate-stereo3d
+fate-stereo3d: libavutil/tests/stereo3d$(EXESUF)
+fate-stereo3d: CMD = run libavutil/tests/stereo3d$(EXESUF)
+
 FATE_LIBAVUTIL += fate-ripemd
 fate-ripemd: libavutil/tests/ripemd$(EXESUF)
 fate-ripemd: CMD = run libavutil/tests/ripemd$(EXESUF)
