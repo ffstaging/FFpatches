@@ -82,10 +82,8 @@ static av_cold void h264_pred_init_neon(H264PredContext *h, int codec_id,
 {
     if (bit_depth == 8) {
         if (chroma_format_idc <= 1) {
-#if ENABLE_INEFFICIENT_ASM
             h->pred8x8[VERT_PRED8x8     ] = ff_pred8x8_vert_neon;
             h->pred8x8[HOR_PRED8x8      ] = ff_pred8x8_hor_neon;
-#endif
             if (codec_id != AV_CODEC_ID_VP7 && codec_id != AV_CODEC_ID_VP8)
                 h->pred8x8[PLANE_PRED8x8] = ff_pred8x8_plane_neon;
 #if ENABLE_INEFFICIENT_ASM

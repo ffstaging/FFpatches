@@ -173,11 +173,22 @@ endconst
 
 function ff_pred8x8_hor_neon, export=1
         sub             x2,  x0,  #1
-        mov             w3,  #8
-1:      ld1r            {v0.8b},  [x2], x1
-        subs            w3,  w3,  #1
+        ld1r            {v0.8b},  [x2], x1
         st1             {v0.8b},  [x0], x1
-        b.ne            1b
+        ld1r            {v0.8b},  [x2], x1
+        st1             {v0.8b},  [x0], x1
+        ld1r            {v0.8b},  [x2], x1
+        st1             {v0.8b},  [x0], x1
+        ld1r            {v0.8b},  [x2], x1
+        st1             {v0.8b},  [x0], x1
+        ld1r            {v0.8b},  [x2], x1
+        st1             {v0.8b},  [x0], x1
+        ld1r            {v0.8b},  [x2], x1
+        st1             {v0.8b},  [x0], x1
+        ld1r            {v0.8b},  [x2], x1
+        st1             {v0.8b},  [x0], x1
+        ld1r            {v0.8b},  [x2], x1
+        st1             {v0.8b},  [x0], x1
         ret
 endfunc
 
@@ -185,11 +196,14 @@ function ff_pred8x8_vert_neon, export=1
         sub             x2,  x0,  x1
         lsl             x1,  x1,  #1
         ld1             {v0.8b},  [x2], x1
-        mov             w3,  #4
-1:      subs            w3,  w3,  #1
         st1             {v0.8b},  [x0], x1
         st1             {v0.8b},  [x2], x1
-        b.ne            1b
+        st1             {v0.8b},  [x0], x1
+        st1             {v0.8b},  [x2], x1
+        st1             {v0.8b},  [x0], x1
+        st1             {v0.8b},  [x2], x1
+        st1             {v0.8b},  [x0], x1
+        st1             {v0.8b},  [x2], x1
         ret
 endfunc
 
