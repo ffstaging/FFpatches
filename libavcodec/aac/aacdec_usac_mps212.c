@@ -70,6 +70,9 @@ static int huff_data_1d(GetBitContext *gb, int16_t *data, int data_bands,
         if (data_bands == 1)
             hcod1D = ff_aac_hcod1D_IPD[!diff_freq];
         break;
+    default:
+        av_assert1(0); /* unreachable */
+        break;
     }
 
     if (p0_flag)
@@ -143,6 +146,8 @@ static void pcm_decode(GetBitContext *gb, int16_t *data0, int16_t *data1,
         return;
     };
 
+    av_assert1(data0 || data1);
+
     int pcm_chunk_size[7] = { 0 };
 
     int tmp = 1;
@@ -209,6 +214,9 @@ static void huff_data_2d(GetBitContext *gb, int16_t *part0_data[2], int16_t (*da
         case 5: hcod2D = ff_aac_hcod2D_IPD_05[freq_pair][diff_freq]; break;
         case 7: hcod2D = ff_aac_hcod2D_IPD_07[freq_pair][diff_freq]; break;
         }
+        break;
+    default:
+        av_assert1(0); /* unreachable */
         break;
     }
 
@@ -785,7 +793,7 @@ int ff_aac_map_index_data(AACMPSLosslessData *ld,
     if (nb_param_sets > MPS_MAX_PARAM_SETS)
         return AVERROR(EINVAL);
 
-    int data_mode_3_idx[MPS_MAX_PARAM_SETS];
+    int data_mode_3_idx[MPS_MAX_PARAM_SETS] = { 0 };
     int nb_data_mode_3 = 0;
     for (int i = 0; i < nb_param_sets; i++) {
         if (ld->data_mode[i] == 3) {
@@ -798,7 +806,7 @@ int ff_aac_map_index_data(AACMPSLosslessData *ld,
 
     /* Prepare data */
     int interpolate[MPS_MAX_PARAM_SETS] = { 0 };
-    int16_t tmp_idx_data[MPS_MAX_PARAM_SETS][MPS_MAX_PARAM_BANDS];
+    int16_t tmp_idx_data[MPS_MAX_PARAM_SETS][MPS_MAX_PARAM_BANDS] = { 0 };
     for (int i = 0; i < nb_param_sets; i++) {
         if (ld->data_mode[i] == 0) {
             ld->coarse_quant_no[i] = 0;
