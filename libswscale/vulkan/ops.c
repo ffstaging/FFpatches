@@ -157,7 +157,28 @@ static void free_fn(void *priv)
     av_free(priv);
 }
 
-#if CONFIG_LIBSHADERC || CONFIG_LIBGLSLANG
+#if CONFIG_UNSTABLE && (CONFIG_LIBSHADERC || CONFIG_LIBGLSLANG)
+
+#define QSTR "(%i/%i%s)"
+#define QTYPE(i) op->c.q4[i].num, op->c.q4[i].den,       \
+                 cur_type == SWS_PIXEL_F32 ? ".0f" : ""
+
+#define QMATSTR "(%i/%i.0f), (%i/%i.0f), (%i/%i.0f), (%i/%i.0f)\n" \
+            "    (%i/%i.0f), (%i/%i.0f), (%i/%i.0f), (%i/%i.0f)\n" \
+            "    (%i/%i.0f), (%i/%i.0f), (%i/%i.0f), (%i/%i.0f)\n" \
+            "    (%i/%i.0f), (%i/%i.0f), (%i/%i.0f), (%i/%i.0f)"
+#define QMATTYPE op->lin.m[0][0].num, op->lin.m[0][0].den, op->lin.m[0][1].num, \
+                 op->lin.m[0][1].den, op->lin.m[0][2].num, op->lin.m[0][2].den, \
+                 op->lin.m[0][3].num, op->lin.m[0][3].den, op->lin.m[1][0].num, \
+                 op->lin.m[1][0].den, op->lin.m[1][1].num, op->lin.m[1][1].den, \
+                 op->lin.m[1][2].num, op->lin.m[1][2].den, op->lin.m[1][3].num, \
+                 op->lin.m[1][3].den, op->lin.m[2][0].num, op->lin.m[2][0].den, \
+                 op->lin.m[2][1].num, op->lin.m[2][1].den, op->lin.m[2][2].num, \
+                 op->lin.m[2][2].den, op->lin.m[2][3].num, op->lin.m[2][3].den, \
+                 op->lin.m[3][0].num, op->lin.m[3][0].den, op->lin.m[3][1].num, \
+                 op->lin.m[3][1].den, op->lin.m[3][2].num, op->lin.m[3][2].den, \
+                 op->lin.m[3][3].num, op->lin.m[3][3].den
+
 static int add_ops_glsl(VulkanPriv *p, FFVulkanOpsCtx *s,
                         SwsOpList *ops, FFVulkanShader *shd)
 {
@@ -225,15 +246,17 @@ static int add_ops_glsl(VulkanPriv *p, FFVulkanOpsCtx *s,
     GLSLC(1,     f32vec4 f32;                                                 );
     GLSLC(0,                                                                  );
 
-    const char *type_name = ff_sws_pixel_type_name(ops->ops[0].type);
     for (int n = 0; n < ops->num_ops; n++) {
         const SwsOp *op = &ops->ops[n];
-        const char *type_v = op->type == SWS_PIXEL_F32 ? "f32vec4" :
-                             op->type == SWS_PIXEL_U32 ? "u32vec4" :
-                             op->type == SWS_PIXEL_U16 ? "u16vec4" : "u8vec4";
-        const char *type_s = op->type == SWS_PIXEL_F32 ? "float" :
-                             op->type == SWS_PIXEL_U32 ? "uint32_t" :
-                             op->type == SWS_PIXEL_U16 ? "uint16_t" : "uint8_t";
+        SwsPixelType cur_type = op->op == SWS_OP_CONVERT ? op->convert.to :
+                                op->type;
+        const char *type_name = ff_sws_pixel_type_name(cur_type);
+        const char *type_v = cur_type == SWS_PIXEL_F32 ? "f32vec4" :
+                             cur_type == SWS_PIXEL_U32 ? "u32vec4" :
+                             cur_type == SWS_PIXEL_U16 ? "u16vec4" : "u8vec4";
+        const char *type_s = cur_type == SWS_PIXEL_F32 ? "float" :
+                             cur_type == SWS_PIXEL_U32 ? "uint32_t" :
+                             cur_type == SWS_PIXEL_U16 ? "uint16_t" : "uint8_t";
         switch (op->op) {
         case SWS_OP_READ: {
             if (op->rw.packed) {
@@ -268,12 +291,58 @@ static int add_ops_glsl(VulkanPriv *p, FFVulkanOpsCtx *s,
             for (int i = 0; i < 4; i++) {
                 if (!op->c.q4[i].den)
                     continue;
-                av_bprintf(&shd->src, "    %s.%c = %s(%i/%i%s);\n", type_name,
-                           "xyzw"[i], type_s, op->c.q4[i].num, op->c.q4[i].den,
-                           op->type == SWS_PIXEL_F32 ? ".0f" : "");
+                av_bprintf(&shd->src, "    %s.%c = %s"QSTR";\n", type_name,
+                           "xyzw"[i], type_s, QTYPE(i));
             }
             break;
         }
+        case SWS_OP_SCALE:
+            for (int i = 0; i < 4; i++) {
+                if (!op->c.q4[i].den)
+                    continue;
+                av_bprintf(&shd->src, "    %s.%c = %s((%s.%c*%i)/%i%s);\n",
+                           type_name, "xyzw"[i], type_s,
+                           type_name, "xyzw"[i], QTYPE(i));
+            }
+            break;
+        case SWS_OP_MIN:
+            for (int i = 0; i < 4; i++) {
+                if (!op->c.q4[i].den)
+                    continue;
+                av_bprintf(&shd->src, "    %s.%c = min(%s.%c, "QSTR");\n",
+                           type_name, "xyzw"[i],
+                           type_name, "xyzw"[i],
+                           op->c.q4[i].num, op->c.q4[i].den,
+                           cur_type == SWS_PIXEL_F32 ? ".0f" : "");
+            }
+            break;
+        case SWS_OP_MAX:
+            for (int i = 0; i < 4; i++) {
+                if (!op->c.q4[i].den)
+                    continue;
+                av_bprintf(&shd->src, "    %s.%c = max(%s.%c, "QSTR");\n",
+                           type_name, "xyzw"[i],
+                           type_name, "xyzw"[i],
+                           op->c.q4[i].num, op->c.q4[i].den,
+                           cur_type == SWS_PIXEL_F32 ? ".0f" : "");
+            }
+            break;
+        case SWS_OP_LSHIFT:
+            av_bprintf(&shd->src, "    %s <<= %i;\n", type_name, op->c.u);
+            break;
+        case SWS_OP_RSHIFT:
+            av_bprintf(&shd->src, "    %s >>= %i;\n", type_name, op->c.u);
+            break;
+        case SWS_OP_LINEAR:
+            av_bprintf(&shd->src, "    %s = %s*mat4("QMATSTR") +  + (%i/%i.0f));",
+                       type_name, type_name, QMATTYPE,
+                       op->lin.m[3][4].num, op->lin.m[3][4].den);
+            break;
+        case SWS_OP_CONVERT:
+            av_bprintf(&shd->src, "    %s = %s(%s);\n",
+                       ff_sws_pixel_type_name(op->type),
+                       type_s, type_name);
+            break;
         default:
             return AVERROR(ENOTSUP);
         }
@@ -311,7 +380,7 @@ static int compile(SwsContext *sws, SwsOpList *ops, SwsCompiledOp *out)
         .s = s,
     };
 
-#if CONFIG_LIBSHADERC || CONFIG_LIBGLSLANG
+#if CONFIG_UNSTABLE && (CONFIG_LIBSHADERC || CONFIG_LIBGLSLANG)
     {
         err = add_ops_glsl(&p, s, ops, &p.shd);
         if (err < 0)
