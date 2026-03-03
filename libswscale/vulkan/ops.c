@@ -157,7 +157,8 @@ static void free_fn(void *priv)
     av_free(priv);
 }
 
-#if CONFIG_LIBSHADERC || CONFIG_LIBGLSLANG
+#if CONFIG_UNSTABLE && (CONFIG_LIBSHADERC || CONFIG_LIBGLSLANG)
+
 static int add_ops_glsl(VulkanPriv *p, FFVulkanOpsCtx *s,
                         SwsOpList *ops, FFVulkanShader *shd)
 {
@@ -311,7 +312,7 @@ static int compile(SwsContext *sws, SwsOpList *ops, SwsCompiledOp *out)
         .s = s,
     };
 
-#if CONFIG_LIBSHADERC || CONFIG_LIBGLSLANG
+#if CONFIG_UNSTABLE && (CONFIG_LIBSHADERC || CONFIG_LIBGLSLANG)
     {
         err = add_ops_glsl(&p, s, ops, &p.shd);
         if (err < 0)
