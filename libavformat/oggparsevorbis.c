@@ -454,6 +454,7 @@ static int vorbis_packet(AVFormatContext *s, int idx)
     struct oggvorbis_private *priv = os->private;
     int duration, flags = 0;
     int skip_packet = 0;
+    int first_page;
     int ret, new_extradata_size;
     PutByteContext pb;
 
@@ -464,7 +465,8 @@ static int vorbis_packet(AVFormatContext *s, int idx)
      * here we parse the duration of each packet in the first page and compare
      * the total duration to the page granule to find the encoder delay and
      * set the first timestamp */
-    if ((!os->lastpts || os->lastpts == AV_NOPTS_VALUE) && !(os->flags & OGG_FLAG_EOS) && (int64_t)os->granule>=0) {
+    first_page = !os->lastpts || os->lastpts == AV_NOPTS_VALUE;
+    if (first_page && !(os->flags & OGG_FLAG_EOS) && (int64_t)os->granule>=0) {
         int seg, d;
         uint8_t *last_pkt  = os->buf + os->pstart;
         uint8_t *next_pkt  = last_pkt;
@@ -563,6 +565,10 @@ static int vorbis_packet(AVFormatContext *s, int idx)
         }
 
         os->pduration = duration;
+        /* First frame only primes the decoder; no samples are output.
+         * Use zero duration for the container so trimming is correct. */
+        if (first_page && os->segp == 1)
+            os->pduration = 0;
     }
 
     /* final packet handling
