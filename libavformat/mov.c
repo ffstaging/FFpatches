@@ -9204,9 +9204,10 @@ static int mov_read_iref_dimg(MOVContext *c, AVIOContext *pb, int version)
         return AVERROR(ENOMEM);
     c->heif_grid = grid;
     grid = &grid[c->nb_heif_grid++];
+    memset(grid, 0, sizeof(*grid));
 
     entries = avio_rb16(pb);
-    grid->tile_id_list = av_malloc_array(entries, sizeof(*grid->tile_id_list));
+    grid->tile_id_list = av_calloc(entries, sizeof(*grid->tile_id_list));
     grid->tile_idx_list = av_calloc(entries, sizeof(*grid->tile_idx_list));
     grid->tile_item_list = av_calloc(entries, sizeof(*grid->tile_item_list));
     if (!grid->tile_id_list || !grid->tile_item_list || !grid->tile_idx_list)
@@ -9288,7 +9289,9 @@ static int mov_read_iref(MOVContext *c, AVIOContext *pb, MOVAtom atom)
         type = avio_rl32(pb);
         switch (type) {
         case MKTAG('d','i','m','g'):
-            mov_read_iref_dimg(c, pb, version);
+           ;int ret = mov_read_iref_dimg(c, pb, version);
+            if (ret < 0)
+                return ret;
             break;
         case MKTAG('c','d','s','c'):
         case MKTAG('t','h','m','b'):
