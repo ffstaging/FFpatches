@@ -72,6 +72,8 @@ typedef union {
 #   include "ppc/intreadwrite.h"
 #elif ARCH_X86
 #   include "x86/intreadwrite.h"
+#elif ARCH_RISCV
+#   include "riscv/intreadwrite.h"
 #endif
 
 #endif /* HAVE_AV_CONFIG_H */
