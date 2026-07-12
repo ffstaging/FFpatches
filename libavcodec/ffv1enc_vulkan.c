@@ -945,7 +945,7 @@ static int init_rct_search_shader(AVCodecContext *avctx, VkSpecializationInfo *s
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1);
 
     const FFVulkanDescriptorSetBinding desc_set[] = {
         { /* slice_data_buf */
@@ -958,7 +958,7 @@ static int init_rct_search_shader(AVCodecContext *avctx, VkSpecializationInfo *s
             .elems  = av_pix_fmt_count_planes(fv->s.frames->sw_format),
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 2, 0, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 2, 0);
 
     RET(ff_vk_shader_link(&fv->s, shd,
                           ff_ffv1_enc_rct_search_comp_spv_data,
@@ -989,7 +989,7 @@ static int init_sort32_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1);
 
     const FFVulkanDescriptorSetBinding desc_set[] = {
         { /* slice_data_buf */
@@ -1006,7 +1006,7 @@ static int init_sort32_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 3, 0, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 3, 0);
 
     RET(ff_vk_shader_link(&fv->s, shd,
                           ff_ffv1_enc_sort32_comp_spv_data,
@@ -1036,7 +1036,7 @@ static int init_remap_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1);
 
     const FFVulkanDescriptorSetBinding desc_set[] = {
         { /* slice_data_buf */
@@ -1053,7 +1053,7 @@ static int init_remap_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 3, 0, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 3, 0);
 
     RET(ff_vk_shader_link(&fv->s, shd,
                           ff_ffv1_enc_remap_comp_spv_data,
@@ -1083,7 +1083,7 @@ static int init_setup_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1);
 
     const FFVulkanDescriptorSetBinding desc_set[] = {
         { /* slice_data_buf */
@@ -1095,7 +1095,7 @@ static int init_setup_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 2, 0, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 2, 0);
 
     RET(ff_vk_shader_link(&fv->s, shd,
                           ff_ffv1_enc_setup_comp_spv_data,
@@ -1127,7 +1127,7 @@ static int init_reset_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 1, 1);
 
     const FFVulkanDescriptorSetBinding desc_set[] = {
         { /* slice_data_buf */
@@ -1139,7 +1139,7 @@ static int init_reset_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 2, 0, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set, 2, 0);
 
     if (fv->ctx.ac == AC_GOLOMB_RICE)
         RET(ff_vk_shader_link(&fv->s, shd,
@@ -1184,7 +1184,7 @@ static int init_encode_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
             .stages = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 3, 1, 0);
+    ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set_const, 3, 1);
 
     const FFVulkanDescriptorSetBinding desc_set[] = {
         { /* slice_data_buf */
@@ -1214,7 +1214,7 @@ static int init_encode_shader(AVCodecContext *avctx, VkSpecializationInfo *sl)
         },
     };
     ff_vk_shader_add_descriptor_set(&fv->s, shd, desc_set,
-                                    4 + fv->is_rgb + !!f->remap_mode, 0, 0);
+                                    4 + fv->is_rgb + !!f->remap_mode, 0);
 
     if (f->bayer) {
         if (fv->ctx.ac == AC_GOLOMB_RICE)
